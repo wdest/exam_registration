@@ -5,103 +5,101 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-// Adları "İlk hərf böyük, qalan kiçik" edir (AZ/TR/EN hərflərini də saxlayır)
-function toTitleCase(s = "") {
-  return s
-    .trim()
-    .replace(/\s+/g, " ")
+// İlk hərfi böyük edən funksiya
+function formatName(text) {
+  return text
+    .toLowerCase()
     .split(" ")
-    .filter(Boolean)
-    .map(w => w.charAt(0).toLocaleUpperCase("az") + w.slice(1).toLocaleLowerCase("az"))
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
 }
 
-// 8 rəqəm random ID
-function random8() {
-  return String(Math.floor(10000000 + Math.random() * 90000000));
-}
-
-async function generateUniqueId() {
-  // çox nadir halda toqquşma olar, buna görə yoxlayıb təkrar edirik
-  for (let i = 0; i < 10; i++) {
-    const id = random8();
-    const { data } = await supabase
-      .from("students")
-      .select("id")
-      .eq("unique_id", id)
-      .maybeSingle();
-
-    if (!data) return id;
-  }
-  throw new Error("Unique ID yaradıla bilmədi");
+// 8 rəqəmli RANDOM ID
+function generateRandomId() {
+  return Math.floor(10000000 + Math.random() * 90000000).toString();
 }
 
 export async function POST(req) {
   try {
     const body = await req.json();
 
-    const firstName = toTitleCase(body.firstName);
-    const lastName = toTitleCase(body.lastName);
-    const fatherName = toTitleCase(body.fatherName);     // Ata adı
-    const parentName = toTitleCase(body.parentName);
+    const {
+      firstName,
+      lastName,
+      fatherName,
+      phone1,
+      phone2,
+      className,
+    } = body;
 
-    const phone1 = (body.phone1 || "").trim();           // +994xx1234567 kimi göndər
-    const phone2 = (body.phone2 || "").trim();           // boş ola bilər
-    const className = (body.className || "").trim();
-
-    // minimal yoxlamalar
-    if (!firstName || !lastName || !fatherName || !parentName || !phone1 || !className) {
-      return Response.json({ error: "Missing fields" }, { status: 400 });
+    // 🔴 Phone2 məcburidir və fərqli olmalıdır
+    if (!phone2 || phone1 === phone2) {
+      return Response.json(
+        { error: "İkinci telefon fərqli və məcburidir" },
+        { status: 400 }
+      );
     }
 
-    // ✅ DUPLICATE CHECK: eyni data varsa, əvvəlki ID-ni qaytar
-    const { data: existing, error: findErr } = await supabase
+    const fName = formatName(firstName);
+    const lName = formatName(lastName);
+    const faName = formatName(fatherName);
+
+    // 🔍 TƏKRAR YOXLA
+    const { data: existing } = await supabase
       .from("students")
       .select("unique_id")
-      .eq("first_name", firstName)
-      .eq("last_name", lastName)
-      .eq("father_name", fatherName)
-      .eq("parent_name", parentName)
+      .eq("first_name", fName)
+      .eq("last_name", lName)
       .eq("phone1", phone1)
-      .eq("class", className)
+      .eq("phone2", phone2)
       .maybeSingle();
 
-    if (findErr) {
-      return Response.json({ error: "DB error" }, { status: 500 });
-    }
-
-    if (existing?.unique_id) {
+    // Əgər artıq varsa → köhnə ID-ni qaytar
+    if (existing) {
       return Response.json({
-        status: "already",
-        uniqueId: existing.unique_id
+        uniqueId: existing.unique_id,
+        message: "Siz artıq qeydiyyatdan keçmisiniz",
       });
     }
 
-    // ✅ yeni qeydiyyat
-    const uniqueId = await generateUniqueId();
+    // 🆔 Random ID (təkrar düşməsin deyə loop)
+    let uniqueId;
+    let exists = true;
 
-    const { error: insertErr } = await supabase
-      .from("students")
-      .insert([{
+    while (exists) {
+      uniqueId = generateRandomId();
+      const { data } = await supabase
+        .from("students")
+        .select("id")
+        .eq("unique_id", uniqueId)
+        .maybeSingle();
+
+      if (!data) exists = false;
+    }
+
+    // 📝 INSERT
+    const { error } = await supabase.from("students").insert([
+      {
         unique_id: uniqueId,
-        first_name: firstName,
-        last_name: lastName,
-        father_name: fatherName,
-        parent_name: parentName,
+        first_name: fName,
+        last_name: lName,
+        father_name: faName,
         phone1,
         phone2,
-        class: className
-      }]);
+        class: className,
+      },
+    ]);
 
-    if (insertErr) {
-      return Response.json({ error: "Insert failed" }, { status: 500 });
+    if (error) {
+      return Response.json({ error: "Database error" }, { status: 500 });
     }
 
     return Response.json({
-      status: "created",
-      uniqueId
+      uniqueId,
+      message: "Qeydiyyat uğurla tamamlandı",
     });
-  } catch (e) {
+
+  } catch (err) {
     return Response.json({ error: "Server error" }, { status: 500 });
   }
 }
