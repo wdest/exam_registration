@@ -5,36 +5,31 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
+function formatName(str) {
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function randomId() {
+  return Math.floor(10000000 + Math.random() * 90000000).toString();
+}
+
 export async function POST(req) {
-  const body = await req.json();
+  const b = await req.json();
 
-  const { firstName, lastName, parentName, phone1, phone2, className } = body;
+  const { error } = await supabase.from("students").insert([{
+    unique_id: randomId(),
+    first_name: formatName(b.firstName),
+    last_name: formatName(b.lastName),
+    parent_name: formatName(b.fatherName),
+    phone1: b.phone,
+    class: b.className,
+  }]);
 
-  const { data, error } = await supabase
-    .from("students")
-    .insert([
-      {
-        first_name: firstName,
-        last_name: lastName,
-        parent_name: parentName,
-        phone1,
-        phone2,
-        class: className,
-      },
-    ])
-    .select()
-    .single();
+  if (error) return new Response("Error", { status: 500 });
 
-  if (error) {
-    return new Response("Error", { status: 500 });
-  }
-
-  const uniqueId = String(data.id).padStart(8, "0");
-
-  await supabase
-    .from("students")
-    .update({ unique_id: uniqueId })
-    .eq("id", data.id);
-
-  return Response.json({ uniqueId });
+  return Response.json({ uniqueId: randomId() });
 }
