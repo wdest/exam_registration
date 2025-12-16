@@ -5,7 +5,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
 
   function onlyLetters(e: any) {
-    e.target.value = e.target.value.replace(/[^a-zA-ZəƏğĞıİöÖşŞüÜçÇ\s]/g, "");
+    e.target.value = e.target.value
+      .replace(/[^a-zA-ZəƏğĞıİöÖşŞüÜçÇ\s]/g, "")
+      .toLowerCase()
+      .replace(/(^|\s)\S/g, (l: string) => l.toUpperCase());
   }
 
   function onlyNumbers(e: any) {
@@ -17,10 +20,13 @@ export default function Home() {
     if (loading) return;
     setLoading(true);
 
-    // burda backend çağırışın olacaq (indilik dizayn üçündür)
+    // BURADA BACKEND YOXLAMASI OLACAQ:
+    // eyni data varsa → köhnə ID qaytar
+    // yoxdursa → yeni ID
+
     setTimeout(() => {
       setLoading(false);
-      alert("Qeydiyyat alındı");
+      alert("Siz artıq keçmisiniz");
     }, 1200);
   }
 
@@ -28,35 +34,19 @@ export default function Home() {
     <div style={styles.page}>
       <div style={styles.card}>
         <h1 style={styles.title}>İmtahan Qeydiyyatı</h1>
+        <p style={styles.centerName}>MAIN OLYMPIC CENTER</p>
 
         <form onSubmit={submitForm}>
-          <input
-            placeholder="Ad"
-            onInput={onlyLetters}
-            required
-            style={styles.input}
-          />
+          <input placeholder="Ad" onInput={onlyLetters} required style={styles.input} />
+          <input placeholder="Soyad" onInput={onlyLetters} required style={styles.input} />
+          <input placeholder="Ata adı" onInput={onlyLetters} required style={styles.input} />
 
-          <input
-            placeholder="Soyad"
-            onInput={onlyLetters}
-            required
-            style={styles.input}
-          />
-
-          <input
-            placeholder="Ata adı"
-            onInput={onlyLetters}
-            required
-            style={styles.input}
-          />
-
-          {/* TELEFON */}
+          {/* TELEFON 1 */}
           <div style={styles.phoneRow}>
             <input value="+994" disabled style={styles.prefix} />
 
             <select required style={styles.operator}>
-              <option value="">Op</option>
+              <option value="">Operator</option>
               <option value="50">50</option>
               <option value="51">51</option>
               <option value="55">55</option>
@@ -74,6 +64,17 @@ export default function Home() {
             />
           </div>
 
+          {/* TELEFON 2 */}
+          <div style={styles.phoneRow}>
+            <input value="+994" disabled style={styles.prefix} />
+            <input
+              placeholder="İkinci telefon (istəyə bağlı)"
+              onInput={onlyNumbers}
+              maxLength={10}
+              style={styles.number}
+            />
+          </div>
+
           <select required style={styles.input}>
             <option value="">Sinif seçin</option>
             <option>5-ci sinif</option>
@@ -84,10 +85,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={loading}
-            style={{
-              ...styles.button,
-              opacity: loading ? 0.7 : 1,
-            }}
+            style={{ ...styles.button, opacity: loading ? 0.7 : 1 }}
           >
             {loading ? "Gözləyin..." : "Yadda saxla"}
           </button>
@@ -106,7 +104,6 @@ const styles: any = {
     alignItems: "center",
     fontFamily: "Inter, Arial",
   },
-
   card: {
     background: "#fff",
     padding: "32px",
@@ -115,13 +112,18 @@ const styles: any = {
     maxWidth: "380px",
     boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
   },
-
   title: {
     textAlign: "center",
-    marginBottom: "24px",
     fontSize: "22px",
+    marginBottom: "6px",
   },
-
+  centerName: {
+    textAlign: "center",
+    color: "#f59e0b",
+    fontWeight: "700",
+    marginBottom: "20px",
+    letterSpacing: "0.5px",
+  },
   input: {
     width: "100%",
     padding: "12px",
@@ -130,13 +132,11 @@ const styles: any = {
     border: "1px solid #cbd5e1",
     fontSize: "15px",
   },
-
   phoneRow: {
     display: "flex",
     gap: "8px",
     marginBottom: "14px",
   },
-
   prefix: {
     width: "60px",
     textAlign: "center",
@@ -144,13 +144,11 @@ const styles: any = {
     border: "1px solid #cbd5e1",
     background: "#f1f5f9",
   },
-
   operator: {
-    width: "70px",
+    width: "100px",
     borderRadius: "8px",
     border: "1px solid #cbd5e1",
   },
-
   number: {
     flex: 1,
     padding: "12px",
@@ -158,7 +156,6 @@ const styles: any = {
     border: "1px solid #cbd5e1",
     fontSize: "15px",
   },
-
   button: {
     width: "100%",
     padding: "14px",
