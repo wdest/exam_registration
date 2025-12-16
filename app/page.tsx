@@ -3,10 +3,34 @@ import { useState } from "react";
 
 export default function Home() {
   const [done, setDone] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
 
   async function submitForm(e: any) {
-    e.preventDefault();
-    const form = e.target;
+  e.preventDefault();
+  if (loading) return; // ikinci dəfə basmağı blokla
+
+  setLoading(true);
+
+  const form = e.target;
+
+  const res = await fetch("/api/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      firstName: form[0].value,
+      lastName: form[1].value,
+      parentName: form[2].value,
+      phone1: form[3].value,
+      phone2: form[4].value,
+      className: form[5].value,
+    }),
+  });
+
+  const data = await res.json();
+  setDone(data.uniqueId);
+}
+
 
     const res = await fetch("/api/register", {
       method: "POST",
