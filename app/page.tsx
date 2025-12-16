@@ -2,18 +2,36 @@
 import { useState } from "react";
 
 export default function Home() {
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
 
-  function submitForm(e) {
+  async function submitForm(e: any) {
     e.preventDefault();
-    setDone(true);
+
+    const form = e.target;
+
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        firstName: form[0].value,
+        lastName: form[1].value,
+        parentName: form[2].value,
+        phone1: form[3].value,
+        phone2: form[4].value,
+        className: form[5].value,
+      }),
+    });
+
+    const data = await res.json();
+    setDone(data.uniqueId);
   }
 
   if (done) {
     return (
       <main style={{ padding: "40px", fontFamily: "Arial" }}>
-        <h1>Qeydiyyat alındı ✅</h1>
-        <p>Yaxın zamanda sizinlə əlaqə saxlanılacaq.</p>
+        <h1>Qeydiyyat tamamlandı ✅</h1>
+        <p>Şagird ID-niz:</p>
+        <h2>{done}</h2>
       </main>
     );
   }
@@ -24,28 +42,29 @@ export default function Home() {
 
       <form onSubmit={submitForm} style={{ maxWidth: "400px" }}>
         <label>Ad</label><br />
-        <input required type="text" style={{ width: "100%", marginBottom: "10px" }} />
+        <input required />
 
         <label>Soyad</label><br />
-        <input required type="text" style={{ width: "100%", marginBottom: "10px" }} />
+        <input required />
 
         <label>Valideyn adı</label><br />
-        <input required type="text" style={{ width: "100%", marginBottom: "10px" }} />
+        <input required />
 
         <label>Telefon 1</label><br />
-        <input required type="text" style={{ width: "100%", marginBottom: "10px" }} />
+        <input required />
 
         <label>Telefon 2</label><br />
-        <input type="text" style={{ width: "100%", marginBottom: "10px" }} />
+        <input />
 
         <label>Sinif</label><br />
-        <select required style={{ width: "100%", marginBottom: "20px" }}>
+        <select required>
           <option value="">Sinif seçin</option>
           <option>5-ci sinif</option>
           <option>6-cı sinif</option>
           <option>7-ci sinif</option>
         </select>
 
+        <br /><br />
         <button type="submit">Qeydiyyatdan keç</button>
       </form>
     </main>
