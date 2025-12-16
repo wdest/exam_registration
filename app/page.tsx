@@ -22,7 +22,6 @@ export default function Home() {
     setLoading(true);
     setError("");
 
-    // backend çağırışı burda olacaq
     setTimeout(() => {
       setLoading(false);
       alert("Yadda saxlanıldı");
@@ -38,73 +37,56 @@ export default function Home() {
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={submitForm}>
-          <input
-            placeholder="Ad"
-            required
-            onInput={onlyLetters}
-            style={styles.input}
-          />
-
-          <input
-            placeholder="Soyad"
-            required
-            onInput={onlyLetters}
-            style={styles.input}
-          />
-
-          <input
-            placeholder="Ata adı"
-            required
-            onInput={onlyLetters}
-            style={styles.input}
-          />
+          <input placeholder="Ad" required onInput={onlyLetters} style={styles.input} />
+          <input placeholder="Soyad" required onInput={onlyLetters} style={styles.input} />
+          <input placeholder="Ata adı" required onInput={onlyLetters} style={styles.input} />
 
           {/* TELEFON 1 */}
           <label style={styles.label}>Telefon 1</label>
-          <div style={styles.phoneRow}>
-            <input value="+994" disabled style={styles.prefix} />
-
-            <select required style={styles.operator}>
-              <option value="">Operator</option>
-              <option>50</option>
-              <option>51</option>
-              <option>55</option>
-              <option>70</option>
-              <option>77</option>
-              <option>99</option>
-            </select>
-
-            <input
-              placeholder="1234567"
-              maxLength={7}
-              onInput={onlyNumbers}
-              required
-              style={styles.number}
-            />
+          <div style={styles.phoneBlock}>
+            <input value="+994" disabled style={styles.prefixFull} />
+            <div style={styles.phoneRow}>
+              <select required style={styles.operator}>
+                <option value="">Operator</option>
+                <option>50</option>
+                <option>51</option>
+                <option>55</option>
+                <option>70</option>
+                <option>77</option>
+                <option>99</option>
+              </select>
+              <input
+                placeholder="1234567"
+                maxLength={7}
+                onInput={onlyNumbers}
+                required
+                style={styles.number}
+              />
+            </div>
           </div>
 
           {/* TELEFON 2 */}
           <label style={styles.label}>Telefon 2</label>
-          <div style={styles.phoneRow}>
-            <input value="+994" disabled style={styles.prefix} />
-
-            <select required style={styles.operator}>
-              <option value="">Operator</option>
-              <option>50</option>
-              <option>51</option>
-              <option>55</option>
-              <option>70</option>
-              <option>77</option>
-              <option>99</option>
-            </select>
-
-            <input
-              placeholder="1234567"
-              maxLength={7}
-              onInput={onlyNumbers}
-              required
-              style={styles.number}
-            />
+          <div style={styles.phoneBlock}>
+            <input value="+994" disabled style={styles.prefixFull} />
+            <div style={styles.phoneRow}>
+              <select required style={styles.operator}>
+                <option value="">Operator</option>
+                <option>50</option>
+                <option>51</option>
+                <option>55</option>
+                <option>70</option>
+                <option>77</option>
+                <option>99</option>
+              </select>
+              <input
+                placeholder="1234567"
+                maxLength={7}
+                onInput={onlyNumbers}
+                required
+                style={styles.number}
+              />
+            </div>
           </div>
 
           <select required style={styles.input}>
@@ -180,19 +162,25 @@ const styles: any = {
     fontSize: "15px",
   },
 
-  phoneRow: {
-    display: "grid",
-    gridTemplateColumns: "64px 1fr 2fr",
-    gap: "8px",
+  phoneBlock: {
     marginBottom: "14px",
   },
 
-  prefix: {
+  prefixFull: {
+    width: "100%",
     textAlign: "center",
+    padding: "10px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
     background: "#f1f5f9",
     fontSize: "14px",
+    marginBottom: "8px",
+  },
+
+  phoneRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr 2fr",
+    gap: "8px",
   },
 
   operator: {
