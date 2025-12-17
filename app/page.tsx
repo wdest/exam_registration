@@ -225,20 +225,18 @@ const styles: any = {
   page: {
     minHeight: "100vh",
     width: "100%",
-    // DƏYİŞİKLİK BAŞLADI: Arxa plan loqosu və şəffaflıq
-    // Qradiyenti şəklin üstünə qoyuruq və rəngləri rgba ilə şəffaflaşdırırıq (0.85 = 85% görünürlük)
-    // '/logo.png' - public qovluğundakı şəklin adıdır.
+    
+    // BURADA '/logo.png' yerinə öz faylının tam adını yaz (məs: '/sekil.jpg')
     backgroundImage: `
       linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(248, 250, 252, 0.85)),
-      url('/logo.png')
+      url('/logo.png') 
     `,
-    // Birinci ölçü qradiyent üçündür (cover), ikinci ölçü loqo üçündür (məsələn: 350px genişlik, hündürlük avtomatik)
-    backgroundSize: "cover, 350px auto", 
+
+    backgroundSize: "cover, 300px auto", // İkinci rəqəm (300px) loqonun ölçüsüdür, artırıb-azalda bilərsən
     backgroundRepeat: "no-repeat, no-repeat",
     backgroundPosition: "center, center",
-    backgroundAttachment: "fixed", // Sürüşdürəndə loqo sabit qalsın
-    // DƏYİŞİKLİK BİTDİ
-
+    backgroundAttachment: "fixed", // Telefonda sürüşdürəndə loqo sabit qalır
+    
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
