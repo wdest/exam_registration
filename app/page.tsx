@@ -2,7 +2,6 @@
 import { useState } from "react";
 
 export default function Home() {
-  // ... (Buradakı bütün funksiyalar olduğu kimi qalır) ...
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ uniqueId: string; already: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +77,7 @@ export default function Home() {
     }
   }
 
+  // Uğurlu nəticə ekranı
   if (result) {
     return (
       <div style={styles.page}>
@@ -103,6 +103,7 @@ export default function Home() {
     );
   }
 
+  // Qeydiyyat Formu ekranı
   return (
     <div style={styles.page}>
       <div style={styles.card}>
@@ -220,23 +221,24 @@ export default function Home() {
   );
 }
 
-// STYLES HİSSƏSİNDƏ DƏYİŞİKLİK EDİLDİ
 const styles: any = {
   page: {
     minHeight: "100vh",
     width: "100%",
     
-    // BURADA '/logo.png' yerinə öz faylının tam adını yaz (məs: '/sekil.jpg')
+    // ARXA PLAN (Background) TƏNZİMLƏMƏLƏRİ:
+    // 1. Qat: Açıq rəngli qradiyent (0.85 opacity - yəni arxası azca görünür)
+    // 2. Qat: Sənin şəklin ('/logo.png' fayl adını yoxla!)
     backgroundImage: `
       linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(248, 250, 252, 0.85)),
-      url('/logo.png') 
+      url('/logo.png')
     `,
-
-    backgroundSize: "cover, 300px auto", // İkinci rəqəm (300px) loqonun ölçüsüdür, artırıb-azalda bilərsən
+    // Hər iki qatı ekrana tam yayır (Fullscreen)
+    backgroundSize: "cover, cover", 
     backgroundRepeat: "no-repeat, no-repeat",
     backgroundPosition: "center, center",
-    backgroundAttachment: "fixed", // Telefonda sürüşdürəndə loqo sabit qalır
-    
+    backgroundAttachment: "fixed", // Telefonda sürüşdürəndə arxa plan sabit qalır
+
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -245,14 +247,14 @@ const styles: any = {
     overflowX: "hidden",
   },
   card: {
-    // Karta yüngülcə şəffaflıq veririk ki, arxadakı loqo daha yaxşı hiss olunsun (istəsən bunu silə bilərsən)
+    // Kartın özü birazca şəffaf olsun ki, arxa fonla tam qaynayıb qarışmasın, amma modern görünsün
     background: "rgba(255, 255, 255, 0.95)", 
     padding: "24px",
     borderRadius: "14px",
     width: "100%",
     maxWidth: "400px",
     boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
-    boxSizing: "border-box",
+    boxSizing: "border-box", // Daşmanın qarşısını alır
   },
   title: {
     textAlign: "center",
@@ -338,6 +340,7 @@ const styles: any = {
     fontSize: "16px",
     fontWeight: 800,
     marginTop: "8px",
+    cursor: "pointer",
     boxSizing: "border-box",
   },
   spinner: {
