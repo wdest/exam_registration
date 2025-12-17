@@ -94,6 +94,11 @@ export default function Home() {
             Geri
           </button>
         </div>
+        {/* CSS Reset əlavə edildi ki, heç nə çərçivədən çıxmasın */}
+        <style jsx global>{`
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 0; }
+        `}</style>
       </div>
     );
   }
@@ -134,7 +139,7 @@ export default function Home() {
           <div style={styles.phoneRow}>
             <input value="+994" disabled style={styles.prefix} />
             <select name="operator1" required style={styles.operator}>
-              <option value="">Operator</option>
+              <option value="">Kod</option>
               <option value="50">50</option>
               <option value="51">51</option>
               <option value="55">55</option>
@@ -157,7 +162,7 @@ export default function Home() {
           <div style={styles.phoneRow}>
             <input value="+994" disabled style={styles.prefix} />
             <select name="operator2" required style={styles.operator}>
-              <option value="">Operator</option>
+              <option value="">Kod</option>
               <option value="50">50</option>
               <option value="51">51</option>
               <option value="55">55</option>
@@ -203,7 +208,9 @@ export default function Home() {
         </form>
       </div>
 
-      <style jsx>{`
+      <style jsx global>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; }
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
@@ -216,25 +223,29 @@ export default function Home() {
 const styles: any = {
   page: {
     minHeight: "100vh",
+    width: "100%",
     background: "linear-gradient(135deg, #eef2ff, #f8fafc)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     fontFamily: "Inter, Arial",
-    padding: "18px",
+    padding: "16px", // Mobildə kənarlardan çox sıxmasın
+    overflowX: "hidden", // Sürüşmənin qarşısını alır
   },
   card: {
     background: "#fff",
-    padding: "28px",
+    padding: "24px", // Bir az azaldıldı ki, kiçik ekranlara yerləşsin
     borderRadius: "14px",
     width: "100%",
-    maxWidth: "380px",
+    maxWidth: "400px",
     boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
+    boxSizing: "border-box",
   },
   title: {
     textAlign: "center",
     marginBottom: "8px",
     fontSize: "22px",
+    lineHeight: "1.2",
   },
   subBrand: {
     textAlign: "center",
@@ -259,8 +270,9 @@ const styles: any = {
     marginBottom: "14px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
-    fontSize: "15px",
+    fontSize: "16px", // 16px iPhone-da input zoom olmasının qarşısını alır
     outline: "none",
+    boxSizing: "border-box",
   },
   phoneLabel: {
     fontSize: "13px",
@@ -270,33 +282,38 @@ const styles: any = {
   },
   phoneRow: {
     display: "flex",
-    gap: "8px",
+    gap: "6px", // Aralıq bir az azaldıldı
     marginBottom: "14px",
+    width: "100%",
   },
   prefix: {
-    width: "62px",
+    width: "55px", // Bir az yığcamlaşdırıldı
     textAlign: "center",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
     background: "#f1f5f9",
-    padding: "12px 8px",
-    fontSize: "15px",
+    padding: "12px 4px",
+    fontSize: "14px",
+    boxSizing: "border-box",
   },
   operator: {
-    width: "110px",
+    width: "90px", // Genişlik optimallaşdırıldı
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
-    padding: "12px 8px",
+    padding: "12px 4px",
     fontSize: "15px",
     background: "#fff",
+    boxSizing: "border-box",
   },
   number: {
-    flex: 1,
+    flex: 1, // Qalan boşluğu doldursun
     padding: "12px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
-    fontSize: "15px",
+    fontSize: "16px",
     outline: "none",
+    minWidth: "0", // Flex içində daşmanın qarşısını almaq üçün vacibdir
+    boxSizing: "border-box",
   },
   button: {
     width: "100%",
@@ -308,6 +325,7 @@ const styles: any = {
     fontSize: "16px",
     fontWeight: 800,
     marginTop: "8px",
+    boxSizing: "border-box",
   },
   spinner: {
     width: "16px",
@@ -334,5 +352,6 @@ const styles: any = {
     background: "#fff",
     fontWeight: 700,
     cursor: "pointer",
+    boxSizing: "border-box",
   },
 };
