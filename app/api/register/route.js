@@ -22,21 +22,23 @@ function digitsOnly(s) {
 function normalizeAzPhone(operator, sevenDigits) {
   const op = digitsOnly(operator);
   const rest = digitsOnly(sevenDigits);
-  return `+994${op}${rest}`; // +994 + 2 rəqəm + 7 rəqəm = 12 rəqəmli format
+  return `+994${op}${rest}`;
 }
 
-async function generateUniqueId() {
-  // 8 rəqəm random (10000000 - 99999999)
+async function generateExamId() {
+  // Funksiyanın adını da məntiqə uyğun dəyişdik
   for (let i = 0; i < 8; i++) {
     const id = String(Math.floor(10000000 + Math.random() * 90000000));
+    
+    // YENİLƏNDİ: unique_id əvəzinə exam_id axtarırıq
     const { data } = await supabase
       .from("students")
-      .select("unique_id")
-      .eq("unique_id", id)
+      .select("exam_id")
+      .eq("exam_id", id)
       .maybeSingle();
+      
     if (!data) return id;
   }
-  // ehtiyat: çox nadir hallarda
   return String(Date.now()).slice(-8);
 }
 
@@ -46,14 +48,13 @@ export async function POST(req) {
 
     const firstName = toTitleCaseAz(body.firstName);
     const lastName = toTitleCaseAz(body.lastName);
-    const fatherName = toTitleCaseAz(body.fatherName);
+    const fatherName = toTitleCaseAz(body.fatherName); // Frontenddən yenə fatherName gəlir, amma DB-də parent_name-ə yazacağıq
 
     const phone1 = normalizeAzPhone(body.operator1, body.phone7_1);
     const phone2 = normalizeAzPhone(body.operator2, body.phone7_2);
 
     const className = String(body.className || "").trim();
 
-    // minimal yoxlamalar
     if (!firstName || !lastName || !fatherName) {
       return Response.json({ error: "Ad/Soyad/Ata adı boş ola bilməz" }, { status: 400 });
     }
@@ -67,10 +68,11 @@ export async function POST(req) {
       return Response.json({ error: "Sinif seçilməlidir" }, { status: 400 });
     }
 
-    // 1) Dedupe: phone1 üzrə artıq var?
+    // 1) Yoxlama (Dedupe): exam_id və parent_name sorğulanır
+    // YENİLƏNDİ: unique_id -> exam_id, father_name -> parent_name
     const { data: existing, error: exErr } = await supabase
       .from("students")
-      .select("unique_id, first_name, last_name, father_name, phone2, class")
+      .select("exam_id, first_name, last_name, parent_name, phone2, class")
       .eq("phone1", phone1)
       .maybeSingle();
 
@@ -78,20 +80,21 @@ export async function POST(req) {
       return Response.json({ error: "DB oxuma xətası" }, { status: 500 });
     }
 
-    if (existing?.unique_id) {
-      // artıq keçib
-      return Response.json({ uniqueId: existing.unique_id, already: true });
+    if (existing?.exam_id) {
+      // Artıq qeydiyyatdan keçibsə, exam_id qaytarırıq
+      return Response.json({ examId: existing.exam_id, already: true });
     }
 
     // 2) Yeni qeydiyyat
-    const uniqueId = await generateUniqueId();
+    const examId = await generateExamId();
 
+    // YENİLƏNDİ: Insert zamanı father_name yox, parent_name işlədirik
     const { error: insErr } = await supabase.from("students").insert([
       {
-        unique_id: uniqueId,
+        exam_id: examId,        // DB sütunu: exam_id
         first_name: firstName,
         last_name: lastName,
-        father_name: fatherName,
+        parent_name: fatherName, // DB sütunu: parent_name (Input dəyəri: fatherName)
         phone1,
         phone2,
         class: className,
@@ -99,19 +102,20 @@ export async function POST(req) {
     ]);
 
     if (insErr) {
-      // eyni anda 2 nəfər eyni phone1 yazdısa, unique constraintə düşə bilər:
       const { data: again } = await supabase
         .from("students")
-        .select("unique_id")
+        .select("exam_id")
         .eq("phone1", phone1)
         .maybeSingle();
 
-      if (again?.unique_id) return Response.json({ uniqueId: again.unique_id, already: true });
+      if (again?.exam_id) return Response.json({ examId: again.exam_id, already: true });
 
       return Response.json({ error: "DB insert xətası" }, { status: 500 });
     }
 
-    return Response.json({ uniqueId, already: false });
+    // Frontend tərəfdə artıq "result.uniqueId" yox, "result.examId" gözləməlisən
+    return Response.json({ examId, already: false });
+    
   } catch {
     return Response.json({ error: "Server xətası" }, { status: 500 });
   }
