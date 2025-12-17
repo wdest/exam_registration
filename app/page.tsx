@@ -3,16 +3,15 @@ import { useState, useEffect } from "react";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ uniqueId: string; already: boolean } | null>(null);
+  // DƏYİŞİKLİK 1: uniqueId əvəzinə examId yazdıq
+  const [result, setResult] = useState<{ examId: string; already: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(false);
   
-  // Animasiyanı hər dəfə tetikləmək üçün kiçik hiylə (key dəyişəndə animasiya yenidən işə düşür)
   const [animKey, setAnimKey] = useState(0);
 
   const styles = getStyles(darkMode);
 
-  // Nəticə gələndə animasiyanı yenidən işə salmaq üçün
   useEffect(() => {
     setAnimKey((prev) => prev + 1);
   }, [result]);
@@ -35,7 +34,7 @@ export default function Home() {
     const f = e.target;
     const firstName = f.firstName.value;
     const lastName = f.lastName.value;
-    const fatherName = f.fatherName.value;
+    const fatherName = f.fatherName.value; // Backend bunu 'fatherName' kimi gözləyir
     const operator1 = f.operator1.value;
     const phone7_1 = f.phone7_1.value;
     const operator2 = f.operator2.value;
@@ -68,7 +67,9 @@ export default function Home() {
         setLoading(false);
         return;
       }
-      setResult({ uniqueId: data.uniqueId, already: !!data.already });
+      
+      // DƏYİŞİKLİK 2: Backend-dən gələn 'examId'-ni qəbul edirik
+      setResult({ examId: data.examId, already: !!data.already });
     } catch {
       setError("İnternet/Server xətası");
     } finally {
@@ -79,7 +80,6 @@ export default function Home() {
   return (
     <div style={styles.page}>
       
-      {/* REJİM DƏYİŞMƏ DÜYMƏSİ */}
       <button 
         onClick={() => setDarkMode(!darkMode)} 
         style={styles.themeToggle}
@@ -88,9 +88,6 @@ export default function Home() {
         {darkMode ? "☀️" : "🌙"}
       </button>
 
-      {/* key={animKey} -> Bu çox vacibdir. React-ə deyirik ki, bu yeni elementdir.
-         Beləliklə animasiya (slideUp) yenidən işə düşür.
-      */}
       {result ? (
         <div key="result-card" style={styles.card}>
           <h1 style={styles.title}>
@@ -98,7 +95,10 @@ export default function Home() {
           </h1>
           <div style={styles.subBrand}>MAIN OLYMPIC CENTER</div>
           <p style={{ textAlign: "center", marginTop: 16, color: styles.textMain }}>Şagird ID-niz:</p>
-          <h2 style={styles.idBox}>{result.uniqueId}</h2>
+          
+          {/* DƏYİŞİKLİK 3: Ekrana examId yazdırırıq */}
+          <h2 style={styles.idBox}>{result.examId}</h2>
+          
           <button style={styles.secondaryBtn} onClick={() => setResult(null)}>Geri</button>
         </div>
       ) : (
@@ -111,7 +111,9 @@ export default function Home() {
           <form onSubmit={submitForm}>
             <input name="firstName" placeholder="Ad" onInput={onlyLetters} required style={styles.input} />
             <input name="lastName" placeholder="Soyad" onInput={onlyLetters} required style={styles.input} />
-            <input name="fatherName" placeholder="Ata adı" onInput={onlyLetters} required style={styles.input} />
+            
+            {/* DƏYİŞİKLİK 4: Placeholder 'Valideyn adı' oldu */}
+            <input name="fatherName" placeholder="Valideyn adı" onInput={onlyLetters} required style={styles.input} />
 
             <div style={styles.phoneLabel}>Telefon 1</div>
             <div style={styles.phoneRow}>
@@ -170,12 +172,10 @@ export default function Home() {
         </div>
       )}
 
-      {/* ANIMASIYA CSS KODLARI BURADADIR */}
       <style jsx global>{`
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; }
         
-        /* Kartın gəliş animasiyası: Slide Up + Fade In */
         @keyframes slideUpFade {
           0% {
             opacity: 0;
@@ -218,7 +218,6 @@ const getStyles = (isDark: boolean): any => {
     fontSize: "16px",
     outline: "none",
     boxSizing: "border-box",
-    // Inputlara toxunanda yumşaq keçid effekti
     transition: "all 0.2s ease-in-out",
   };
 
@@ -238,7 +237,7 @@ const getStyles = (isDark: boolean): any => {
       fontFamily: "Inter, Arial",
       padding: "16px",
       overflowX: "hidden",
-      transition: "background 0.5s ease", // Arxa plan dəyişəndə yumşaq olsun
+      transition: "background 0.5s ease",
     },
     themeToggle: {
       position: "absolute",
@@ -268,9 +267,6 @@ const getStyles = (isDark: boolean): any => {
       boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
       boxSizing: "border-box",
       color: colors.textMain,
-      
-      // ƏSAS ANİMASİYA BURADADIR
-      // PowerPoint-dəki 'Float In' effekti kimi
       animation: "slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
       transition: "background 0.3s ease, color 0.3s ease",
     },
@@ -297,7 +293,7 @@ const getStyles = (isDark: boolean): any => {
       fontSize: "14px",
       marginBottom: "14px",
       textAlign: "center",
-      animation: "slideUpFade 0.3s ease-out", // Xəta çıxanda da animasiya ilə gəlsin
+      animation: "slideUpFade 0.3s ease-out",
     },
     input: {
       width: "100%",
@@ -347,7 +343,7 @@ const getStyles = (isDark: boolean): any => {
       marginTop: "8px",
       cursor: "pointer",
       boxSizing: "border-box",
-      transition: "transform 0.1s ease, opacity 0.2s", // Düymə basılanda reaksiya versin
+      transition: "transform 0.1s ease, opacity 0.2s",
     },
     spinner: {
       width: "16px",
@@ -365,9 +361,8 @@ const getStyles = (isDark: boolean): any => {
       border: isDark ? "1px solid #475569" : "1px solid #bfdbfe",
       color: isDark ? "#60a5fa" : "#1d4ed8",
       marginTop: "10px",
-      // ID nömrəsi gələndə biraz böyüsün
-      animation: "slideUpFade 0.5s ease-out 0.2s forwards", 
-      opacity: 0, // Animasiya başlayana qədər gizli qalsın
+      animation: "slideUpFade 0.5s ease-out 0.2s forwards",
+      opacity: 0,
     },
     secondaryBtn: {
       width: "100%",
