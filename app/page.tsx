@@ -135,8 +135,8 @@ export default function Home() {
             <Image 
               src="/logo.png" 
               alt="Logo" 
-              width={140} // Burdan logonun böyüklüyünü tənzimləyə bilərsən
-              height={70} 
+              width={220} // Burdan logonun böyüklüyünü tənzimləyə bilərsən
+              height={110} 
               style={{ objectFit: "contain" }} 
               priority
             />
