@@ -3,6 +3,7 @@ import { useState } from "react";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
+  const [resultId, setResultId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   function onlyLetters(e: any) {
@@ -19,13 +20,30 @@ export default function Home() {
   async function submitForm(e: any) {
     e.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setError("");
 
+    // 🔴 BURADA BACKEND OLMALIDIR
+    // indi demo üçün ID veririk
     setTimeout(() => {
       setLoading(false);
-      alert("Yadda saxlanıldı");
+      setResultId("A7F3K92Q"); // random ID demo
     }, 1200);
+  }
+
+  if (resultId) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.card}>
+          <h1 style={styles.title}>Siz artıq keçmisiniz ✅</h1>
+          <p style={{ textAlign: "center" }}>Şagird ID-niz:</p>
+          <h2 style={styles.id}>{resultId}</h2>
+
+          <div style={styles.subTitle}>MAIN OLYMPIC CENTER</div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -37,56 +55,73 @@ export default function Home() {
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={submitForm}>
-          <input placeholder="Ad" required onInput={onlyLetters} style={styles.input} />
-          <input placeholder="Soyad" required onInput={onlyLetters} style={styles.input} />
-          <input placeholder="Ata adı" required onInput={onlyLetters} style={styles.input} />
+          <input
+            placeholder="Ad"
+            required
+            onInput={onlyLetters}
+            style={styles.input}
+          />
+
+          <input
+            placeholder="Soyad"
+            required
+            onInput={onlyLetters}
+            style={styles.input}
+          />
+
+          <input
+            placeholder="Ata adı"
+            required
+            onInput={onlyLetters}
+            style={styles.input}
+          />
 
           {/* TELEFON 1 */}
           <label style={styles.label}>Telefon 1</label>
-          <div style={styles.phoneBlock}>
-            <input value="+994" disabled style={styles.prefixFull} />
-            <div style={styles.phoneRow}>
-              <select required style={styles.operator}>
-                <option value="">Operator</option>
-                <option>50</option>
-                <option>51</option>
-                <option>55</option>
-                <option>70</option>
-                <option>77</option>
-                <option>99</option>
-              </select>
-              <input
-                placeholder="1234567"
-                maxLength={7}
-                onInput={onlyNumbers}
-                required
-                style={styles.number}
-              />
-            </div>
+          <div style={styles.phoneRow}>
+            <input value="+994" disabled style={styles.prefix} />
+
+            <select required style={styles.operator}>
+              <option value="">Operator</option>
+              <option>50</option>
+              <option>51</option>
+              <option>55</option>
+              <option>70</option>
+              <option>77</option>
+              <option>99</option>
+            </select>
+
+            <input
+              placeholder="1234567"
+              maxLength={7}
+              onInput={onlyNumbers}
+              required
+              style={styles.number}
+            />
           </div>
 
           {/* TELEFON 2 */}
           <label style={styles.label}>Telefon 2</label>
-          <div style={styles.phoneBlock}>
-            <input value="+994" disabled style={styles.prefixFull} />
-            <div style={styles.phoneRow}>
-              <select required style={styles.operator}>
-                <option value="">Operator</option>
-                <option>50</option>
-                <option>51</option>
-                <option>55</option>
-                <option>70</option>
-                <option>77</option>
-                <option>99</option>
-              </select>
-              <input
-                placeholder="1234567"
-                maxLength={7}
-                onInput={onlyNumbers}
-                required
-                style={styles.number}
-              />
-            </div>
+          <div style={styles.phoneRow}>
+            <input value="+994" disabled style={styles.prefix} />
+
+            <select required style={styles.operator}>
+              <option value="">Operator</option>
+              <option>50</option>
+              <option>51</option>
+              <option>55</option>
+              <option>70</option>
+              <option>77</option>
+              <option>99</option>
+            </select>
+
+            <input
+              placeholder="1234567"
+              maxLength={7}
+              onInput={onlyNumbers}
+              required
+              style={styles.number}
+            />
           </div>
 
           <select required style={styles.input}>
@@ -146,6 +181,14 @@ const styles: any = {
     letterSpacing: "0.5px",
   },
 
+  id: {
+    textAlign: "center",
+    fontSize: "26px",
+    fontWeight: "700",
+    color: "#4f46e5",
+    margin: "12px 0",
+  },
+
   label: {
     fontSize: "14px",
     fontWeight: "600",
@@ -162,35 +205,32 @@ const styles: any = {
     fontSize: "15px",
   },
 
-  phoneBlock: {
+  /* 🔑 MOBİL FIX BURADADIR */
+  phoneRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "8px",
     marginBottom: "14px",
   },
 
-  prefixFull: {
+  prefix: {
     width: "100%",
     textAlign: "center",
-    padding: "10px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
     background: "#f1f5f9",
-    fontSize: "14px",
-    marginBottom: "8px",
-  },
-
-  phoneRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 2fr",
-    gap: "8px",
+    padding: "10px",
   },
 
   operator: {
+    width: "100%",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
     padding: "10px",
-    fontSize: "14px",
   },
 
   number: {
+    width: "100%",
     padding: "12px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
