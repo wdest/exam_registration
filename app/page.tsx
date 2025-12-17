@@ -1,12 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
+import Image from "next/image"; // <--- Şəkil üçün vacibdir
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ examId: string; already: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(false);
-  
   const [animKey, setAnimKey] = useState(0);
 
   const styles = getStyles(darkMode);
@@ -26,7 +26,6 @@ export default function Home() {
   async function submitForm(e: any) {
     e.preventDefault();
     if (loading) return;
-
     setError(null);
     setLoading(true);
 
@@ -66,7 +65,6 @@ export default function Home() {
         setLoading(false);
         return;
       }
-      
       setResult({ examId: data.examId, already: !!data.already });
     } catch {
       setError("İnternet/Server xətası");
@@ -78,6 +76,26 @@ export default function Home() {
   return (
     <div style={styles.page}>
       
+      {/* ARXA PLAN (Background) - Solğun Logo */}
+      <div style={{
+        position: "fixed",
+        height: "100vh",
+        width: "100vw",
+        overflow: "hidden",
+        zIndex: -1,
+      }}>
+        <Image
+          src="/logo.png" // Public qovluğundakı logo
+          alt="Background"
+          fill
+          quality={100}
+          style={{
+            objectFit: "cover",
+            opacity: 0.10, // Arxa plan çox solğun olsun
+          }}
+        />
+      </div>
+
       <button 
         onClick={() => setDarkMode(!darkMode)} 
         style={styles.themeToggle}
@@ -88,20 +106,44 @@ export default function Home() {
 
       {result ? (
         <div key="result-card" style={styles.card}>
+           {/* LOGO HİSSƏSİ (NƏTİCƏ EKRANINDA) */}
+           <div style={styles.logoWrapper}>
+            <Image 
+              src="/logo.png" 
+              alt="Logo" 
+              width={120}  // Logonun genişliyi
+              height={60}  // Logonun hündürlüyü
+              style={{ objectFit: "contain" }} 
+            />
+          </div>
+
           <h1 style={styles.title}>
             {result.already ? "Siz artıq keçmisiniz ✅" : "Qeydiyyat tamamlandı ✅"}
           </h1>
-          <div style={styles.subBrand}>MAIN OLYMPIC CENTER</div>
-          <p style={{ textAlign: "center", marginTop: 16, color: styles.textMain }}>Şagird ID-niz:</p>
           
+          <p style={{ textAlign: "center", marginTop: 10, color: styles.textMain }}>Şagird ID-niz:</p>
           <h2 style={styles.idBox}>{result.examId}</h2>
           
           <button style={styles.secondaryBtn} onClick={() => setResult(null)}>Geri</button>
         </div>
       ) : (
         <div key="form-card" style={styles.card}>
+          
+          {/* --- LOGO HİSSƏSİ (DƏYİŞİKLİK BURDADIR) --- */}
+          {/* Main Olympic yazısı silindi, yerinə bu gəldi */}
+          <div style={styles.logoWrapper}>
+            <Image 
+              src="/logo.png" 
+              alt="Logo" 
+              width={140} // Burdan logonun böyüklüyünü tənzimləyə bilərsən
+              height={70} 
+              style={{ objectFit: "contain" }} 
+              priority
+            />
+          </div>
+          {/* ------------------------------------------ */}
+
           <h1 style={styles.title}>İmtahan Qeydiyyatı</h1>
-          <div style={styles.subBrand}>MAIN OLYMPIC CENTER</div>
 
           {error ? <div style={styles.errorBox}>{error}</div> : null}
 
@@ -178,18 +220,10 @@ export default function Home() {
       <style jsx global>{`
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; }
-        
         @keyframes slideUpFade {
-          0% {
-            opacity: 0;
-            transform: translateY(40px) scale(0.95);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-          }
+          0% { opacity: 0; transform: translateY(40px) scale(0.95); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
         }
-
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
@@ -201,9 +235,8 @@ export default function Home() {
 
 const getStyles = (isDark: boolean): any => {
   const colors = {
-    bgGradient: isDark 
-      ? "linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92))"
-      : "linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(248, 250, 252, 0.85))",
+    // Gradient arxa planı sildim, yerinə şəkil gəldi deyə bura sadə rəng qoya bilərik ehtiyat üçün
+    bgBase: isDark ? "#0f172a" : "#f1f5f9", 
     cardBg: isDark ? "rgba(30, 41, 59, 0.95)" : "rgba(255, 255, 255, 0.95)",
     textMain: isDark ? "#f1f5f9" : "#1e293b",
     textLabel: isDark ? "#cbd5e1" : "#334155",
@@ -229,18 +262,13 @@ const getStyles = (isDark: boolean): any => {
       minHeight: "100vh",
       width: "100%",
       position: "relative",
-      backgroundImage: `${colors.bgGradient}, url('/logo.png')`,
-      backgroundSize: "cover, cover",
-      backgroundRepeat: "no-repeat, no-repeat",
-      backgroundPosition: "center, center",
-      backgroundAttachment: "fixed",
+      backgroundColor: colors.bgBase, // Şəkil yüklənənə qədər görünəcək rəng
       display: "flex",
       justifyContent: "center",
-      alignItems: "center",
+      alignItems: "center", // Kartı ekranın ortasına gətirir
       fontFamily: "Inter, Arial",
       padding: "16px",
       overflowX: "hidden",
-      transition: "background 0.5s ease",
     },
     themeToggle: {
       position: "absolute",
@@ -263,7 +291,7 @@ const getStyles = (isDark: boolean): any => {
     },
     card: {
       background: colors.cardBg,
-      padding: "24px",
+      padding: "20px 24px 24px 24px", // Üstdən boşluğu azaltdım (20px) ki, yuxarı çıxsın
       borderRadius: "14px",
       width: "100%",
       maxWidth: "400px",
@@ -273,19 +301,19 @@ const getStyles = (isDark: boolean): any => {
       animation: "slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
       transition: "background 0.3s ease, color 0.3s ease",
     },
+    // LOGO ÜÇÜN WRAPPER
+    logoWrapper: {
+      display: "flex",
+      justifyContent: "center",
+      marginBottom: "10px", // Logonun altındakı boşluq
+    },
     title: {
       textAlign: "center",
-      marginBottom: "8px",
+      marginBottom: "14px", // Başlığın altındakı boşluq
       fontSize: "22px",
       lineHeight: "1.2",
       color: colors.textMain,
-    },
-    subBrand: {
-      textAlign: "center",
-      fontWeight: 800,
-      letterSpacing: "0.5px",
-      color: "#f59e0b",
-      marginBottom: "18px",
+      marginTop: "0px", // Yuxarıdan yapışsın
     },
     errorBox: {
       background: "#fee2e2",
