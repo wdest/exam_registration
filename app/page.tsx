@@ -1,16 +1,21 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ uniqueId: string; already: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  // Qara rejimi idarə edən state (başlanğıcda sönülü - false)
   const [darkMode, setDarkMode] = useState(false);
+  
+  // Animasiyanı hər dəfə tetikləmək üçün kiçik hiylə (key dəyişəndə animasiya yenidən işə düşür)
+  const [animKey, setAnimKey] = useState(0);
 
-  // Stylləri rejimə görə dinamik götürürük
   const styles = getStyles(darkMode);
+
+  // Nəticə gələndə animasiyanı yenidən işə salmaq üçün
+  useEffect(() => {
+    setAnimKey((prev) => prev + 1);
+  }, [result]);
 
   function onlyLetters(e: any) {
     e.target.value = e.target.value.replace(/[^a-zA-ZəƏğĞıİöÖşŞüÜçÇ\s]/g, "");
@@ -28,7 +33,6 @@ export default function Home() {
     setLoading(true);
 
     const f = e.target;
-    // Dəyərləri götürmək...
     const firstName = f.firstName.value;
     const lastName = f.lastName.value;
     const fatherName = f.fatherName.value;
@@ -84,8 +88,11 @@ export default function Home() {
         {darkMode ? "☀️" : "🌙"}
       </button>
 
+      {/* key={animKey} -> Bu çox vacibdir. React-ə deyirik ki, bu yeni elementdir.
+         Beləliklə animasiya (slideUp) yenidən işə düşür.
+      */}
       {result ? (
-        <div style={styles.card}>
+        <div key="result-card" style={styles.card}>
           <h1 style={styles.title}>
             {result.already ? "Siz artıq keçmisiniz ✅" : "Qeydiyyat tamamlandı ✅"}
           </h1>
@@ -95,7 +102,7 @@ export default function Home() {
           <button style={styles.secondaryBtn} onClick={() => setResult(null)}>Geri</button>
         </div>
       ) : (
-        <div style={styles.card}>
+        <div key="form-card" style={styles.card}>
           <h1 style={styles.title}>İmtahan Qeydiyyatı</h1>
           <div style={styles.subBrand}>MAIN OLYMPIC CENTER</div>
 
@@ -106,7 +113,6 @@ export default function Home() {
             <input name="lastName" placeholder="Soyad" onInput={onlyLetters} required style={styles.input} />
             <input name="fatherName" placeholder="Ata adı" onInput={onlyLetters} required style={styles.input} />
 
-            {/* TELEFON 1 */}
             <div style={styles.phoneLabel}>Telefon 1</div>
             <div style={styles.phoneRow}>
               <input value="+994" disabled style={styles.prefix} />
@@ -122,7 +128,6 @@ export default function Home() {
               <input name="phone7_1" placeholder="1234567" maxLength={7} onInput={onlyNumbers} required style={styles.number} />
             </div>
 
-            {/* TELEFON 2 */}
             <div style={styles.phoneLabel}>Telefon 2</div>
             <div style={styles.phoneRow}>
               <input value="+994" disabled style={styles.prefix} />
@@ -165,9 +170,23 @@ export default function Home() {
         </div>
       )}
 
+      {/* ANIMASIYA CSS KODLARI BURADADIR */}
       <style jsx global>{`
         * { box-sizing: border-box; }
         body { margin: 0; padding: 0; }
+        
+        /* Kartın gəliş animasiyası: Slide Up + Fade In */
+        @keyframes slideUpFade {
+          0% {
+            opacity: 0;
+            transform: translateY(40px) scale(0.95);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
@@ -177,13 +196,11 @@ export default function Home() {
   );
 }
 
-// STYLES ARTIQ FUNKSİYADIR (DARK/LIGHT MODE ÜÇÜN)
 const getStyles = (isDark: boolean): any => {
-  // Rəngləri burdan idarə edirik
   const colors = {
     bgGradient: isDark 
-      ? "linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92))" // Tünd Göy/Qara
-      : "linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(248, 250, 252, 0.85))", // Açıq Ağ/Mavi
+      ? "linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.92))"
+      : "linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(248, 250, 252, 0.85))",
     cardBg: isDark ? "rgba(30, 41, 59, 0.95)" : "rgba(255, 255, 255, 0.95)",
     textMain: isDark ? "#f1f5f9" : "#1e293b",
     textLabel: isDark ? "#cbd5e1" : "#334155",
@@ -193,11 +210,23 @@ const getStyles = (isDark: boolean): any => {
     inputText: isDark ? "#fff" : "#000",
   };
 
+  const commonInput = {
+    borderRadius: "10px",
+    border: `1px solid ${colors.inputBorder}`,
+    background: colors.inputBg,
+    color: colors.inputText,
+    fontSize: "16px",
+    outline: "none",
+    boxSizing: "border-box",
+    // Inputlara toxunanda yumşaq keçid effekti
+    transition: "all 0.2s ease-in-out",
+  };
+
   return {
     page: {
       minHeight: "100vh",
       width: "100%",
-      position: "relative", // Düyməni yerləşdirmək üçün lazımdır
+      position: "relative",
       backgroundImage: `${colors.bgGradient}, url('/logo.png')`,
       backgroundSize: "cover, cover",
       backgroundRepeat: "no-repeat, no-repeat",
@@ -209,8 +238,8 @@ const getStyles = (isDark: boolean): any => {
       fontFamily: "Inter, Arial",
       padding: "16px",
       overflowX: "hidden",
+      transition: "background 0.5s ease", // Arxa plan dəyişəndə yumşaq olsun
     },
-    // REJİM DÜYMƏSİNİN STİLİ
     themeToggle: {
       position: "absolute",
       top: "20px",
@@ -228,6 +257,7 @@ const getStyles = (isDark: boolean): any => {
       alignItems: "center",
       boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
       zIndex: 10,
+      transition: "all 0.3s ease",
     },
     card: {
       background: colors.cardBg,
@@ -238,7 +268,11 @@ const getStyles = (isDark: boolean): any => {
       boxShadow: "0 20px 40px rgba(0,0,0,0.12)",
       boxSizing: "border-box",
       color: colors.textMain,
-      transition: "background 0.3s ease", // Yumşaq keçid
+      
+      // ƏSAS ANİMASİYA BURADADIR
+      // PowerPoint-dəki 'Float In' effekti kimi
+      animation: "slideUpFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+      transition: "background 0.3s ease, color 0.3s ease",
     },
     title: {
       textAlign: "center",
@@ -263,18 +297,13 @@ const getStyles = (isDark: boolean): any => {
       fontSize: "14px",
       marginBottom: "14px",
       textAlign: "center",
+      animation: "slideUpFade 0.3s ease-out", // Xəta çıxanda da animasiya ilə gəlsin
     },
     input: {
       width: "100%",
       padding: "12px",
       marginBottom: "14px",
-      borderRadius: "10px",
-      border: `1px solid ${colors.inputBorder}`,
-      background: colors.inputBg,
-      color: colors.inputText,
-      fontSize: "16px",
-      outline: "none",
-      boxSizing: "border-box",
+      ...commonInput,
     },
     phoneLabel: {
       fontSize: "13px",
@@ -291,35 +320,20 @@ const getStyles = (isDark: boolean): any => {
     prefix: {
       width: "55px",
       textAlign: "center",
-      borderRadius: "10px",
-      border: `1px solid ${colors.inputBorder}`,
-      background: colors.inputPrefixBg,
-      color: colors.inputText,
       padding: "12px 4px",
-      fontSize: "14px",
-      boxSizing: "border-box",
+      ...commonInput,
+      background: colors.inputPrefixBg,
     },
     operator: {
       width: "90px",
-      borderRadius: "10px",
-      border: `1px solid ${colors.inputBorder}`,
       padding: "12px 4px",
-      fontSize: "15px",
-      background: colors.inputBg,
-      color: colors.inputText,
-      boxSizing: "border-box",
+      ...commonInput,
     },
     number: {
       flex: 1,
       padding: "12px",
-      borderRadius: "10px",
-      border: `1px solid ${colors.inputBorder}`,
-      background: colors.inputBg,
-      color: colors.inputText,
-      fontSize: "16px",
-      outline: "none",
       minWidth: "0",
-      boxSizing: "border-box",
+      ...commonInput,
     },
     button: {
       width: "100%",
@@ -333,6 +347,7 @@ const getStyles = (isDark: boolean): any => {
       marginTop: "8px",
       cursor: "pointer",
       boxSizing: "border-box",
+      transition: "transform 0.1s ease, opacity 0.2s", // Düymə basılanda reaksiya versin
     },
     spinner: {
       width: "16px",
@@ -350,19 +365,19 @@ const getStyles = (isDark: boolean): any => {
       border: isDark ? "1px solid #475569" : "1px solid #bfdbfe",
       color: isDark ? "#60a5fa" : "#1d4ed8",
       marginTop: "10px",
+      // ID nömrəsi gələndə biraz böyüsün
+      animation: "slideUpFade 0.5s ease-out 0.2s forwards", 
+      opacity: 0, // Animasiya başlayana qədər gizli qalsın
     },
     secondaryBtn: {
       width: "100%",
       marginTop: "14px",
       padding: "12px",
-      borderRadius: "12px",
-      border: `1px solid ${colors.inputBorder}`,
-      background: colors.inputBg,
-      color: colors.inputText,
+      ...commonInput,
       fontWeight: 700,
       cursor: "pointer",
-      boxSizing: "border-box",
+      background: colors.inputBg,
     },
-    textMain: colors.textMain, // result ekranı üçün köməkçi
+    textMain: colors.textMain,
   };
 };
