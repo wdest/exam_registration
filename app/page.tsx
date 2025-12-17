@@ -2,6 +2,7 @@
 import { useState } from "react";
 
 export default function Home() {
+  // ... (Buradakı bütün funksiyalar olduğu kimi qalır) ...
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ uniqueId: string; already: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +95,6 @@ export default function Home() {
             Geri
           </button>
         </div>
-        {/* CSS Reset əlavə edildi ki, heç nə çərçivədən çıxmasın */}
         <style jsx global>{`
           * { box-sizing: border-box; }
           body { margin: 0; padding: 0; }
@@ -220,21 +220,36 @@ export default function Home() {
   );
 }
 
+// STYLES HİSSƏSİNDƏ DƏYİŞİKLİK EDİLDİ
 const styles: any = {
   page: {
     minHeight: "100vh",
     width: "100%",
-    background: "linear-gradient(135deg, #eef2ff, #f8fafc)",
+    // DƏYİŞİKLİK BAŞLADI: Arxa plan loqosu və şəffaflıq
+    // Qradiyenti şəklin üstünə qoyuruq və rəngləri rgba ilə şəffaflaşdırırıq (0.85 = 85% görünürlük)
+    // '/logo.png' - public qovluğundakı şəklin adıdır.
+    backgroundImage: `
+      linear-gradient(135deg, rgba(238, 242, 255, 0.85), rgba(248, 250, 252, 0.85)),
+      url('/logo.png')
+    `,
+    // Birinci ölçü qradiyent üçündür (cover), ikinci ölçü loqo üçündür (məsələn: 350px genişlik, hündürlük avtomatik)
+    backgroundSize: "cover, 350px auto", 
+    backgroundRepeat: "no-repeat, no-repeat",
+    backgroundPosition: "center, center",
+    backgroundAttachment: "fixed", // Sürüşdürəndə loqo sabit qalsın
+    // DƏYİŞİKLİK BİTDİ
+
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     fontFamily: "Inter, Arial",
-    padding: "16px", // Mobildə kənarlardan çox sıxmasın
-    overflowX: "hidden", // Sürüşmənin qarşısını alır
+    padding: "16px",
+    overflowX: "hidden",
   },
   card: {
-    background: "#fff",
-    padding: "24px", // Bir az azaldıldı ki, kiçik ekranlara yerləşsin
+    // Karta yüngülcə şəffaflıq veririk ki, arxadakı loqo daha yaxşı hiss olunsun (istəsən bunu silə bilərsən)
+    background: "rgba(255, 255, 255, 0.95)", 
+    padding: "24px",
     borderRadius: "14px",
     width: "100%",
     maxWidth: "400px",
@@ -270,7 +285,7 @@ const styles: any = {
     marginBottom: "14px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
-    fontSize: "16px", // 16px iPhone-da input zoom olmasının qarşısını alır
+    fontSize: "16px",
     outline: "none",
     boxSizing: "border-box",
   },
@@ -282,12 +297,12 @@ const styles: any = {
   },
   phoneRow: {
     display: "flex",
-    gap: "6px", // Aralıq bir az azaldıldı
+    gap: "6px",
     marginBottom: "14px",
     width: "100%",
   },
   prefix: {
-    width: "55px", // Bir az yığcamlaşdırıldı
+    width: "55px",
     textAlign: "center",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
@@ -297,7 +312,7 @@ const styles: any = {
     boxSizing: "border-box",
   },
   operator: {
-    width: "90px", // Genişlik optimallaşdırıldı
+    width: "90px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
     padding: "12px 4px",
@@ -306,13 +321,13 @@ const styles: any = {
     boxSizing: "border-box",
   },
   number: {
-    flex: 1, // Qalan boşluğu doldursun
+    flex: 1,
     padding: "12px",
     borderRadius: "10px",
     border: "1px solid #cbd5e1",
     fontSize: "16px",
     outline: "none",
-    minWidth: "0", // Flex içində daşmanın qarşısını almaq üçün vacibdir
+    minWidth: "0",
     boxSizing: "border-box",
   },
   button: {
