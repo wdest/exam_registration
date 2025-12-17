@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  // DƏYİŞİKLİK 1: uniqueId əvəzinə examId yazdıq
   const [result, setResult] = useState<{ examId: string; already: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(false);
@@ -34,7 +33,7 @@ export default function Home() {
     const f = e.target;
     const firstName = f.firstName.value;
     const lastName = f.lastName.value;
-    const fatherName = f.fatherName.value; // Backend bunu 'fatherName' kimi gözləyir
+    const fatherName = f.fatherName.value;
     const operator1 = f.operator1.value;
     const phone7_1 = f.phone7_1.value;
     const operator2 = f.operator2.value;
@@ -68,7 +67,6 @@ export default function Home() {
         return;
       }
       
-      // DƏYİŞİKLİK 2: Backend-dən gələn 'examId'-ni qəbul edirik
       setResult({ examId: data.examId, already: !!data.already });
     } catch {
       setError("İnternet/Server xətası");
@@ -96,7 +94,6 @@ export default function Home() {
           <div style={styles.subBrand}>MAIN OLYMPIC CENTER</div>
           <p style={{ textAlign: "center", marginTop: 16, color: styles.textMain }}>Şagird ID-niz:</p>
           
-          {/* DƏYİŞİKLİK 3: Ekrana examId yazdırırıq */}
           <h2 style={styles.idBox}>{result.examId}</h2>
           
           <button style={styles.secondaryBtn} onClick={() => setResult(null)}>Geri</button>
@@ -111,8 +108,6 @@ export default function Home() {
           <form onSubmit={submitForm}>
             <input name="firstName" placeholder="Ad" onInput={onlyLetters} required style={styles.input} />
             <input name="lastName" placeholder="Soyad" onInput={onlyLetters} required style={styles.input} />
-            
-            {/* DƏYİŞİKLİK 4: Placeholder 'Valideyn adı' oldu */}
             <input name="fatherName" placeholder="Valideyn adı" onInput={onlyLetters} required style={styles.input} />
 
             <div style={styles.phoneLabel}>Telefon 1</div>
@@ -145,11 +140,20 @@ export default function Home() {
               <input name="phone7_2" placeholder="1234567" maxLength={7} onInput={onlyNumbers} required style={styles.number} />
             </div>
 
+            {/* DƏYİŞİKLİK BURADADIR: 1-11 Siniflər */}
             <select name="className" required style={styles.input}>
               <option value="">Sinif seçin</option>
+              <option value="1">1-ci sinif</option>
+              <option value="2">2-ci sinif</option>
+              <option value="3">3-cü sinif</option>
+              <option value="4">4-cü sinif</option>
               <option value="5">5-ci sinif</option>
               <option value="6">6-cı sinif</option>
               <option value="7">7-ci sinif</option>
+              <option value="8">8-ci sinif</option>
+              <option value="9">9-cu sinif</option>
+              <option value="10">10-cu sinif</option>
+              <option value="11">11-ci sinif</option>
             </select>
 
             <button
