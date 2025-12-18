@@ -2,14 +2,26 @@ import pdf from "pdf-parse";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    throw new Error("Supabase ENV yoxdur");
+  }
+
+  return createClient(url, key);
+}
 
 export async function POST(req: Request) {
+  const supabase = getSupabase();
+
   const formData = await req.formData();
   const file = formData.get("file") as File;
+
+  if (!file) {
+    return NextResponse.json({ error: "PDF tapılmadı" }, { status: 400 });
+  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const data = await pdf(buffer);
