@@ -23,44 +23,42 @@ export async function POST(req: Request) {
     const data = await pdf(buffer);
     const text = data.text;
 
-    /* ===== DEBUG (çox vacib) ===== */
     console.log("PDF TEXT:", text);
 
-    /* ===== QUIZ ADI ===== */
-    const quizMatch = text.match(/Quiz:\s*([A-Za-z0-9 _-]+)/);
+    /* ===== QUIZ ===== */
+    const quizMatch = text.match(/Quiz:\s*([^\n]+)/);
     const quiz = quizMatch ? quizMatch[1].trim() : "İmtahan";
 
-    /* ===== ŞAGİRD ID (BU PDF-Ə UYĞUN) =====
-       ZipGrade PDF-də belədir:
-       Name 19576598
-    */
+    /* ===== STUDENT ID (ZipGrade) ===== */
     const idMatch = text.match(/Name\s+(\d{6,})/);
-    const student_id = idMatch ? idMatch[1] : null;
+    const student_id = idMatch?.[1];
 
     if (!student_id) {
       return NextResponse.json(
-        { error: "Şagird ID PDF-dən tapılmadı" },
+        { error: "Şagird ID tapılmadı" },
         { status: 400 }
       );
     }
 
-    /* ===== SUAL SAYI ===== */
-    const total = 20;
+    /* ===== SCORE ===== */
+    const scoreMatch = text.match(/Points Earned:\s*(\d+)/);
+    const totalMatch = text.match(/Possible Points:\s*(\d+)/);
+    const percentMatch = text.match(/Percent:\s*([\d.]+)%/);
 
-    /* ===== BAL (answer key YOXDUR) ===== */
-    const score = total;
-    const percent = 100;
+    const score = scoreMatch ? Number(scoreMatch[1]) : 0;
+    const total = totalMatch ? Number(totalMatch[1]) : 20;
+    const percent = percentMatch ? Number(percentMatch[1]) : 0;
 
-    /* ===== INSERT ===== */
-    const { error } = await supabase.from("results").insert({
-      student_id,
-      quiz,
-      score,
-      total,
-      percent
-    });
+    /* ===== UPSERT (FINAL FIX) ===== */
+    const { error } = await supabase
+      .from("results")
+      .upsert(
+        { student_id, quiz, score, total, percent },
+        { onConflict: "student_id,quiz" }
+      );
 
     if (error) {
+      console.error("DB ERROR:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
