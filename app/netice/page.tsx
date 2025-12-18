@@ -1,59 +1,96 @@
-import pdf from "pdf-parse";
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+"use client";
+import { useState } from "react";
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Supabase ENV yoxdur");
-  return createClient(url, key);
-}
+export default function NeticePage() {
+  const [id, setId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<any>(null);
 
-export async function POST(req: Request) {
-  const supabase = getSupabase();
+  async function checkResult() {
+    if (!id) return;
 
-  const formData = await req.formData();
-  const file = formData.get("file") as File;
-  if (!file) {
-    return NextResponse.json({ error: "PDF yoxdur" }, { status: 400 });
+    setLoading(true);
+    setError("");
+    setResult(null);
+
+    try {
+      const res = await fetch(`/api/netice?id=${id}`);
+      const json = await res.json();
+
+      if (!res.ok) {
+        setError(json.error || "Nəticə tapılmadı");
+      } else {
+        setResult(json);
+      }
+    } catch {
+      setError("Server xətası");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const data = await pdf(buffer);
-  const text = data.text;
+  return (
+    <div
+      style={{
+        maxWidth: 420,
+        margin: "80px auto",
+        padding: 20,
+        border: "1px solid #e2e8f0",
+        borderRadius: 10,
+        background: "#fff",
+        textAlign: "center"
+      }}
+    >
+      <h2>📄 İmtahan Nəticəsi</h2>
 
-  /* ===== QUIZ ADI ===== */
-  const quiz =
-    text.match(/Quiz:\s*(.+)/)?.[1]?.trim() || "İmtahan";
+      <input
+        placeholder="Şagird ID-ni daxil et"
+        value={id}
+        onChange={e => setId(e.target.value)}
+        style={{
+          width: "100%",
+          padding: 10,
+          marginTop: 15,
+          borderRadius: 6,
+          border: "1px solid #cbd5e1"
+        }}
+      />
 
-  /* ===== ŞAGİRD ID ===== */
-  const student_id =
-    text.match(/Name\s*(\d+)/)?.[1] ||
-    text.match(/ZipGrade ID:\s*(\d+)/)?.[1];
+      <button
+        onClick={checkResult}
+        disabled={loading}
+        style={{
+          marginTop: 15,
+          width: "100%",
+          padding: 10,
+          background: "#2563eb",
+          color: "#fff",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer"
+        }}
+      >
+        {loading ? "Yoxlanılır..." : "Nəticəyə bax"}
+      </button>
 
-  if (!student_id) {
-    return NextResponse.json({ error: "Şagird ID tapılmadı" }, { status: 400 });
-  }
+      {error && (
+        <p style={{ marginTop: 15, color: "red" }}>
+          ❌ {error}
+        </p>
+      )}
 
-  /* ===== SUAL SAYI (BU PDF-Ə UYĞUN) ===== */
-  const total = 20; // ZipGrade sheet 1–20
-
-  /* ===== BAL (answer key YOXDUR → hamısı cavablanıb kimi) ===== */
-  const score = total;
-  const percent = 100;
-
-  /* ===== DÜZGÜN INSERT ===== */
-  const { error } = await supabase.from("results").insert({
-    student_id,
-    quiz,          // ✅ DÜZGÜN COLUMN
-    score,
-    total,
-    percent
-  });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
+      {result && (
+        <div style={{ marginTop: 20, textAlign: "left" }}>
+          <p><b>Quiz:</b> {result.quiz}</p>
+          <p><b>Bal:</b> {result.score} / {result.total}</p>
+          <p><b>Faiz:</b> {result.percent}%</p>
+          <p>
+            <b>Tarix:</b>{" "}
+            {new Date(result.created_at).toLocaleDateString()}
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
