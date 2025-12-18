@@ -38,21 +38,36 @@ export async function POST(req: Request) {
 
     console.log("PDF TEXT PREVIEW:", text.substring(0, 100)); // Log-da yoxlamaq üçün
 
-    /* ===== PARSING (REGEX) ===== */
-    // Regex-ləriniz PDF formatına tam uyğun olmalıdır
+ /* ===== PARSING (REGEX) ===== */
+    
+    // 1. Quiz adını tapmaq (Varsayılan: "İmtahan")
     const quizMatch = text.match(/Quiz:\s*([^\n]+)/);
     const quiz = quizMatch ? quizMatch[1].trim() : "İmtahan";
 
-    const idMatch = text.match(/Name\s+(\d{6,})/); // Məsələn: Name 123456
+    // 2. Şagird ID-sini tapmaq (DAHA GÜCLÜ METOD)
+    // Əvvəlcə "Name" və ya "Student ID" qarşısındakı rəqəmi axtarır
+    let idMatch = text.match(/(?:Name|ID)[\s\S]*?(\d{6,})/i);
+
+    // Əgər tapmasa, PDF-dəki istənilən 6-10 rəqəmli kodu axtarır (Tarix olmayan)
+    if (!idMatch) {
+       // \b sərhəd deməkdir, yəni yapışıq olmayan təmiz rəqəm
+       idMatch = text.match(/\b(\d{6,10})\b/);
+    }
+
     const student_id = idMatch?.[1];
+
+    // Log-da yoxlamaq üçün (Vercel Logs-da görünəcək)
+    console.log("Tapılan ID:", student_id);
 
     if (!student_id) {
       return NextResponse.json(
-        { error: "PDF-də şagird ID-si tapılmadı (Format: Name 123456)" },
+        { error: "PDF-də şagird ID-si tapılmadı. (Mətn oxuna bilmədi)" },
         { status: 400 }
       );
     }
 
+    /* ===== SCORE PARSING ===== */
+    // Xalları oxumaq
     const scoreMatch = text.match(/Points Earned:\s*(\d+)/);
     const totalMatch = text.match(/Possible Points:\s*(\d+)/);
     const percentMatch = text.match(/Percent:\s*([\d.]+)%/);
@@ -60,7 +75,6 @@ export async function POST(req: Request) {
     const score = scoreMatch ? Number(scoreMatch[1]) : 0;
     const total = totalMatch ? Number(totalMatch[1]) : 20;
     const percent = percentMatch ? Number(percentMatch[1]) : 0;
-
     /* ===== DATABASE WRITE ===== */
     const { error } = await supabase
       .from("results")
