@@ -1,17 +1,13 @@
 import pdf from "pdf-parse";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Bu funksiya ENV yoxdursa dərhal xəta verir
+// 1. Supabase Bağlantısı
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  // DİQQƏT: Vercel-də bu açarı Environment Variables-ə əlavə etməlisiniz!
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY; 
-  
-  if (!url || !key) {
-    console.error("Supabase açarları tapılmadı. Vercel ENV yoxlayın.");
-    throw new Error("Supabase ENV yoxdur (Service Role Key)");
-  }
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase ENV yoxdur");
   return createClient(url, key);
 }
 
@@ -19,81 +15,95 @@ export async function POST(req: Request) {
   try {
     const supabase = getSupabase();
 
-    const formData = await req.formData();
-    
-    // DÜZƏLİŞ: Frontend "pdf" göndərir, biz də "pdf" götürürük
-    const file = formData.get("pdf") as File; 
-    
-    if (!file) {
-      return NextResponse.json({ error: "PDF faylı göndərilməyib" }, { status: 400 });
+    // 2. Google Gemini Bağlantısı
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: "GEMINI_API_KEY tapılmadı" }, { status: 500 });
     }
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // Faylı buffer-ə çevirmək
+    const formData = await req.formData();
+    const file = formData.get("pdf") as File;
+
+    if (!file) return NextResponse.json({ error: "PDF yoxdur" }, { status: 400 });
+
+    // PDF-i Buffer-ə çevirib oxumaq
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    
-    // PDF oxumaq
     const data = await pdf(buffer);
-    const text = data.text;
+    const pdfText = data.text;
 
-    console.log("PDF TEXT PREVIEW:", text.substring(0, 100)); // Log-da yoxlamaq üçün
+    // Əgər PDF boşdursa
+    if (!pdfText || pdfText.length < 10) {
+      return NextResponse.json({ error: "PDF mətni oxunmadı (Şəkil ola bilər)" }, { status: 400 });
+    }
 
- /* ===== PARSING (REGEX) ===== */
+    console.log("PDF mətni Gemini-yə göndərilir...");
+
+    // 3. AI-ya Sorğu (Prompt)
+    const prompt = `
+      Aşağıdakı imtahan nəticəsi mətnindən məlumatları çıxar və yalnız JSON formatında qaytar.
+      Başqa heç bir söz yazma, yalnız JSON.
+
+      Axtarılacaq sahələr:
+      - student_id: (Tələbənin ID nömrəsi. Adətən 6-10 rəqəmli olur. 'Name' və ya 'ID' yanında ola bilər. Məsələn: 19576598)
+      - quiz: (İmtahan adı. 'Quiz:' sözündən sonra. Tapmasan 'İmtahan' yaz)
+      - score: (Topladığı xal. 'Points Earned' və ya 'Pts' yanında)
+      - total: (Maksimum xal. 'Possible Points' yanında)
+      - percent: (Faiz. '%' işarəsi olan)
+
+      Əgər hansısa dəyəri tapmasan, 0 və ya boş string yaz.
+
+      PDF MƏTNİ:
+      ${pdfText}
+    `;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
     
-    // 1. Quiz adını tapmaq (Varsayılan: "İmtahan")
-    const quizMatch = text.match(/Quiz:\s*([^\n]+)/);
-    const quiz = quizMatch ? quizMatch[1].trim() : "İmtahan";
+    // JSON-u təmizləmək (Bəzən AI ```json ... ``` əlavə edir)
+    let textResult = response.text();
+    textResult = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
 
-    // 2. Şagird ID-sini tapmaq (DAHA GÜCLÜ METOD)
-    // Əvvəlcə "Name" və ya "Student ID" qarşısındakı rəqəmi axtarır
-    let idMatch = text.match(/(?:Name|ID)[\s\S]*?(\d{6,})/i);
-
-    // Əgər tapmasa, PDF-dəki istənilən 6-10 rəqəmli kodu axtarır (Tarix olmayan)
-    if (!idMatch) {
-       // \b sərhəd deməkdir, yəni yapışıq olmayan təmiz rəqəm
-       idMatch = text.match(/\b(\d{6,10})\b/);
+    console.log("AI Cavabı:", textResult);
+    
+    let json: any = {};
+    try {
+        json = JSON.parse(textResult);
+    } catch (e) {
+        return NextResponse.json({ error: "AI cavabı JSON deyil: " + textResult }, { status: 500 });
     }
 
-    const student_id = idMatch?.[1];
-
-    // Log-da yoxlamaq üçün (Vercel Logs-da görünəcək)
-    console.log("Tapılan ID:", student_id);
-
-    if (!student_id) {
-      return NextResponse.json(
-        { error: "PDF-də şagird ID-si tapılmadı. (Mətn oxuna bilmədi)" },
-        { status: 400 }
-      );
+    // 4. Bazaya Yazmaq
+    if (!json.student_id || json.student_id == "0") {
+        return NextResponse.json({ error: "AI Şagird ID-sini tapa bilmədi" }, { status: 400 });
     }
 
-    /* ===== SCORE PARSING ===== */
-    // Xalları oxumaq
-    const scoreMatch = text.match(/Points Earned:\s*(\d+)/);
-    const totalMatch = text.match(/Possible Points:\s*(\d+)/);
-    const percentMatch = text.match(/Percent:\s*([\d.]+)%/);
-
-    const score = scoreMatch ? Number(scoreMatch[1]) : 0;
-    const total = totalMatch ? Number(totalMatch[1]) : 20;
-    const percent = percentMatch ? Number(percentMatch[1]) : 0;
-    /* ===== DATABASE WRITE ===== */
     const { error } = await supabase
       .from("results")
       .upsert(
-        { student_id, quiz, score, total, percent },
+        { 
+            student_id: json.student_id, 
+            quiz: json.quiz || "İmtahan", 
+            score: Number(json.score) || 0, 
+            total: Number(json.total) || 0, 
+            percent: Number(json.percent) || 0 
+        },
         { onConflict: "student_id,quiz" }
       );
 
     if (error) {
-      console.error("Supabase Error:", error);
+      console.error("DB Error:", error);
       return NextResponse.json({ error: "Baza xətası: " + error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: "Nəticə uğurla yükləndi!" });
+    return NextResponse.json({ success: true, data: json });
 
   } catch (e: any) {
     console.error("Server Error:", e);
     return NextResponse.json(
-      { error: "Server xətası: " + (e.message || "Bilinməyən xəta") },
+      { error: "Server xətası: " + e.message },
       { status: 500 }
     );
   }
