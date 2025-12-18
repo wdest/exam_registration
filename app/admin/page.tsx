@@ -8,11 +8,8 @@ interface Student {
   exam_id: string;
   first_name: string;
   last_name: string;
-  parent_name: string;
   class: string;
   phone1: string;
-  phone2: string;
-  created_at?: string;
 }
 
 interface Setting {
@@ -95,31 +92,54 @@ export default function AdminPage() {
     XLSX.writeFile(wb, "Imtahan_Siyahisi.xlsx");
   }
 
-  /* ================== PDF UPLOAD ================== */
+  /* ================== PDF UPLOAD (FINAL, İLİŞMƏYƏN) ================== */
   async function uploadResultPdf(e: any) {
     e.preventDefault();
-    const file = e.target.pdf.files[0];
-    if (!file) return;
+
+    const form = e.currentTarget as HTMLFormElement;
+    const fd = new FormData(form);
+    const file = fd.get("pdf") as File | null;
+
+    if (!file || !file.name) {
+      setPdfMessage("❌ PDF seçilməyib");
+      return;
+    }
 
     setPdfUploading(true);
     setPdfMessage("");
 
-    const fd = new FormData();
-    fd.append("file", file);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
 
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: fd
-    });
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: fd,
+        signal: controller.signal
+      });
 
-    const json = await res.json();
-    setPdfUploading(false);
+      clearTimeout(timeout);
 
-    if (json.error) setPdfMessage("❌ " + json.error);
-    else setPdfMessage("✅ Nəticə bazaya yazıldı");
+      const text = await res.text();
+      let json: any = {};
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = { error: text };
+      }
+
+      setPdfMessage(
+        json.error ? "❌ " + json.error : "✅ Nəticə bazaya yazıldı"
+      );
+    } catch {
+      setPdfMessage("❌ Server cavab vermədi (timeout)");
+    } finally {
+      setPdfUploading(false);
+      form.reset();
+    }
   }
 
-  /* ================== LOGIN ================== */
+  /* ================== LOGIN UI ================== */
   if (!isAuthenticated) {
     return (
       <div style={styles.center}>
@@ -132,7 +152,7 @@ export default function AdminPage() {
             onChange={e => setPasswordInput(e.target.value)}
             style={styles.input}
           />
-          <button style={styles.btnPrimary}>Daxil ol</button>
+          <button type="submit" style={styles.btnPrimary}>Daxil ol</button>
         </form>
       </div>
     );
@@ -149,7 +169,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* PDF UPLOAD – UI EYNİ */}
+      {/* PDF UPLOAD */}
       <div style={styles.card}>
         <h2 style={styles.cardTitle}>📄 İmtahan Nəticəsi (PDF)</h2>
 
@@ -162,25 +182,21 @@ export default function AdminPage() {
               style={styles.inputSmall}
             />
             <button
+              type="submit"
               disabled={pdfUploading}
-              style={{
-                ...styles.btnSave,
-                opacity: pdfUploading ? 0.6 : 1
-              }}
+              style={{ ...styles.btnSave, opacity: pdfUploading ? 0.6 : 1 }}
             >
               💾
             </button>
           </div>
 
-          {pdfMessage && (
-            <p style={{ marginTop: 10, fontSize: 14 }}>{pdfMessage}</p>
-          )}
+          {pdfMessage && <p style={{ marginTop: 10 }}>{pdfMessage}</p>}
         </form>
       </div>
 
       {/* SETTINGS */}
       <div style={styles.card}>
-        <h2 style={styles.cardTitle}>🔗 İmtahan Linkləri (Siniflər üzrə)</h2>
+        <h2 style={styles.cardTitle}>🔗 İmtahan Linkləri</h2>
 
         {settingsLoading ? "Yüklənir..." : (
           <div style={styles.grid}>
@@ -188,11 +204,7 @@ export default function AdminPage() {
               <div key={s.id} style={styles.settingItem}>
                 <label style={styles.label}>{s.label}</label>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <input
-                    id={s.key}
-                    defaultValue={s.value}
-                    style={styles.inputSmall}
-                  />
+                  <input id={s.key} defaultValue={s.value} style={styles.inputSmall} />
                   <button
                     style={styles.btnSave}
                     onClick={() => {
@@ -210,7 +222,7 @@ export default function AdminPage() {
       </div>
 
       {/* STUDENTS */}
-      <h2 style={{ marginBottom: 10 }}>👨‍🎓 Qeydiyyatdan keçənlər ({students.length})</h2>
+      <h2>👨‍🎓 Qeydiyyatdan keçənlər ({students.length})</h2>
       <input
         placeholder="Axtarış..."
         value={search}
@@ -262,7 +274,7 @@ const styles: any = {
   inputSmall: { width: "100%", padding: 8, border: "1px solid #cbd5e1", borderRadius: 6 },
 
   table: { width: "100%", borderCollapse: "collapse", marginTop: 10 },
-  label: { fontSize: 12, fontWeight: "bold", marginBottom: 4, display: "block" },
+  label: { fontSize: 12, fontWeight: "bold", marginBottom: 4 },
 
   btnPrimary: { padding: "10px 20px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6 },
   btnSecondary: { padding: "8px 16px", background: "#64748b", color: "#fff", border: "none", borderRadius: 6 },
