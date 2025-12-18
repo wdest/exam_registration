@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import ResultCard from "@/components/ResultCard"; // Bayaq yaratdığımız kartı çağırırıq
+// Əgər components qovluğu app ilə yan-yanadırsa:
+import ResultCard from "../../components/ResultCard";
 import { Search, Loader2, ArrowLeft } from "lucide-react"; // İkonlar üçün
 
 export default function NeticePage() {
