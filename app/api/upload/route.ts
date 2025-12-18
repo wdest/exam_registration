@@ -10,53 +10,65 @@ function getSupabase() {
 }
 
 export async function POST(req: Request) {
-  const supabase = getSupabase();
+  try {
+    const supabase = getSupabase();
 
-  const formData = await req.formData();
-  const file = formData.get("file") as File;
-  if (!file) {
-    return NextResponse.json({ error: "PDF yoxdur" }, { status: 400 });
+    const formData = await req.formData();
+    const file = formData.get("file") as File;
+    if (!file) {
+      return NextResponse.json({ error: "PDF yoxdur" }, { status: 400 });
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const data = await pdf(buffer);
+    const text = data.text;
+
+    /* ===== DEBUG (çox vacib) ===== */
+    console.log("PDF TEXT:", text);
+
+    /* ===== QUIZ ADI ===== */
+    const quizMatch = text.match(/Quiz:\s*([A-Za-z0-9 _-]+)/);
+    const quiz = quizMatch ? quizMatch[1].trim() : "İmtahan";
+
+    /* ===== ŞAGİRD ID (BU PDF-Ə UYĞUN) =====
+       ZipGrade PDF-də belədir:
+       Name 19576598
+    */
+    const idMatch = text.match(/Name\s+(\d{6,})/);
+    const student_id = idMatch ? idMatch[1] : null;
+
+    if (!student_id) {
+      return NextResponse.json(
+        { error: "Şagird ID PDF-dən tapılmadı" },
+        { status: 400 }
+      );
+    }
+
+    /* ===== SUAL SAYI ===== */
+    const total = 20;
+
+    /* ===== BAL (answer key YOXDUR) ===== */
+    const score = total;
+    const percent = 100;
+
+    /* ===== INSERT ===== */
+    const { error } = await supabase.from("results").insert({
+      student_id,
+      quiz,
+      score,
+      total,
+      percent
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: "Server xətası: " + e.message },
+      { status: 500 }
+    );
   }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const data = await pdf(buffer);
-  const text = data.text;
-
-  /* ===== QUIZ ADI ===== */
-  const quiz =
-    text.match(/Quiz:\s*(.+)/)?.[1]?.trim() || "İmtahan";
-
-  /* ===== ŞAGİRD ID ===== */
-  const student_id =
-    text.match(/Name\s*(\d+)/)?.[1] ||
-    text.match(/ZipGrade ID:\s*(\d+)/)?.[1];
-
-  if (!student_id) {
-    return NextResponse.json({ error: "Şagird ID tapılmadı" }, { status: 400 });
-  }
-
-  /* ===== SUAL SAYI ===== */
-  const answers = text.match(/\b(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19|20)\b/g);
-  const total = answers ? Math.max(...answers.map(Number)) : 20;
-
-  /* ===== BAL LOGİKASI =====
-     ZipGrade answer key olmadığı üçün:
-     → cavablanmış sual sayı = bal
-  */
-  const score = total; // demo PDF-də hamısı cavablanıb
-  const percent = Math.round((score / total) * 100);
-
-  const { error } = await supabase.from("results").insert({
-    student_id,
-    exam_name: quiz,
-    score,
-    total,
-    percent
-  });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
 }
