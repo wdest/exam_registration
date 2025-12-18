@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
-// Tipləri təyin edirik
+// Tiplər
 interface Student {
   exam_id: string;
   first_name: string;
@@ -31,24 +31,55 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   
-  // Şagirdlər üçün State-lər
+  // Data State-ləri
   const [students, setStudents] = useState<Student[]>([]);
+  const [settings, setSettings] = useState<Setting[]>([]);
+  
+  // UI State-ləri
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
-
-  // Ayarlar (Linklər) üçün State-lər
-  const [settings, setSettings] = useState<Setting[]>([]);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (passwordInput === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
       setIsAuthenticated(true);
       fetchStudents();
-      fetchSettings(); // Giriş edən kimi linkləri də gətir
+      fetchSettings(); 
     } else {
       alert("Şifrə yanlışdır!");
+    }
+  }
+
+  // --- LİNKLƏRİ GƏTİRƏN FUNKSİYA ---
+  async function fetchSettings() {
+    setSettingsLoading(true);
+    // id-yə görə sıralayırıq ki, 1-ci sinif 1-ci gəlsin
+    const { data, error } = await supabase
+      .from("settings")
+      .select("*")
+      .order("id", { ascending: true });
+
+    if (error) console.error("Parametr xətası:", error);
+    else setSettings((data as Setting[]) || []);
+    setSettingsLoading(false);
+  }
+
+  // --- LİNKİ YENİLƏYƏN FUNKSİYA ---
+  async function updateSetting(key: string, newValue: string) {
+    const { error } = await supabase
+      .from("settings")
+      .update({ value: newValue })
+      .eq("key", key);
+
+    if (error) {
+      alert("Xəta: " + error.message);
+    } else {
+      // İstifadəçini narahat etməmək üçün alert vermirik, sadəcə düymə rəngini dəyişə bilərik, 
+      // amma sadəlik üçün bura 'success' logu qoyuruq.
+      alert("✅ Link yeniləndi!");
+      fetchSettings(); 
     }
   }
 
@@ -65,44 +96,14 @@ export default function AdminPage() {
     setLoading(false);
   }
 
-  // --- AYARLAR (LİNKLƏR) FUNKSİYALARI ---
-  async function fetchSettings() {
-    setSettingsLoading(true);
-    const { data, error } = await supabase
-      .from("settings")
-      .select("*")
-      .order("id", { ascending: true });
-
-    if (error) console.error("Parametr xətası:", error);
-    else setSettings((data as Setting[]) || []);
-    setSettingsLoading(false);
-  }
-
-  async function updateSetting(key: string, newValue: string) {
-    const { error } = await supabase
-      .from("settings")
-      .update({ value: newValue })
-      .eq("key", key);
-
-    if (error) {
-      alert("Yadda saxlanmadı: " + error.message);
-    } else {
-      alert("Link uğurla yeniləndi!");
-      fetchSettings(); // Yenilənmiş halını gətir
-    }
-  }
-
-  // Digər funksiyalar (Excel, Delete, Edit)
   function exportToExcel() {
     const dataForExcel = students.map((s) => ({
-      "Exam ID": s.exam_id,
+      "ID": s.exam_id,
       "Ad": s.first_name,
       "Soyad": s.last_name,
-      "Valideyn": s.parent_name,
       "Sinif": s.class,
       "Tel 1": s.phone1,
       "Tel 2": s.phone2,
-      "Tarix": s.created_at ? new Date(s.created_at).toLocaleDateString() : "",
     }));
     const worksheet = XLSX.utils.json_to_sheet(dataForExcel);
     const workbook = XLSX.utils.book_new();
@@ -124,7 +125,7 @@ export default function AdminPage() {
         phone2: editingStudent.phone2,
       })
       .eq("exam_id", editingStudent.exam_id);
-    if (error) alert("Yadda saxlanmadı: " + error.message);
+    if (error) alert("Xəta: " + error.message);
     else {
       alert("Məlumat yeniləndi!");
       setEditingStudent(null);
@@ -133,7 +134,7 @@ export default function AdminPage() {
   }
 
   async function deleteStudent(id: string) {
-    if(!confirm("Bu şagirdi silmək istədiyinizə əminsiniz?")) return;
+    if(!confirm("Silmək istədiyinizə əminsiniz?")) return;
     const { error } = await supabase.from("students").delete().eq("exam_id", id);
     if(error) alert("Silinmədi: " + error.message);
     else fetchStudents();
@@ -153,13 +154,7 @@ export default function AdminPage() {
       <div style={styles.centerContainer}>
         <form onSubmit={handleLogin} style={styles.loginBox}>
           <h2 style={{ textAlign: "center", marginBottom: 20 }}>Admin Panel</h2>
-          <input
-            type="password"
-            placeholder="Şifrə"
-            value={passwordInput}
-            onChange={(e) => setPasswordInput(e.target.value)}
-            style={styles.input}
-          />
+          <input type="password" placeholder="Şifrə" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} style={styles.input} />
           <button type="submit" style={styles.btnPrimary}>Daxil ol</button>
         </form>
       </div>
@@ -176,29 +171,30 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* --- YENİ HİSSƏ: LİNKLƏRİN İDARƏSİ --- */}
+      {/* --- SİNİF LİNKLƏRİ BÖLMƏSİ --- */}
       <div style={styles.card}>
-        <h2 style={{fontSize: '18px', marginBottom: '15px', borderBottom: '1px solid #eee', paddingBottom: 10}}>⚙️ Sayt Ayarları (Linklər)</h2>
-        {settingsLoading ? <p>Yüklənir...</p> : (
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20}}>
+        <h2 style={{fontSize: '18px', marginBottom: '15px', borderBottom: '1px solid #eee', paddingBottom: 10}}>🔗 İmtahan Linkləri (Siniflər üzrə)</h2>
+        
+        {settingsLoading ? <p>Linklər yüklənir...</p> : (
+          <div style={styles.gridContainer}>
             {settings.map((setting) => (
-              <div key={setting.id} style={{marginBottom: 10}}>
+              <div key={setting.id} style={styles.settingItem}>
                 <label style={styles.label}>{setting.label}</label>
-                <div style={{display: 'flex', gap: 10}}>
+                <div style={{display: 'flex', gap: 5}}>
                   <input 
                     defaultValue={setting.value} 
                     id={`input-${setting.key}`}
-                    style={styles.input} 
+                    placeholder="Link yapışdırın..."
+                    style={styles.inputSmall} 
                   />
                   <button 
-                    style={styles.btnEdit}
+                    style={styles.btnSave}
                     onClick={() => {
-                      // Inputun dəyərini tapıb göndəririk
                       const val = (document.getElementById(`input-${setting.key}`) as HTMLInputElement).value;
                       updateSetting(setting.key, val);
                     }}
                   >
-                    Yadda Saxla
+                    💾
                   </button>
                 </div>
               </div>
@@ -207,12 +203,10 @@ export default function AdminPage() {
         )}
       </div>
 
-      <hr style={{margin: '30px 0', border: 'none', borderTop: '1px solid #ddd'}}/>
-
-      {/* --- KÖHNƏ HİSSƏ: ŞAGİRD CƏDVƏLİ --- */}
-      <h2 style={{fontSize: '18px', marginBottom: '15px'}}>👨‍🎓 Şagirdlər ({students.length})</h2>
+      {/* --- ŞAGİRD SİYAHISI --- */}
+      <h2 style={{fontSize: '18px', marginBottom: '15px', marginTop: '30px'}}>👨‍🎓 Qeydiyyatdan keçənlər ({students.length})</h2>
       <input
-        placeholder="Axtar: Ad, Soyad, ID..."
+        placeholder="Axtarış..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{ ...styles.input, maxWidth: "400px", marginBottom: "20px" }}
@@ -223,28 +217,24 @@ export default function AdminPage() {
           <thead>
             <tr style={{ background: "#f1f5f9", textAlign: "left" }}>
               <th style={styles.th}>ID</th>
-              <th style={styles.th}>Ad</th>
-              <th style={styles.th}>Soyad</th>
+              <th style={styles.th}>Ad Soyad</th>
               <th style={styles.th}>Sinif</th>
-              <th style={styles.th}>Tel 1</th>
+              <th style={styles.th}>Telefon</th>
               <th style={styles.th}>Əməliyyat</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} style={{ padding: 20, textAlign: "center" }}>Yüklənir...</td></tr>
+              <tr><td colSpan={5} style={{ padding: 20, textAlign: "center" }}>Yüklənir...</td></tr>
             ) : filteredStudents.map((s) => (
               <tr key={s.exam_id} style={{ borderBottom: "1px solid #e2e8f0" }}>
                 <td style={styles.td}><b>{s.exam_id}</b></td>
-                <td style={styles.td}>{s.first_name}</td>
-                <td style={styles.td}>{s.last_name}</td>
-                <td style={styles.td}>{s.class}</td>
+                <td style={styles.td}>{s.first_name} {s.last_name}</td>
+                <td style={styles.td}>{s.class}-ci</td>
                 <td style={styles.td}>{s.phone1}</td>
                 <td style={styles.td}>
-                  <div style={{display:'flex', gap: 5}}>
-                    <button onClick={() => setEditingStudent(s)} style={styles.btnEdit}>Düzəlt</button>
-                    <button onClick={() => deleteStudent(s.exam_id)} style={styles.btnDelete}>Sil</button>
-                  </div>
+                  <button onClick={() => setEditingStudent(s)} style={styles.btnEdit}>Düzəlt</button>
+                  <button onClick={() => deleteStudent(s.exam_id)} style={styles.btnDelete}>Sil</button>
                 </td>
               </tr>
             ))}
@@ -252,27 +242,32 @@ export default function AdminPage() {
         </table>
       </div>
 
-      {/* MODAL (Köhnə hissə eyni qalır) */}
+      {/* MODAL */}
       {editingStudent && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
             <h3>Məlumatı Dəyiş</h3>
             <form onSubmit={saveEdit}>
-              <label style={styles.label}>Ad</label>
-              <input style={styles.input} value={editingStudent.first_name} onChange={e => setEditingStudent({...editingStudent, first_name: e.target.value})}/>
-              <label style={styles.label}>Soyad</label>
-              <input style={styles.input} value={editingStudent.last_name} onChange={e => setEditingStudent({...editingStudent, last_name: e.target.value})}/>
-              <label style={styles.label}>Valideyn</label>
-              <input style={styles.input} value={editingStudent.parent_name} onChange={e => setEditingStudent({...editingStudent, parent_name: e.target.value})}/>
-              <label style={styles.label}>Sinif</label>
-              <input style={styles.input} value={editingStudent.class} onChange={e => setEditingStudent({...editingStudent, class: e.target.value})}/>
-               <label style={styles.label}>Telefon 1</label>
-              <input style={styles.input} value={editingStudent.phone1} onChange={e => setEditingStudent({...editingStudent, phone1: e.target.value})}/>
-              <label style={styles.label}>Telefon 2</label>
-              <input style={styles.input} value={editingStudent.phone2} onChange={e => setEditingStudent({...editingStudent, phone2: e.target.value})}/>
-
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap: 10}}>
+                <div>
+                  <label style={styles.label}>Ad</label>
+                  <input style={styles.input} value={editingStudent.first_name} onChange={e => setEditingStudent({...editingStudent, first_name: e.target.value})}/>
+                </div>
+                <div>
+                  <label style={styles.label}>Soyad</label>
+                  <input style={styles.input} value={editingStudent.last_name} onChange={e => setEditingStudent({...editingStudent, last_name: e.target.value})}/>
+                </div>
+                <div>
+                   <label style={styles.label}>Sinif</label>
+                   <input style={styles.input} value={editingStudent.class} onChange={e => setEditingStudent({...editingStudent, class: e.target.value})}/>
+                </div>
+                <div>
+                   <label style={styles.label}>Telefon</label>
+                   <input style={styles.input} value={editingStudent.phone1} onChange={e => setEditingStudent({...editingStudent, phone1: e.target.value})}/>
+                </div>
+              </div>
               <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
-                <button type="button" onClick={() => setEditingStudent(null)} style={styles.btnCancel}>Ləğv et</button>
+                <button type="button" onClick={() => setEditingStudent(null)} style={styles.btnCancel}>Bağla</button>
                 <button type="submit" style={styles.btnPrimary}>Yadda saxla</button>
               </div>
             </form>
@@ -286,21 +281,31 @@ export default function AdminPage() {
 const styles: any = {
   centerContainer: { height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "#f1f5f9" },
   loginBox: { background: "#fff", padding: "30px", borderRadius: "10px", boxShadow: "0 4px 6px rgba(0,0,0,0.1)", width: "300px" },
-  container: { padding: "20px", fontFamily: "sans-serif", background: "#fff", minHeight: "100vh" },
+  container: { padding: "20px", fontFamily: "sans-serif", background: "#fff", minHeight: "100vh", maxWidth: "1200px", margin: "0 auto" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" },
+  
+  // Grid layout (Yeni əlavə)
+  gridContainer: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: "15px" },
+  settingItem: { background: "#fff", padding: "10px", borderRadius: "6px", border: "1px solid #e2e8f0" },
+  
   input: { width: "100%", padding: "10px", marginBottom: "10px", border: "1px solid #cbd5e1", borderRadius: "6px" },
+  inputSmall: { width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px" },
+  
   tableWrapper: { overflowX: "auto" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "14px" },
   th: { padding: "12px", borderBottom: "2px solid #e2e8f0" },
   td: { padding: "12px", borderBottom: "1px solid #e2e8f0" },
+  
   btnPrimary: { padding: "10px 20px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", width: "100%" },
   btnSecondary: { padding: "8px 16px", background: "#64748b", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" },
   btnSuccess: { padding: "8px 16px", background: "#16a34a", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" },
-  btnEdit: { padding: "8px 12px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", whiteSpace: "nowrap" },
-  btnDelete: { padding: "6px 10px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" },
+  btnSave: { padding: "0 15px", background: "#2563eb", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "18px" },
+  btnEdit: { padding: "6px 12px", background: "#f59e0b", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px", marginRight: 5 },
+  btnDelete: { padding: "6px 12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "12px" },
   btnCancel: { padding: "10px 20px", background: "#94a3b8", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", width: "100%" },
+  
   modalOverlay: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 },
-  modalContent: { background: "#fff", padding: "24px", borderRadius: "10px", width: "400px", maxWidth: "90%" },
-  label: { fontSize: "12px", fontWeight: "bold", marginBottom: "4px", display: "block" },
+  modalContent: { background: "#fff", padding: "24px", borderRadius: "10px", width: "500px", maxWidth: "90%" },
+  label: { fontSize: "12px", fontWeight: "bold", marginBottom: "4px", display: "block", color: "#475569" },
   card: { background: "#f8fafc", padding: "20px", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "30px" }
 };
