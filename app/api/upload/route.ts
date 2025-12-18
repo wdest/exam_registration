@@ -1,9 +1,8 @@
-import pdf from "pdf-parse";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai"; // SchemaType əlavə edin
 
-// 1. Supabase Bağlantısı
+// 1. Supabase
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,71 +13,77 @@ function getSupabase() {
 export async function POST(req: Request) {
   try {
     const supabase = getSupabase();
-
-    // 2. Google Gemini Bağlantısı
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "GEMINI_API_KEY tapılmadı" }, { status: 500 });
-    }
+    
+    if (!apiKey) return NextResponse.json({ error: "API Key yoxdur" }, { status: 500 });
+
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    
+    // Model konfiqurasiyası: JSON cavab istədiyimizi dəqiq deyirik
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-3-flash-preview",
+      generationConfig: {
+        responseMimeType: "application/json" 
+      }
+    });
 
     const formData = await req.formData();
     const file = formData.get("pdf") as File;
 
     if (!file) return NextResponse.json({ error: "PDF yoxdur" }, { status: 400 });
 
-    // PDF-i Buffer-ə çevirib oxumaq
+    // Faylı Base64 formatına çeviririk (Gemini-yə birbaşa göndərmək üçün)
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const data = await pdf(buffer);
-    const pdfText = data.text;
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // Əgər PDF boşdursa
-    if (!pdfText || pdfText.length < 10) {
-      return NextResponse.json({ error: "PDF mətni oxunmadı (Şəkil ola bilər)" }, { status: 400 });
-    }
-
-    console.log("PDF mətni Gemini-yə göndərilir...");
-
-    // 3. AI-ya Sorğu (Prompt)
+    // 2. AI-ya Sorğu
     const prompt = `
-      Aşağıdakı imtahan nəticəsi mətnindən məlumatları çıxar və yalnız JSON formatında qaytar.
-      Başqa heç bir söz yazma, yalnız JSON.
+      Bu imtahan sənədini analiz et. Məlumatları dəqiq çıxar.
+      
+      Sahələr:
+      - student_id: (string, ID nömrəsi)
+      - quiz: (string, İmtahan adı)
+      - score: (number, Topladığı xal)
+      - total: (number, Maksimum xal)
+      - percent: (number, Faiz, sadəcə rəqəm)
 
-      Axtarılacaq sahələr:
-      - student_id: (Tələbənin ID nömrəsi. Adətən 6-10 rəqəmli olur. 'Name' və ya 'ID' yanında ola bilər. Məsələn: 19576598)
-      - quiz: (İmtahan adı. 'Quiz:' sözündən sonra. Tapmasan 'İmtahan' yaz)
-      - score: (Topladığı xal. 'Points Earned' və ya 'Pts' yanında)
-      - total: (Maksimum xal. 'Possible Points' yanında)
-      - percent: (Faiz. '%' işarəsi olan)
-
-      Əgər hansısa dəyəri tapmasan, 0 və ya boş string yaz.
-
-      PDF MƏTNİ:
-      ${pdfText}
+      Əgər faiz işarəsi (%) görsən, onu sil, yalnız rəqəmi yaz.
     `;
 
-    const result = await model.generateContent(prompt);
+    // PDF-i və Prompt-u birlikdə göndəririk
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Data,
+          mimeType: "application/pdf",
+        },
+      },
+    ]);
+
     const response = await result.response;
-    
-    // JSON-u təmizləmək (Bəzən AI ```json ... ``` əlavə edir)
-    let textResult = response.text();
-    textResult = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
+    const textResult = response.text(); // Artıq təmiz JSON gələcək
 
     console.log("AI Cavabı:", textResult);
-    
-    let json: any = {};
+
+    let json;
     try {
         json = JSON.parse(textResult);
     } catch (e) {
-        return NextResponse.json({ error: "AI cavabı JSON deyil: " + textResult }, { status: 500 });
+        return NextResponse.json({ error: "JSON parse xətası" }, { status: 500 });
     }
 
-    // 4. Bazaya Yazmaq
-    if (!json.student_id || json.student_id == "0") {
-        return NextResponse.json({ error: "AI Şagird ID-sini tapa bilmədi" }, { status: 400 });
+    // 3. Bazaya Yazmaq (Number çevirmələrini möhkəmləndirək)
+    if (!json.student_id) {
+        return NextResponse.json({ error: "Şagird ID tapılmadı" }, { status: 400 });
     }
+
+    // Rəqəmləri təmizləmək (Məsələn "85%" gəlibsə "85" olsun)
+    const cleanNumber = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') return parseFloat(val.replace(/[^0-9.]/g, '')) || 0;
+        return 0;
+    };
 
     const { error } = await supabase
       .from("results")
@@ -86,25 +91,19 @@ export async function POST(req: Request) {
         { 
             student_id: json.student_id, 
             quiz: json.quiz || "İmtahan", 
-            score: Number(json.score) || 0, 
-            total: Number(json.total) || 0, 
-            percent: Number(json.percent) || 0 
+            score: cleanNumber(json.score), 
+            total: cleanNumber(json.total), 
+            percent: cleanNumber(json.percent) 
         },
         { onConflict: "student_id,quiz" }
       );
 
-    if (error) {
-      console.error("DB Error:", error);
-      return NextResponse.json({ error: "Baza xətası: " + error.message }, { status: 500 });
-    }
+    if (error) throw error;
 
     return NextResponse.json({ success: true, data: json });
 
   } catch (e: any) {
-    console.error("Server Error:", e);
-    return NextResponse.json(
-      { error: "Server xətası: " + e.message },
-      { status: 500 }
-    );
+    console.error("Error:", e);
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
