@@ -9,6 +9,7 @@
     "@supabase/supabase-js": "^2.45.0",
     "pdf-parse": "^1.1.1",
     "xlsx": "^0.18.5",
+    "@google/generative-ai": "^0.21.0",
 
     "next": "latest",
     "react": "^18.2.0",
