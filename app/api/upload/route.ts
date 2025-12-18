@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "GEMINI_API_KEY tapılmadı" }, { status: 500 });
     }
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const formData = await req.formData();
     const file = formData.get("pdf") as File;
