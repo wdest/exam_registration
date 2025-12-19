@@ -2,16 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
-// 1. Supabase Client Yaradılması
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
   if (!url || !key) return null;
   return createClient(url, key);
 }
 
-// 2. Gemini Schema (POST üçün)
 const examSchema = {
   description: "İmtahan nəticəsi",
   type: SchemaType.OBJECT,
@@ -25,7 +22,6 @@ const examSchema = {
   required: ["student_id", "score", "total"],
 };
 
-// --- GET METODU: Nəticəni axtarmaq üçün ---
 export async function GET(req: Request) {
   try {
     const supabase = getSupabase();
@@ -36,7 +32,7 @@ export async function GET(req: Request) {
 
     if (!id) return NextResponse.json({ error: "ID göndərilməyib" }, { status: 400 });
 
-    // DƏYİŞİKLİK: 'students' cədvəlindəki 'first_name' və 'last_name' sütunlarını çəkirik
+    // DƏYİŞİKLİK: Bazadakı 'first_name' və 'last_name' sütunlarını çağırırıq
     const { data, error } = await supabase
       .from("results")
       .select(`
@@ -49,7 +45,7 @@ export async function GET(req: Request) {
       .eq("student_id", id)
       .order("created_at", { ascending: false })
       .limit(1)
-      .maybeSingle(); // maybeSingle xəta ehtimalını azaldır
+      .maybeSingle();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: "Nəticə tapılmadı" }, { status: 404 });
@@ -60,7 +56,6 @@ export async function GET(req: Request) {
   }
 }
 
-// --- POST METODU: PDF-i oxuyub Gemini ilə emal etmək ---
 export async function POST(req: Request) {
   try {
     const supabase = getSupabase();
@@ -71,7 +66,7 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview", // ən yeni model
+      model: "gemini-3-flash-preview", 
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: examSchema,
