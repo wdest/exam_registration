@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Loader2, Trophy, GraduationCap, ArrowLeft } from "lucide-react";
+import Image from "next/image";
+import { Search, Loader2, ArrowLeft } from "lucide-react";
 
-export default function ResultPage() {
+export default function Page() {
   const [id, setId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -46,7 +47,6 @@ export default function ResultPage() {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-6 relative overflow-hidden">
 
-        {/* fon effektləri */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-100 rounded-full blur-3xl opacity-30 -mr-32 -mt-32"></div>
 
         <div className="w-full max-w-md mb-6 z-10">
@@ -64,8 +64,16 @@ export default function ResultPage() {
         <div className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] z-10 animate-in fade-in zoom-in duration-300">
 
           <div className="text-center mb-6">
-            <div className="bg-gradient-to-br from-blue-600 to-blue-700 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-blue-200 mb-4">
-              <Trophy size={36} className="text-white" />
+            {/* LOGO */}
+            <div className="bg-blue-600 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-blue-200 mb-4">
+              <Image
+                src="/logo.png"
+                alt="Main Olympic Center Logo"
+                width={48}
+                height={48}
+                className="object-contain"
+                priority
+              />
             </div>
 
             <h2 className="text-2xl font-black text-slate-800">
@@ -77,17 +85,15 @@ export default function ResultPage() {
             </p>
           </div>
 
-          <div className="space-y-4">
-            <div className="text-center">
-              <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">
-                Şagird
-              </p>
-              <p className="text-xl font-black text-slate-800">
-                {fullName}
-              </p>
-            </div>
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">
+              Şagird
+            </p>
+            <p className="text-xl font-black text-slate-800">
+              {fullName}
+            </p>
 
-            <div className="rounded-2xl bg-slate-50 p-4 border text-center">
+            <div className="rounded-2xl bg-slate-50 p-4 border">
               <p className="font-bold text-slate-700">
                 {result.quiz}
               </p>
@@ -115,7 +121,6 @@ export default function ResultPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] p-6 relative overflow-hidden">
 
-      {/* fon */}
       <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
       <div className="absolute top-[10%] left-[5%] w-72 h-72 bg-blue-200 rounded-full blur-[120px] opacity-30"></div>
       <div className="absolute bottom-[10%] right-[5%] w-80 h-80 bg-indigo-200 rounded-full blur-[120px] opacity-30"></div>
@@ -123,20 +128,25 @@ export default function ResultPage() {
       <div className="w-full max-w-md bg-white p-8 md:p-12 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] z-10">
 
         <div className="text-center mb-10">
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-blue-200 mb-6">
-            <Trophy size={42} className="text-white" />
+          {/* LOGO */}
+          <div className="bg-blue-600 w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-blue-200 mb-6">
+            <Image
+              src="/logo.png"
+              alt="Main Olympic Center Logo"
+              width={56}
+              height={56}
+              className="object-contain"
+              priority
+            />
           </div>
 
           <h2 className="text-3xl font-black text-slate-800">
             Nəticəni Yoxla
           </h2>
 
-          <div className="flex items-center justify-center gap-2 mt-3">
-            <GraduationCap size={18} className="text-blue-500" />
-            <p className="text-blue-600 font-bold text-xs uppercase tracking-widest italic">
-              Main Olympic Center
-            </p>
-          </div>
+          <p className="text-blue-600 font-bold text-xs uppercase tracking-widest italic mt-3">
+            Main Olympic Center
+          </p>
         </div>
 
         <form onSubmit={checkResult} className="space-y-6">
