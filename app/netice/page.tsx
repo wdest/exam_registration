@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
-// Əgər components qovluğu app ilə yan-yanadırsa:
-import ResultCard from "../../components/ResultCard";
-import { Search, Loader2, ArrowLeft } from "lucide-react"; // İkonlar üçün
+// Import yolunu dəqiq yoxlayın (Vercel xətası olarsa ../../components/ResultCard yoxlayın)
+import ResultCard from "../../components/ResultCard"; 
+import { Search, Loader2, ArrowLeft } from "lucide-react";
 
 export default function NeticePage() {
   const [id, setId] = useState("");
@@ -33,7 +33,6 @@ export default function NeticePage() {
     }
   }
 
-  // ENTER düyməsi ilə axtarış etmək üçün
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       checkResult();
@@ -42,9 +41,13 @@ export default function NeticePage() {
 
   // --- EKRAN 1: Nəticə Tapılanda ---
   if (result) {
+    // DƏYİŞİKLİK: Bazadan gələn first_name və last_name-i birləşdiririk
+    const fullName = result.students 
+      ? `${result.students.first_name} ${result.students.last_name}` 
+      : "Ad Tapılmadı";
+
     return (
       <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-        {/* Geri Qayıt Düyməsi */}
         <div className="w-full max-w-md mb-6">
             <button 
                 onClick={() => { setResult(null); setId(""); }}
@@ -54,27 +57,25 @@ export default function NeticePage() {
             </button>
         </div>
 
-        {/* Nəticə Kartı */}
         <ResultCard
-          studentName={result.students?.full_name || "Ad Tapılmadı"} // Adı buradan ötürürük
+          studentName={fullName} 
           studentId={result.student_id}
           quizName={result.quiz}
           score={result.score}
           total={result.total}
           percent={result.percent}
           date={new Date(result.created_at).toLocaleDateString("az-AZ")}
-          logoUrl="/images/logo.png" // Logonuzu 'public/images/logo.png' qovluğuna atın
+          logoUrl="/images/logo.png" 
         />
       </div>
     );
   }
 
-  // --- EKRAN 2: Giriş Formu (Axtarış) ---
+  // --- EKRAN 2: Giriş Formu ---
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md bg-white p-8 md:p-10 rounded-3xl shadow-xl border border-gray-100 transition-all hover:shadow-2xl">
         
-        {/* Başlıq və İkon */}
         <div className="text-center mb-8">
           <div className="bg-blue-600 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg rotate-3 transform hover:rotate-6 transition duration-300">
              <Search size={36} className="text-white" />
@@ -83,20 +84,17 @@ export default function NeticePage() {
           <p className="text-gray-500 mt-3 font-medium">Main Olympic Center İmtahan Portalı</p>
         </div>
 
-        {/* Form Hissəsi */}
         <div className="space-y-5">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2 ml-1">Şagird ID</label>
-            <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Məsələn: 19576598"
-                  value={id}
-                  onChange={(e) => setId(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="w-full pl-5 pr-4 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition outline-none font-medium text-lg text-gray-800 placeholder-gray-400"
-                />
-            </div>
+            <input
+              type="text"
+              placeholder="Məsələn: 19576598"
+              value={id}
+              onChange={(e) => setId(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full pl-5 pr-4 py-4 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition outline-none font-medium text-lg text-gray-800 placeholder-gray-400"
+            />
           </div>
 
           <button
@@ -114,7 +112,6 @@ export default function NeticePage() {
           </button>
         </div>
 
-        {/* Xəta Mesajı */}
         {error && (
           <div className="mt-6 p-4 bg-red-50 text-red-600 text-sm font-medium rounded-2xl flex items-center justify-center border border-red-100 animate-pulse text-center">
             ⚠️ {error}
