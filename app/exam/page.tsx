@@ -14,7 +14,7 @@ const supabase = createClient(
 interface Exam {
   id: number;
   name: string;
-  class_grade: string; // Sinif sütunu
+  class_grade: string;
   url: string;
 }
 
@@ -24,17 +24,17 @@ export default function ExamRegister() {
   const [error, setError] = useState<string | null>(null);
   
   // DATA STATE-ləri
-  const [allExams, setAllExams] = useState<Exam[]>([]); // Bütün imtahanlar
-  const [filteredExams, setFilteredExams] = useState<Exam[]>([]); // Seçilən sinfə aid olanlar
+  const [allExams, setAllExams] = useState<Exam[]>([]); 
   
-  // DİNAMİK SİNİF STATE-i (YALNIZ AKTİV SİNİFLƏR)
-  const [availableClasses, setAvailableClasses] = useState<string[]>([]);
+  // LOGİKA DƏYİŞDİ: Əvvəlcə İmtahan adları, sonra Siniflər
+  const [uniqueExamNames, setUniqueExamNames] = useState<string[]>([]); // Unikal imtahan adları
+  const [availableClassesForExam, setAvailableClassesForExam] = useState<string[]>([]); // Seçilən imtahanın sinifləri
 
   // FORM STATE-ləri
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedExamId, setSelectedExamId] = useState("");
+  const [selectedExamName, setSelectedExamName] = useState(""); // 1-ci seçim
+  const [selectedClass, setSelectedClass] = useState("");       // 2-ci seçim
 
-  // 1. Məlumatları çəkirik və Mövcud Sinifləri Təyin edirik
+  // 1. Məlumatları çəkirik və Unikal İmtahan Adlarını tapırıq
   useEffect(() => {
     async function fetchExams() {
       const { data } = await supabase
@@ -46,37 +46,40 @@ export default function ExamRegister() {
         const examsData = data as Exam[];
         setAllExams(examsData);
 
-        // --- DÜZƏLİŞ: TypeScript xətasını həll edən hissə ---
-        // Array.from(...) istifadə edirik ki, build zamanı xəta verməsin
-        const uniqueClasses = Array.from(new Set(examsData.map(item => item.class_grade)));
-        
-        // Sinifləri rəqəm sırasına görə düzürük (1, 2, ... 11, Müəllimlər)
-        const sortedClasses = uniqueClasses.sort((a, b) => {
-             const numA = parseInt(a);
-             const numB = parseInt(b);
-             if (isNaN(numA)) return 1; // Rəqəm deyilsə (məs: Müəllimlər) sona at
-             if (isNaN(numB)) return -1;
-             return numA - numB;
-        });
-
-        setAvailableClasses(sortedClasses);
+        // İmtahan adlarını unikal edirik (Təkrarları silirik)
+        const uniqueNames = Array.from(new Set(examsData.map(item => item.name)));
+        setUniqueExamNames(uniqueNames);
       }
     }
     fetchExams();
   }, []);
 
-  // 2. Sinif seçiləndə həmin sinfə aid imtahanları filterləyirik
+  // 2. İmtahan adı seçiləndə, ona uyğun SİNİFLƏRİ tapırıq
   useEffect(() => {
-    if (!selectedClass) {
-      setFilteredExams([]);
-      setSelectedExamId("");
+    if (!selectedExamName) {
+      setAvailableClassesForExam([]);
+      setSelectedClass("");
       return;
     }
-    // Bazadakı sinif adı ilə seçiləni müqayisə edirik
-    const filtered = allExams.filter(ex => ex.class_grade == selectedClass);
-    setFilteredExams(filtered);
-    setSelectedExamId(""); // Sinif dəyişəndə imtahan seçimini sıfırla
-  }, [selectedClass, allExams]);
+
+    // Seçilmiş ada uyğun bütün sətirləri tapırıq
+    const matchingExams = allExams.filter(ex => ex.name === selectedExamName);
+    
+    // Həmin imtahanların siniflərini çıxarırıq
+    const classes = Array.from(new Set(matchingExams.map(ex => ex.class_grade)));
+
+    // Sinifləri sort edirik (Rəqəm sırası ilə)
+    const sortedClasses = classes.sort((a, b) => {
+        const numA = parseInt(a);
+        const numB = parseInt(b);
+        if (isNaN(numA)) return 1; 
+        if (isNaN(numB)) return -1;
+        return numA - numB;
+    });
+
+    setAvailableClassesForExam(sortedClasses);
+    setSelectedClass(""); // İmtahan dəyişəndə sinfi sıfırla
+  }, [selectedExamName, allExams]);
 
   // Yalnız rəqəm girişi
   function onlyNumbers(e: any) {
@@ -89,15 +92,21 @@ export default function ExamRegister() {
     if (loading) return;
     setError(null);
 
-    // İmtahan seçilibmi yoxla
-    if (!selectedExamId) {
-      setError("Zəhmət olmasa imtahanı seçin!");
+    // Həm imtahan adı, həm sinif seçilməlidir
+    if (!selectedExamName || !selectedClass) {
+      setError("Zəhmət olmasa imtahanı və sinfi seçin!");
       return;
     }
 
-    // Seçilmiş imtahanın adını tapırıq
-    const examObj = allExams.find(ex => ex.id.toString() === selectedExamId);
-    if (!examObj) return;
+    // İndi konkret ID-ni tapmaq lazımdır (Adı bu olan VƏ Sinfi bu olan)
+    const exactExam = allExams.find(
+        ex => ex.name === selectedExamName && ex.class_grade === selectedClass
+    );
+
+    if (!exactExam) {
+        setError("Bu imtahan bu sinif üçün tapılmadı.");
+        return;
+    }
 
     setLoading(true);
     const f = e.target;
@@ -108,8 +117,8 @@ export default function ExamRegister() {
       fatherName: f.fatherName.value,
       phone7_1: "+994" + f.operator1.value + f.phone7_1.value,
       phone7_2: f.phone7_2.value ? "+994" + f.operator2.value + f.phone7_2.value : null,
-      className: selectedClass, // Seçilmiş sinif
-      examName: examObj.name    // Seçilmiş imtahan adı
+      className: selectedClass, 
+      examName: selectedExamName  
     };
 
     try {
@@ -122,7 +131,10 @@ export default function ExamRegister() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Xəta oldu");
       
+      // exactExam.id əvəzinə serverdən gələn ID-ni və ya birbaşa exactExam.id-ni istifadə edə bilərik
+      // Amma serverdə qeydiyyatdan keçən unikal ID (examId) daha vacibdir
       setResult({ examId: data.examId });
+
     } catch (err: any) {
       setError(err.message || "Server xətası");
     } finally {
@@ -168,48 +180,49 @@ export default function ExamRegister() {
             
             {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm text-center font-medium">{error}</div>}
 
-            {/* --- ADIM 1: SİNİF SEÇİMİ (Yalniz aktiv olanlar) --- */}
+            {/* --- ADIM 1: İMTAHAN SEÇİMİ (Bütün unikal imtahanlar) --- */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Sinif Seçin</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Hansı imtahana yazılırsınız?</label>
               <select 
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-                className="w-full p-3 bg-white border border-gray-300 rounded-xl text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition"
+                value={selectedExamName}
+                onChange={(e) => setSelectedExamName(e.target.value)}
+                className="w-full p-3 bg-white border border-gray-300 rounded-xl text-gray-900 focus:ring-2 focus:ring-amber-500 outline-none transition font-bold"
                 required
               >
-                <option value="">Seçin...</option>
-                {availableClasses.length === 0 ? (
+                <option value="">İmtahan seçin...</option>
+                {uniqueExamNames.length === 0 ? (
                   <option disabled>Aktiv imtahan yoxdur</option>
                 ) : (
-                  availableClasses.map((cls) => (
-                    <option key={cls} value={cls}>
-                       {/* Rəqəm deyilsə olduğu kimi göstər, rəqəmdirsə sonuna "-ci sinif" artır */}
-                       {isNaN(Number(cls)) ? cls : `${cls}-ci sinif`}
+                  uniqueExamNames.map((name, index) => (
+                    <option key={index} value={name}>
+                       {name}
                     </option>
                   ))
                 )}
               </select>
             </div>
 
-            {/* --- ADIM 2: İMTAHAN SEÇİMİ (Seçilən sinfə uyğun) --- */}
+            {/* --- ADIM 2: SİNİF SEÇİMİ (Seçilən İmtahana uyğun) --- */}
             <motion.div 
                initial={{ opacity: 0.5, height: 'auto' }}
-               animate={{ opacity: selectedClass ? 1 : 0.5 }}
+               animate={{ opacity: selectedExamName ? 1 : 0.5 }}
                className="transition-all"
             >
-              <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Seçin</label>
+              <label className="block text-sm font-bold text-gray-700 mb-1">Sinifiniz</label>
               <select 
-                value={selectedExamId}
-                onChange={(e) => setSelectedExamId(e.target.value)}
-                disabled={!selectedClass} // Sinif seçilməyibsə deaktiv et
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                disabled={!selectedExamName} // İmtahan seçilməyibsə deaktiv et
                 className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl text-gray-900 font-bold focus:ring-2 focus:ring-amber-500 outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 required
               >
                 <option value="">
-                    {!selectedClass ? "Əvvəlcə sinfi seçin" : "İmtahanı seçin..."}
+                    {!selectedExamName ? "Əvvəlcə imtahanı seçin" : "Sinfi seçin..."}
                 </option>
-                {filteredExams.map(ex => (
-                  <option key={ex.id} value={ex.id}>{ex.name}</option>
+                {availableClassesForExam.map((cls, index) => (
+                  <option key={index} value={cls}>
+                      {isNaN(Number(cls)) ? cls : `${cls}-ci sinif`}
+                  </option>
                 ))}
               </select>
             </motion.div>
