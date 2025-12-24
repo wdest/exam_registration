@@ -1,182 +1,374 @@
 "use client";
-import { useState, useEffect } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { createClient } from "@supabase/supabase-js";
-import { motion } from "framer-motion";
 
+import { useState, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+import * as XLSX from "xlsx";
+import { useRouter } from "next/navigation";
+import { 
+  Users, 
+  Settings, 
+  Image as ImageIcon, 
+  LogOut, 
+  Search, 
+  Download, 
+  Save, 
+  Upload, 
+  Trash2,
+  RefreshCw 
+} from "lucide-react";
+
+// --- SUPABASE SETUP ---
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.2 } }
-};
+// --- TİPLƏR ---
+interface Student {
+  exam_id: string;
+  first_name: string;
+  last_name: string;
+  class: string;
+  phone1: string;
+  created_at?: string;
+}
 
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: { y: 0, opacity: 1, transition: { duration: 0.5 } }
-};
+interface Setting {
+  id: number;
+  key: string;
+  value: string;
+  label: string;
+}
 
-export default function LandingPage() {
-  const [galleryImages, setGalleryImages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface GalleryItem {
+  id: number;
+  image_url: string;
+}
 
-  // İlkin dəyərlər
-  const [siteInfo, setSiteInfo] = useState({
-    phone: "+994 50 123 45 67",
-    address: "Bakı şəhəri, Nərimanov r.",
-    email: "info@moc.az",
-    map_url: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3039.428490145657!2d49.8670924!3d40.4092617!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x40307d40a880b19d%3A0x66c7b04921f08e4!2sBaku!5e0!3m2!1sen!2saz!4v1648000000000!5m2!1sen!2saz"
-  });
+export default function AdminDashboard() {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState("settings");
+  const [loading, setLoading] = useState(false);
+  
+  // Data State-ləri
+  const [students, setStudents] = useState<Student[]>([]);
+  const [settings, setSettings] = useState<Setting[]>([]);
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [search, setSearch] = useState("");
+
+  // Yükləmə State-ləri
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        // 1. Qalereya
-        const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
-        if (galData) setGalleryImages(galData);
-
-        // 2. Sayt Məlumatları (CƏDVƏL ADI DÜZƏLDİLDİ: site_settings)
-        const { data: settingsData } = await supabase.from("site_settings").select("*");
-        
-        if (settingsData) {
-          const newInfo: any = { ...siteInfo };
-          settingsData.forEach((item) => {
-            if (item.key) newInfo[item.key] = item.value;
-          });
-          setSiteInfo(newInfo);
-        }
-      } catch (err) {
-        console.error("Data xətası:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
+    fetchAllData();
   }, []);
 
-  return (
-    <div className="min-h-screen bg-orange-50/30 font-sans text-gray-800">
+  async function fetchAllData() {
+    setLoading(true);
+    try {
+      // 1. Tələbələr
+      const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
+      if (stData) setStudents(stData as any);
+
+      // 2. Tənzimləmələr (DÜZƏLDİLDİ: site_settings)
+      // Sənin şəkildəki cədvəl adın 'site_settings' idi, ona görə bura 'site_settings' yazmalıyıq.
+      const { data: setData } = await supabase.from("site_settings").select("*").order("id", { ascending: true });
+      if (setData) setSettings(setData as any);
+
+      // 3. Qalereya
+      const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
+      if (galData) setGallery(galData as any);
+    } catch (error) {
+      console.error("Data yüklənərkən xəta:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // --- FUNKSİYALAR: TƏNZİMLƏMƏLƏR ---
+  async function updateSetting(key: string, newValue: string) {
+    // DÜZƏLDİLDİ: site_settings
+    const { error } = await supabase.from("site_settings").update({ value: newValue }).eq("key", key);
+    if (!error) {
+      alert("Məlumat yeniləndi! ✅");
+      fetchAllData();
+    } else {
+      alert("Xəta: " + error.message);
+    }
+  }
+
+  // --- FUNKSİYALAR: QALEREYA (YÜKLƏMƏ & SİLMƏ) ---
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return;
+    setUploading(true);
+
+    try {
+      const file = e.target.files[0];
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}.${fileExt}`; // Unikal ad
+      const filePath = `${fileName}`;
+
+      // 1. Storage-a yüklə (Bucket adı 'images' olmalıdır)
+      const { error: uploadError } = await supabase.storage.from("images").upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Public URL al
+      const { data: { publicUrl } } = supabase.storage.from("images").getPublicUrl(filePath);
+
+      // 3. Bazaya yaz
+      const { error: dbError } = await supabase.from("gallery").insert({ image_url: publicUrl });
+      if (dbError) throw dbError;
       
-      {/* NAVBAR */}
-      <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md shadow-sm border-b border-orange-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-24">
-            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5 }} className="flex-shrink-0 flex items-center cursor-pointer">
-              <Image src="/logo.png" alt="Logo" width={180} height={60} className="object-contain h-16 w-auto" priority />
-            </motion.div>
-            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.2 }} className="hidden md:flex items-center space-x-8 font-medium text-gray-600">
-              <a href="#services" className="hover:text-amber-600 transition">Xidmətlər</a>
-              <a href="#gallery" className="hover:text-amber-600 transition">Həyatımız</a>
-              <a href="#contact" className="hover:text-amber-600 transition">Əlaqə</a>
-              <Link href="/netice" className="hover:text-amber-600 transition flex items-center gap-1"><span>📊</span> Nəticələr</Link>
-              <Link href="/exam" className="bg-amber-500 text-white px-6 py-3 rounded-xl hover:bg-amber-600 transition shadow-lg shadow-amber-500/20 font-bold">İmtahan Qeydiyyatı</Link>
-            </motion.div>
-          </div>
-        </div>
-      </nav>
+      alert("Şəkil əlavə olundu! 🖼️");
+      fetchAllData(); // Siyahını yenilə
 
-      {/* HERO */}
-      <section className="pt-40 pb-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-orange-50 via-white to-white">
-        <div className="max-w-7xl mx-auto text-center">
-          <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }} className="text-4xl md:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
-            Zirvəyə gedən yol <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-600">Main Olympic Center</span> ilə başlayır
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }} className="mt-4 text-xl text-gray-600 max-w-2xl mx-auto mb-10">
-            Peşəkar yanaşma və olimpiada standartlarında təhsil ilə övladınızın gələcəyini bu gündən sığortalayın.
-          </motion.p>
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: 0.4 }} className="flex flex-col sm:flex-row justify-center gap-4">
-             <Link href="/exam" className="px-10 py-4 bg-amber-500 text-white font-bold rounded-xl shadow-xl hover:bg-amber-600 transform hover:-translate-y-1 transition duration-200">Sınağa Yazıl</Link>
-             <a href="#contact" className="px-10 py-4 bg-white text-amber-600 font-bold rounded-xl border-2 border-amber-100 shadow-sm hover:border-amber-500 hover:bg-orange-50 transition">Əlaqə Saxla</a>
-          </motion.div>
-        </div>
-      </section>
+    } catch (error: any) {
+      alert("Xəta: " + error.message);
+    } finally {
+      setUploading(false);
+    }
+  }
 
-      {/* XİDMƏTLƏR */}
-      <section id="services" className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-gray-900">Tədris İstiqamətlərimiz</h2>
-            <p className="mt-4 text-gray-500">MOC keyfiyyəti ilə hər fənn daha maraqlı</p>
-          </motion.div>
-          <motion.div variants={containerVariants} initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <motion.div variants={itemVariants} className="p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl hover:shadow-amber-500/10 transition duration-300 group">
-              <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition">📐</div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Riyaziyyat və Məntiq</h3>
-              <p className="text-gray-600">Güclü məntiqi təfəkkür formalaşdıran xüsusi proqramlar.</p>
-            </motion.div>
-            <motion.div variants={itemVariants} className="p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl hover:shadow-teal-500/10 transition duration-300 group">
-              <div className="w-14 h-14 bg-teal-100 text-teal-600 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition">🌍</div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Xarici Dillər</h3>
-              <p className="text-gray-600">İngilis və Rus dili üzrə qabaqcıl tədris metodikası.</p>
-            </motion.div>
-            <motion.div variants={itemVariants} className="p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl hover:shadow-rose-500/10 transition duration-300 group">
-              <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition">💻</div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">İT və Proqramlaşdırma</h3>
-              <p className="text-gray-600">Gələcəyin texnologiyalarını indidən öyrənin.</p>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
+  async function deleteImage(id: number, imageUrl: string) {
+    if(!confirm("Bu şəkli silmək istədiyinizə əminsiniz?")) return;
 
-      {/* QALEREYA */}
-      <section id="gallery" className="py-24 bg-orange-50/50 border-t border-orange-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900">Mərkəzimizdən Görüntülər</h2>
-            <p className="mt-4 text-gray-500">Tələbələrimizin uğurları və dərs mühiti</p>
-          </motion.div>
-          {loading ? (
-            <div className="text-center py-10 text-amber-500 animate-pulse font-medium">Yüklənir...</div>
-          ) : galleryImages.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-gray-200"><p className="text-gray-400">Hələlik qalereyada şəkil yoxdur.</p></div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {galleryImages.map((item, index) => (
-                <motion.div key={item.id} initial={{ opacity: 0, scale: 0.8 }} whileInView={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5, delay: index * 0.1 }} viewport={{ once: true }} className="group relative overflow-hidden rounded-2xl shadow-md h-64 cursor-pointer">
-                  <img src={item.image_url} alt="Gallery" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition duration-300"></div>
-                </motion.div>
-              ))}
+    try {
+      // 1. Şəklin adını URL-dən tapırıq
+      const fileName = imageUrl.split("/").pop(); 
+
+      if (fileName) {
+        // 2. Storage-dan (Anbardan) silirik
+        await supabase.storage.from("images").remove([fileName]);
+      }
+
+      // 3. Bazadan (Cədvəldən) silirik
+      const { error } = await supabase.from("gallery").delete().eq("id", id);
+      
+      if (error) throw error;
+
+      fetchAllData(); // Siyahını yenilə
+    } catch (error: any) {
+      alert("Silinmə zamanı xəta: " + error.message);
+    }
+  }
+
+  // --- FUNKSİYALAR: EXCEL ---
+  function exportExcel() {
+    const rows = students.map((s) => ({
+      ID: s.exam_id,
+      Ad: s.first_name,
+      Soyad: s.last_name,
+      Sinif: s.class,
+      Telefon: s.phone1,
+      Tarix: s.created_at,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    XLSX.writeFile(wb, "Telebeler.xlsx");
+  }
+
+  // --- ÇIXIŞ ---
+  function logout() {
+    // Cookie-ni silirik
+    document.cookie = "admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    router.push("/login");
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
+      
+      {/* HEADER */}
+      <header className="bg-white border-b border-gray-200 px-4 md:px-8 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+        <div className="flex items-center gap-2">
+           <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white font-bold">A</div>
+           <h1 className="text-xl md:text-2xl font-bold text-gray-800">MOC Admin Panel</h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <button onClick={() => fetchAllData()} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Yenilə">
+            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+          </button>
+          <button onClick={logout} className="flex items-center gap-2 text-red-600 font-medium text-sm hover:bg-red-50 px-3 py-2 rounded-lg transition">
+            <LogOut size={18} />
+            <span className="hidden md:inline">Çıxış</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* SIDEBAR (Menyu) */}
+        <aside className="w-20 md:w-64 bg-white border-r border-gray-200 flex flex-col pt-4 pb-4">
+          <nav className="space-y-2 px-2 md:px-4">
+            <button 
+              onClick={() => setActiveTab("students")} 
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "students" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              <Users size={20} />
+              <span className="hidden md:block">Tələbələr</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab("settings")} 
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "settings" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              <Settings size={20} />
+              <span className="hidden md:block">Tənzimləmələr</span>
+            </button>
+            <button 
+              onClick={() => setActiveTab("gallery")} 
+              className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "gallery" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}
+            >
+              <ImageIcon size={20} />
+              <span className="hidden md:block">Qalereya</span>
+            </button>
+          </nav>
+        </aside>
+
+        {/* CONTENT */}
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+          
+          {/* TAB: TƏLƏBƏLƏR */}
+          {activeTab === "students" && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full md:h-auto">
+              <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between gap-4 bg-gray-50/50">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Users size={24} className="text-amber-500" />
+                    Qeydiyyat Siyahısı
+                  </h2>
+                  <p className="text-gray-500 text-sm mt-1">Ümumi: {students.length} tələbə</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input 
+                      placeholder="Axtarış..." 
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 w-full md:w-64"
+                    />
+                  </div>
+                  <button onClick={exportExcel} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm">
+                    <Download size={18} />
+                    <span className="hidden md:inline">Excel</span>
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-gray-600">
+                  <thead className="bg-gray-50 text-gray-700 uppercase font-bold text-xs">
+                    <tr>
+                      <th className="p-4">ID</th>
+                      <th className="p-4">Ad Soyad</th>
+                      <th className="p-4">Sinif</th>
+                      <th className="p-4">Telefon</th>
+                      <th className="p-4">Tarix</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {students.filter(s => (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase())).map((s) => (
+                      <tr key={s.exam_id} className="hover:bg-gray-50 transition">
+                        <td className="p-4 font-mono text-blue-600 font-bold">{s.exam_id}</td>
+                        <td className="p-4 font-medium text-gray-900">{s.first_name} {s.last_name}</td>
+                        <td className="p-4"><span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">{s.class}</span></td>
+                        <td className="p-4">{s.phone1}</td>
+                        <td className="p-4 text-gray-400">{s.created_at ? new Date(s.created_at).toLocaleDateString("az-AZ") : "-"}</td>
+                      </tr>
+                    ))}
+                    {students.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-gray-400">Heç bir məlumat tapılmadı</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
-        </div>
-      </section>
 
-      {/* FOOTER - DİNAMİK */}
-      <section id="contact" className="bg-white border-t border-gray-200 pt-20 pb-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-16">
-          <div>
-            <div className="mb-6"><span className="text-2xl font-extrabold text-amber-500 tracking-wide">MOC</span><span className="block text-sm font-bold text-black tracking-widest">MAIN OLYMPIC CENTER</span></div>
-            <p className="text-gray-600 mb-8 leading-relaxed">Main Olympic Center - Təhsilin olimpiadası. Bizimlə hədəflərinizə daha sürətli çatın.</p>
-            <div className="space-y-4">
-              <p className="flex items-center text-gray-700 group cursor-pointer"><span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📍</span> {siteInfo.address || "Ünvan yüklənir..."}</p>
-              <a href={`tel:${siteInfo.phone}`} className="flex items-center text-gray-700 group cursor-pointer hover:text-amber-600"><span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📞</span> {siteInfo.phone || "Telefon yüklənir..."}</a>
-              <a href={`mailto:${siteInfo.email}`} className="flex items-center text-gray-700 group cursor-pointer hover:text-amber-600"><span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📧</span> {siteInfo.email || "Email yüklənir..."}</a>
+          {/* TAB: TƏNZİMLƏMƏLƏR */}
+          {activeTab === "settings" && (
+            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <Settings size={24} className="text-amber-500" />
+                Sayt Məlumatları (CMS)
+              </h2>
+              <div className="space-y-6">
+                {settings.map((item) => (
+                  <div key={item.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">{item.label}</label>
+                    <div className="flex gap-3">
+                      <input 
+                        id={`input-${item.key}`} 
+                        defaultValue={item.value} 
+                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none transition"
+                      />
+                      <button 
+                         onClick={() => {
+                            const val = (document.getElementById(`input-${item.key}`) as HTMLInputElement).value;
+                            updateSetting(item.key, val);
+                         }}
+                         className="flex items-center gap-2 bg-blue-600 text-white px-5 rounded-lg font-medium hover:bg-blue-700 transition shadow-sm active:scale-95"
+                      >
+                        <Save size={18} />
+                        Yadda saxla
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <h4 className="font-bold text-gray-900 mb-8 text-lg">Keçidlər</h4>
-            <ul className="space-y-4 text-gray-600">
-              <li><Link href="/exam" className="hover:text-amber-500 transition flex items-center gap-2">🔹 İmtahan Qeydiyyatı</Link></li>
-              <li><Link href="/netice" className="hover:text-amber-500 transition flex items-center gap-2">🔹 İmtahan Nəticələri</Link></li>
-              <li><a href="#services" className="hover:text-amber-500 transition flex items-center gap-2">🔹 Xidmətlərimiz</a></li>
-              <li><a href="#gallery" className="hover:text-amber-500 transition flex items-center gap-2">🔹 Qalereya</a></li>
-            </ul>
-          </div>
-          <div className="h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-inner border border-gray-200 relative">
-             {!siteInfo.map_url ? <div className="flex items-center justify-center h-full text-gray-400">Xəritə yüklənir...</div> : <iframe src={siteInfo.map_url} width="100%" height="100%" style={{border:0}} loading="lazy" allowFullScreen></iframe>}
-          </div>
-        </div>
-        <div className="max-w-7xl mx-auto px-4 mt-20 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center text-gray-500 text-sm">
-          <p>© 2025 Main Olympic Center. Bütün hüquqlar qorunur.</p>
-          <p className="mt-2 md:mt-0">Created by HARX Group</p>
-        </div>
-      </section>
+          )}
+
+          {/* TAB: QALEREYA */}
+          {activeTab === "gallery" && (
+             <div className="space-y-8 max-w-6xl mx-auto">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-bold flex items-center gap-2">
+                       <ImageIcon size={22} className="text-amber-500" />
+                       Qalereya İdarəetməsi
+                    </h2>
+                    <p className="text-gray-500 text-sm">Saytın "Həyatımız" bölməsindəki şəkilləri buradan idarə edin.</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <label className={`cursor-pointer flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg hover:shadow-amber-500/30 ${uploading ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                      {uploading ? <RefreshCw className="animate-spin" /> : <Upload size={20} />}
+                      {uploading ? "Yüklənir..." : "Yeni Şəkil Seç"}
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                    </label>
+                  </div>
+                </div>
+
+                {gallery.length === 0 ? (
+                  <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-200">
+                    <ImageIcon size={48} className="mx-auto text-gray-300 mb-4" />
+                    <p className="text-gray-400">Hələlik heç bir şəkil yüklənməyib.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                    {gallery.map((img) => (
+                      <div key={img.id} className="relative group rounded-xl overflow-hidden shadow-md bg-white border border-gray-100 aspect-square">
+                        <img src={img.image_url} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                          <button 
+                            onClick={() => deleteImage(img.id, img.image_url)}
+                            className="bg-red-600 text-white p-3 rounded-full hover:bg-red-700 transition shadow-xl transform hover:scale-110"
+                            title="Şəkli sil"
+                          >
+                            <Trash2 size={24} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+             </div>
+          )}
+
+        </main>
+      </div>
     </div>
   );
 }
