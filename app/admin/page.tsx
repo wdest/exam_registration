@@ -17,12 +17,11 @@ import {
   RefreshCw,
   Edit,
   X,
-  Link as LinkIcon, // Link ikonu əlavə edildi
+  Link as LinkIcon,
   PlusCircle,
   ExternalLink
 } from "lucide-react";
 
-// --- SUPABASE SETUP ---
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -53,11 +52,12 @@ interface GalleryItem {
   image_url: string;
 }
 
-// YENİ: İmtahan Tipi
+// YENİLƏNMİŞ İmtahan Tipi (class_grade əlavə olundu)
 interface Exam {
   id: number;
   name: string;
   url: string;
+  class_grade: string; // YENİ: Sinif məlumatı
   created_at?: string;
 }
 
@@ -66,20 +66,19 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("students");
   const [loading, setLoading] = useState(false);
   
-  // Data State-ləri
   const [students, setStudents] = useState<Student[]>([]);
   const [settings, setSettings] = useState<Setting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
-  const [exams, setExams] = useState<Exam[]>([]); // YENİ: İmtahanlar siyahısı
+  const [exams, setExams] = useState<Exam[]>([]); 
   
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  // Yeni İmtahan Əlavə Etmə State-ləri
+  // Yeni İmtahan State-ləri
   const [newExamName, setNewExamName] = useState("");
   const [newExamUrl, setNewExamUrl] = useState("");
+  const [newExamClass, setNewExamClass] = useState("1"); // YENİ: Sinif seçimi üçün
 
-  // --- EDIT MODAL STATE ---
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   useEffect(() => {
@@ -89,20 +88,17 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
-      // 1. Tənzimləmələr
       const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
       if (setData) setSettings(setData as any);
 
-      // 2. Tələbələr
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
 
-      // 3. Qalereya
       const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
       if (galData) setGallery(galData as any);
 
-      // 4. İmtahanlar (YENİ)
-      const { data: examData } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
+      // İmtahanları sinifə görə sıralayaq
+      const { data: examData } = await supabase.from("exams").select("*").order("class_grade", { ascending: true });
       if (examData) setExams(examData as any);
 
     } catch (error) {
@@ -112,17 +108,16 @@ export default function AdminDashboard() {
     }
   }
 
-  // =========================
-  // --- İMTAHAN ƏMƏLİYYATLARI (YENİ) ---
-  // =========================
-
+  // --- İMTAHAN ƏMƏLİYYATLARI (YENİLƏNİB) ---
   async function addExam(e: React.FormEvent) {
     e.preventDefault();
-    if (!newExamName || !newExamUrl) return alert("Zəhmət olmasa həm adı, həm də linki daxil edin.");
+    if (!newExamName || !newExamUrl || !newExamClass) return alert("Zəhmət olmasa bütün xanaları doldurun.");
 
+    // YENİ: Bazaya 'class_grade' də göndəririk
     const { error } = await supabase.from("exams").insert({
         name: newExamName,
-        url: newExamUrl
+        url: newExamUrl,
+        class_grade: newExamClass 
     });
 
     if (error) {
@@ -141,10 +136,7 @@ export default function AdminDashboard() {
     if (!error) fetchAllData();
   }
 
-  // =========================
   // --- TƏLƏBƏ ƏMƏLİYYATLARI ---
-  // =========================
-
   async function deleteStudent(id: number) {
     if(!confirm("Bu tələbəni silmək istədiyinizə əminsiniz?")) return;
     const { error } = await supabase.from("students").delete().eq("id", id);
@@ -182,10 +174,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // =========================
-  // --- DİGƏR FUNKSİYALAR ---
-  // =========================
-
+  // --- DİGƏR ---
   async function updateSetting(key: string, newValue: string) {
     const { error } = await supabase.from("settings").update({ value: newValue }).eq("key", key);
     if (!error) {
@@ -287,7 +276,7 @@ export default function AdminDashboard() {
         {/* CONTENT */}
         <main className="flex-1 p-4 md:p-8 overflow-y-auto relative">
           
-          {/* TAB: TƏLƏBƏLƏR */}
+          {/* TAB: STUDENTS */}
           {activeTab === "students" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full md:h-auto">
               <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between gap-4 bg-gray-50/50">
@@ -365,26 +354,52 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: İMTAHAN LİNKLƏRİ (YENİ) */}
+          {/* TAB: EXAMS (YENİLƏNİB) */}
           {activeTab === "exams" && (
             <div className="max-w-4xl mx-auto space-y-8">
-                {/* YENİ İMTAHAN ƏLAVƏ ET */}
+                {/* YENİ İMTAHAN YARAT */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <PlusCircle className="text-amber-500" /> Yeni İmtahan Linki Yarat
                     </h2>
-                    <form onSubmit={addExam} className="flex flex-col md:flex-row gap-4 items-end">
-                        <div className="flex-1 w-full">
-                            <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Adı / Başlıq</label>
+                    <form onSubmit={addExam} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        {/* Sinif Seçimi */}
+                        <div className="col-span-1">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Sinif</label>
+                            <select 
+                                value={newExamClass}
+                                onChange={(e) => setNewExamClass(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none bg-white"
+                            >
+                                <option value="1">1-ci Sinif</option>
+                                <option value="2">2-ci Sinif</option>
+                                <option value="3">3-cü Sinif</option>
+                                <option value="4">4-cü Sinif</option>
+                                <option value="5">5-ci Sinif</option>
+                                <option value="6">6-cı Sinif</option>
+                                <option value="7">7-ci Sinif</option>
+                                <option value="8">8-ci Sinif</option>
+                                <option value="9">9-cu Sinif</option>
+                                <option value="10">10-cu Sinif</option>
+                                <option value="11">11-ci Sinif</option>
+                                <option value="Müəllimlər">Müəllimlər</option>
+                            </select>
+                        </div>
+                        
+                        {/* İmtahan Adı */}
+                        <div className="col-span-1 md:col-span-1">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Adı</label>
                             <input 
-                                placeholder="Məs: 5-ci Sinif Sınaq İmtahanı"
+                                placeholder="Məs: Blok İmtahanı"
                                 value={newExamName}
                                 onChange={(e) => setNewExamName(e.target.value)}
                                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                             />
                         </div>
-                        <div className="flex-1 w-full">
-                            <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Linki (URL)</label>
+
+                        {/* Link */}
+                        <div className="col-span-1 md:col-span-1">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Link (URL)</label>
                             <input 
                                 placeholder="https://..."
                                 value={newExamUrl}
@@ -392,9 +407,12 @@ export default function AdminDashboard() {
                                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                             />
                         </div>
-                        <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-lg font-bold transition flex items-center gap-2">
-                            <Save size={18} /> Əlavə et
-                        </button>
+
+                        <div className="col-span-1">
+                            <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-lg font-bold transition flex justify-center items-center gap-2">
+                                <Save size={18} /> Əlavə et
+                            </button>
+                        </div>
                     </form>
                 </div>
 
@@ -407,8 +425,13 @@ export default function AdminDashboard() {
                         {exams.map((exam) => (
                             <div key={exam.id} className="flex flex-col md:flex-row items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-xl hover:shadow-md transition gap-4">
                                 <div className="flex-1">
-                                    <h3 className="font-bold text-lg text-gray-800">{exam.name}</h3>
-                                    <a href={exam.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline flex items-center gap-1 mt-1 break-all">
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-md border border-blue-200">
+                                            {exam.class_grade}-ci sinif
+                                        </span>
+                                        <h3 className="font-bold text-gray-800">{exam.name}</h3>
+                                    </div>
+                                    <a href={exam.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline flex items-center gap-1 break-all">
                                         <ExternalLink size={14} /> {exam.url}
                                     </a>
                                 </div>
@@ -427,7 +450,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: TƏNZİMLƏMƏLƏR (SETTINGS) */}
+          {/* TAB: SETTINGS */}
           {activeTab === "settings" && (
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -459,7 +482,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: QALEREYA */}
+          {/* TAB: GALLERY */}
           {activeTab === "gallery" && (
              <div className="space-y-8 max-w-6xl mx-auto">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border flex justify-between items-center">
