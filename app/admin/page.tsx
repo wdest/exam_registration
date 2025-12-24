@@ -72,8 +72,8 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
-      // 1. Tənzimləmələr
-      const { data: setData } = await supabase.from("site_settings").select("*").order("id", { ascending: true });
+      // 1. Tənzimləmələr (Sən dediyin kimi 'settings' cədvəlinə qaytardım)
+      const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
       if (setData) setSettings(setData as any);
 
       // 2. Tələbələr (Bütün sütunları çəkirik)
@@ -144,7 +144,8 @@ export default function AdminDashboard() {
   // ==========================
 
   async function updateSetting(key: string, newValue: string) {
-    const { error } = await supabase.from("site_settings").update({ value: newValue }).eq("key", key);
+    // BURANI DA 'settings' ETDİM
+    const { error } = await supabase.from("settings").update({ value: newValue }).eq("key", key);
     if (!error) {
       alert("Məlumat yeniləndi! ✅");
       fetchAllData();
@@ -319,7 +320,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: TƏNZİMLƏMƏLƏR */}
+          {/* TAB: TƏNZİMLƏMƏLƏR (SETTINGS) */}
           {activeTab === "settings" && (
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
