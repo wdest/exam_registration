@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
-import { motion } from "framer-motion"; // Animasiya kitabxanası
+import { motion } from "framer-motion";
 
 // Supabase tənzimləmələri
 const supabase = createClient(
@@ -11,48 +11,60 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Animasiya variantları (Kartların tək-tək açılması üçün)
+// Animasiya variantları
 const containerVariants = {
   hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.2 // Hər kart arasında 0.2 saniyə fərq qoyur
-    }
-  }
+  visible: { opacity: 1, transition: { staggerChildren: 0.2 } }
 };
 
 const itemVariants = {
   hidden: { y: 20, opacity: 0 },
-  visible: {
-    y: 0,
-    opacity: 1,
-    transition: { duration: 0.5 }
-  }
+  visible: { y: 0, opacity: 1, transition: { duration: 0.5 } }
 };
 
 export default function LandingPage() {
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
-  const [loadingGallery, setLoadingGallery] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  // Qalereyanı bazadan çəkmək
+  // --- YENİ: Sayt Məlumatları State-i ---
+  // İlkin olaraq boş qalmamaq üçün standart dəyərlər qoyuruq
+  const [siteInfo, setSiteInfo] = useState({
+    phone: "+994 50 123 45 67",
+    address: "Bakı şəhəri, Nərimanov r.",
+    email: "info@moc.az",
+    map_url: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3039.428674854084!2d49.85172431539656!3d40.37719087936967!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x40307d079efb5163%3A0xc20aa51a5f0f5e01!2sBaku!5e0!3m2!1sen!2saz!4v1642155555555!5m2!1sen!2saz"
+  });
+
   useEffect(() => {
-    async function fetchGallery() {
+    async function fetchData() {
       try {
-        const { data, error } = await supabase
+        // 1. Qalereyanı çək
+        const { data: galData } = await supabase
           .from("gallery")
           .select("*")
           .order("created_at", { ascending: false });
+        
+        if (galData) setGalleryImages(galData);
 
-        if (error) throw error;
-        if (data) setGalleryImages(data);
+        // 2. Sayt Məlumatlarını (Telefon, Ünvan) çək
+        const { data: settingsData } = await supabase.from("settings").select("*");
+        
+        if (settingsData) {
+          // Bazadan gələn array-i obyektə çeviririk ki, rahat işlədək
+          const newInfo: any = { ...siteInfo };
+          settingsData.forEach((item) => {
+            if (item.key) newInfo[item.key] = item.value;
+          });
+          setSiteInfo(newInfo);
+        }
+
       } catch (err) {
-        console.error("Qalereya xətası:", err);
+        console.error("Data xətası:", err);
       } finally {
-        setLoadingGallery(false);
+        setLoading(false);
       }
     }
-    fetchGallery();
+    fetchData();
   }, []);
 
   return (
@@ -63,7 +75,6 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-24">
             
-            {/* Logo Hissəsi */}
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -80,7 +91,6 @@ export default function LandingPage() {
               />
             </motion.div>
 
-            {/* Desktop Menu */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -106,7 +116,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* --- 2. HERO SECTION (Giriş) --- */}
+      {/* --- 2. HERO SECTION --- */}
       <section className="pt-40 pb-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-orange-50 via-white to-white">
         <div className="max-w-7xl mx-auto text-center">
           <motion.h1 
@@ -150,7 +160,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 3. XİDMƏTLƏRİMİZ (Services) --- */}
+      {/* --- 3. XİDMƏTLƏRİMİZ --- */}
       <section id="services" className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div 
@@ -170,21 +180,18 @@ export default function LandingPage() {
             viewport={{ once: true, amount: 0.2 }}
             className="grid grid-cols-1 md:grid-cols-3 gap-8"
           >
-            {/* Card 1 */}
             <motion.div variants={itemVariants} className="p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl hover:shadow-amber-500/10 transition duration-300 group">
               <div className="w-14 h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition">📐</div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Riyaziyyat və Məntiq</h3>
               <p className="text-gray-600">Güclü məntiqi təfəkkür formalaşdıran xüsusi proqramlar.</p>
             </motion.div>
             
-            {/* Card 2 */}
             <motion.div variants={itemVariants} className="p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl hover:shadow-teal-500/10 transition duration-300 group">
               <div className="w-14 h-14 bg-teal-100 text-teal-600 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition">🌍</div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Xarici Dillər</h3>
               <p className="text-gray-600">İngilis və Rus dili üzrə qabaqcıl tədris metodikası.</p>
             </motion.div>
             
-            {/* Card 3 */}
             <motion.div variants={itemVariants} className="p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl hover:shadow-rose-500/10 transition duration-300 group">
               <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition">💻</div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">İT və Proqramlaşdırma</h3>
@@ -194,7 +201,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 4. DİNAMİK QALEREYA --- */}
+      {/* --- 4. QALEREYA --- */}
       <section id="gallery" className="py-24 bg-orange-50/50 border-t border-orange-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div 
@@ -207,8 +214,8 @@ export default function LandingPage() {
             <p className="mt-4 text-gray-500">Tələbələrimizin uğurları və dərs mühiti</p>
           </motion.div>
 
-          {loadingGallery ? (
-            <div className="text-center py-10 text-amber-500 animate-pulse font-medium">Şəkillər yüklənir...</div>
+          {loading ? (
+            <div className="text-center py-10 text-amber-500 animate-pulse font-medium">Yüklənir...</div>
           ) : galleryImages.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-gray-200">
               <p className="text-gray-400">Hələlik qalereyada şəkil yoxdur.</p>
@@ -220,7 +227,7 @@ export default function LandingPage() {
                   key={item.id}
                   initial={{ opacity: 0, scale: 0.8 }}
                   whileInView={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }} // Hər şəkil bir az gecikir
+                  transition={{ duration: 0.5, delay: index * 0.1 }}
                   viewport={{ once: true }}
                   className="group relative overflow-hidden rounded-2xl shadow-md h-64 cursor-pointer"
                 >
@@ -237,7 +244,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 5. ƏLAQƏ (Footer) --- */}
+      {/* --- 5. ƏLAQƏ (Footer) - DİNAMİK MƏLUMATLARLA --- */}
       <section id="contact" className="bg-white border-t border-gray-200 pt-20 pb-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-16">
           
@@ -251,18 +258,23 @@ export default function LandingPage() {
               Main Olympic Center - Təhsilin olimpiadası. Bizimlə hədəflərinizə daha sürətli çatın.
             </p>
             <div className="space-y-4">
+              {/* DİNAMİK ÜNVAN */}
               <p className="flex items-center text-gray-700 group cursor-pointer">
                 <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📍</span> 
-                Bakı şəhəri, Nərimanov r.
+                {siteInfo.address || "Ünvan yüklənir..."}
               </p>
-              <p className="flex items-center text-gray-700 group cursor-pointer">
+              
+              {/* DİNAMİK TELEFON */}
+              <a href={`tel:${siteInfo.phone}`} className="flex items-center text-gray-700 group cursor-pointer hover:text-amber-600">
                 <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📞</span> 
-                +994 50 123 45 67
-              </p>
-              <p className="flex items-center text-gray-700 group cursor-pointer">
+                {siteInfo.phone || "Telefon yüklənir..."}
+              </a>
+              
+              {/* DİNAMİK EMAİL */}
+              <a href={`mailto:${siteInfo.email}`} className="flex items-center text-gray-700 group cursor-pointer hover:text-amber-600">
                 <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📧</span> 
-                info@moc.az
-              </p>
+                {siteInfo.email || "Email yüklənir..."}
+              </a>
             </div>
           </div>
 
@@ -277,15 +289,20 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          {/* Xəritə */}
-          <div className="h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-inner border border-gray-200">
-            <iframe 
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3039.428490145657!2d49.8670924!3d40.4092617!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x40307d40a880b19d%3A0x66c7b04921f08e4!2sBaku!5e0!3m2!1sen!2saz!4v1648000000000!5m2!1sen!2saz" 
-              width="100%" 
-              height="100%" 
-              style={{border:0}} 
-              loading="lazy"
-            ></iframe>
+          {/* DİNAMİK XƏRİTƏ */}
+          <div className="h-56 bg-gray-100 rounded-2xl overflow-hidden shadow-inner border border-gray-200 relative">
+             {!siteInfo.map_url ? (
+               <div className="flex items-center justify-center h-full text-gray-400">Xəritə yüklənir...</div>
+             ) : (
+                <iframe 
+                  src={siteInfo.map_url} 
+                  width="100%" 
+                  height="100%" 
+                  style={{border:0}} 
+                  loading="lazy"
+                  allowFullScreen
+                ></iframe>
+             )}
           </div>
         </div>
         
