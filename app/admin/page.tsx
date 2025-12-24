@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
@@ -83,6 +83,7 @@ export default function AdminPage() {
       Valideyn: s.parent_name,
       Sinif: s.class,
       Telefon: s.phone1,
+      Telefon2: s.phone2,
       Tarix: s.created_at
     }));
 
@@ -99,7 +100,10 @@ export default function AdminPage() {
         <form onSubmit={login} style={styles.loginBox}>
           <div style={styles.loginHeader}>
             <img src="/desttex.png" alt="DestTex" style={styles.logoLeft} />
-            <h2>Admin Panel</h2>
+            <div>
+              <h2 style={styles.loginTitle}>Admin Panel</h2>
+              <p style={styles.loginSubtitle}>İdarəetmə paneli</p>
+            </div>
           </div>
 
           <input
@@ -110,7 +114,9 @@ export default function AdminPage() {
             style={styles.input}
           />
 
-          <button style={styles.btnPrimary}>Daxil ol</button>
+          <button style={{ ...styles.btnPrimary, width: "100%", marginTop: 12 }}>
+            Daxil ol
+          </button>
         </form>
       </div>
     );
@@ -192,8 +198,6 @@ export default function AdminPage() {
                   <td style={styles.td}>{s.phone1}</td>
                   <td style={styles.td}>{s.phone2 || "-"}</td>
                   <td style={styles.td}>
-                    
-                    
                     {s.created_at && new Date(s.created_at).toLocaleString("az-AZ")}
                   </td>
                 </tr>
@@ -212,103 +216,144 @@ const styles: any = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    background: "#f1f5f9"
+    background: "linear-gradient(135deg, #eef2ff, #f8fafc)"
   },
+
   loginBox: {
-    background: "#fff",
-    padding: 30,
-    borderRadius: 12,
-    width: 320,
-    boxShadow: "0 10px 30px rgba(0,0,0,.1)"
+    background: "#ffffff",
+    padding: "28px 32px",
+    borderRadius: 16,
+    width: 360,
+    boxShadow: "0 20px 40px rgba(0,0,0,0.08)"
   },
+
   loginHeader: {
     display: "flex",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 20
+    gap: 14,
+    marginBottom: 24
   },
+
   logoLeft: {
-    width: 80
+    width: 48,
+    height: 48,
+    objectFit: "contain"
   },
+
+  loginTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 600,
+    color: "#0f172a",
+    lineHeight: "22px"
+  },
+
+  loginSubtitle: {
+    margin: 0,
+    fontSize: 12,
+    color: "#64748b"
+  },
+
   container: {
     maxWidth: 1200,
     margin: "0 auto",
-    padding: 20
+    padding: "24px 20px"
   },
+
   header: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: 20
+    alignItems: "center",
+    marginBottom: 24
   },
+
   card: {
-    background: "#f8fafc",
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 20
+    background: "#ffffff",
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 24,
+    boxShadow: "0 6px 16px rgba(0,0,0,0.04)"
   },
+
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
-    gap: 12
+    gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))",
+    gap: 16
   },
+
   input: {
     width: "100%",
-    padding: 10,
-    borderRadius: 6,
-    border: "1px solid #cbd5e1"
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "1px solid #cbd5e1",
+    fontSize: 14
   },
+
   inputSmall: {
     flex: 1,
-    padding: 8,
-    borderRadius: 6,
-    border: "1px solid #cbd5e1"
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "1px solid #cbd5e1",
+    fontSize: 13
   },
+
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    marginTop: 12,
-    background: "#fff",
-    borderRadius: 10,
+    marginTop: 14,
+    background: "#ffffff",
+    borderRadius: 12,
     overflow: "hidden",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.06)"
+    boxShadow: "0 8px 20px rgba(0,0,0,0.06)"
   },
+
   th: {
     padding: "12px 14px",
     background: "#f1f5f9",
     fontSize: 13,
     fontWeight: 600,
-    textAlign: "left",
     borderBottom: "1px solid #e5e7eb",
     userSelect: "none"
   },
+
   td: {
     padding: "12px 14px",
     fontSize: 14,
     borderBottom: "1px solid #f1f5f9",
     userSelect: "none"
   },
+
   tr: {
     transition: "background 0.15s"
   },
+
   btnPrimary: {
     background: "#2563eb",
-    color: "#fff",
+    color: "#ffffff",
     border: "none",
-    padding: "8px 14px",
-    borderRadius: 6
+    padding: "10px 14px",
+    borderRadius: 8,
+    fontSize: 14,
+    cursor: "pointer"
   },
+
   btnSecondary: {
     background: "#64748b",
-    color: "#fff",
+    color: "#ffffff",
     border: "none",
-    padding: "8px 14px",
-    borderRadius: 6
+    padding: "10px 14px",
+    borderRadius: 8,
+    fontSize: 14,
+    cursor: "pointer"
   },
+
   btnSuccess: {
     background: "#16a34a",
-    color: "#fff",
+    color: "#ffffff",
     border: "none",
-    padding: "8px 14px",
-    borderRadius: 6
+    padding: "10px 14px",
+    borderRadius: 8,
+    fontSize: 14,
+    cursor: "pointer"
   }
 };
