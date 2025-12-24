@@ -37,10 +37,6 @@ export default function AdminPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [settings, setSettings] = useState<Setting[]>([]);
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const [pdfUploading, setPdfUploading] = useState(false);
-  const [pdfMessage, setPdfMessage] = useState("");
 
   /* ================== AUTH ================== */
   function login(e: React.FormEvent) {
@@ -56,14 +52,12 @@ export default function AdminPage() {
 
   /* ================== DATA ================== */
   async function loadStudents() {
-    setLoading(true);
     const { data } = await supabase
       .from("students")
       .select("*")
       .order("created_at", { ascending: false });
 
     setStudents((data as Student[]) || []);
-    setLoading(false);
   }
 
   async function loadSettings() {
@@ -89,7 +83,6 @@ export default function AdminPage() {
       Valideyn: s.parent_name,
       Sinif: s.class,
       Telefon: s.phone1,
-      Telefon2: s.phone2,
       Tarix: s.created_at
     }));
 
@@ -99,46 +92,15 @@ export default function AdminPage() {
     XLSX.writeFile(wb, "Qeydiyyat.xlsx");
   }
 
-  /* ================== PDF ================== */
-  async function uploadPdf(e: any) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const file = form.pdf.files[0];
-
-    if (!file) {
-      setPdfMessage("❌ PDF seçilməyib");
-      return;
-    }
-
-    setPdfUploading(true);
-    setPdfMessage("");
-
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: new FormData(form)
-      });
-
-      const json = await res.json();
-      setPdfMessage(json.error ? "❌ " + json.error : "✅ PDF yükləndi");
-    } catch {
-      setPdfMessage("❌ Server xətası");
-    } finally {
-      setPdfUploading(false);
-      form.reset();
-    }
-  }
-
   /* ================== LOGIN UI ================== */
   if (!isAuth) {
     return (
       <div style={styles.loginWrap}>
         <form onSubmit={login} style={styles.loginBox}>
           <div style={styles.loginHeader}>
-  <img src="/desttex.png" alt="DestTex" style={styles.logoLeft} />
-  <h2>Admin Panel</h2>
-</div>
-
+            <img src="/desttex.png" alt="DestTex" style={styles.logoLeft} />
+            <h2>Admin Panel</h2>
+          </div>
 
           <input
             type="password"
@@ -165,33 +127,23 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* PDF */}
-      <div style={styles.card}>
-        <h3>📄 Nəticə PDF</h3>
-        <form onSubmit={uploadPdf} style={{ display: "flex", gap: 6 }}>
-          <input type="file" name="pdf" accept="application/pdf" />
-          <button disabled={pdfUploading} style={styles.btnPrimary}>Yüklə</button>
-        </form>
-        {pdfMessage && <p>{pdfMessage}</p>}
-      </div>
-
       {/* SETTINGS */}
       <div style={styles.card}>
         <h3>🔗 Linklər</h3>
         <div style={styles.grid}>
           {settings.map(s => (
             <div key={s.id}>
-              <label>{s.label}</label>
+              <label style={{ fontSize: 12 }}>{s.label}</label>
               <div style={{ display: "flex", gap: 6 }}>
-                <input defaultValue={s.value} id={s.key} style={styles.inputSmall} />
+                <input id={s.key} defaultValue={s.value} style={styles.inputSmall} />
                 <button
+                  style={styles.btnPrimary}
                   onClick={() =>
                     updateSetting(
                       s.key,
                       (document.getElementById(s.key) as HTMLInputElement).value
                     )
                   }
-                  style={styles.btnPrimary}
                 >
                   💾
                 </button>
@@ -203,6 +155,7 @@ export default function AdminPage() {
 
       {/* STUDENTS */}
       <h2>👨‍🎓 Qeydiyyat ({students.length})</h2>
+
       <input
         placeholder="Axtarış..."
         value={search}
@@ -214,12 +167,12 @@ export default function AdminPage() {
         <table style={styles.table}>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Ad Soyad</th>
-              <th>Valideyn</th>
-              <th>Sinif</th>
-              <th>Telefon</th>
-              <th>Tarix</th>
+              <th style={styles.th}>ID</th>
+              <th style={styles.th}>Ad Soyad</th>
+              <th style={styles.th}>Valideyn</th>
+              <th style={styles.th}>Sinif</th>
+              <th style={styles.th}>Telefon</th>
+              <th style={styles.th}>Tarix</th>
             </tr>
           </thead>
           <tbody>
@@ -230,15 +183,14 @@ export default function AdminPage() {
                   .includes(search.toLowerCase())
               )
               .map(s => (
-                <tr key={s.exam_id}>
-                  <td>{s.exam_id}</td>
-                  <td>{s.first_name} {s.last_name}</td>
-                  <td>{s.parent_name}</td>
-                  <td>{s.class}</td>
-                  <td>{s.phone1}</td>
-                  <td>
-                    {s.created_at &&
-                      new Date(s.created_at).toLocaleString("az-AZ")}
+                <tr key={s.exam_id} style={styles.tr}>
+                  <td style={styles.td}>{s.exam_id}</td>
+                  <td style={styles.td}>{s.first_name} {s.last_name}</td>
+                  <td style={styles.td}>{s.parent_name}</td>
+                  <td style={{ ...styles.td, textAlign: "center" }}>{s.class}</td>
+                  <td style={styles.td}>{s.phone1}</td>
+                  <td style={styles.td}>
+                    {s.created_at && new Date(s.created_at).toLocaleString("az-AZ")}
                   </td>
                 </tr>
               ))}
@@ -263,12 +215,16 @@ const styles: any = {
     padding: 30,
     borderRadius: 12,
     width: 320,
-    textAlign: "center",
     boxShadow: "0 10px 30px rgba(0,0,0,.1)"
   },
-  logo: {
-    width: 120,
-    marginBottom: 15
+  loginHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 20
+  },
+  logoLeft: {
+    width: 80
   },
   container: {
     maxWidth: 1200,
@@ -289,7 +245,7 @@ const styles: any = {
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))",
-    gap: 10
+    gap: 12
   },
   input: {
     width: "100%",
@@ -305,7 +261,30 @@ const styles: any = {
   },
   table: {
     width: "100%",
-    borderCollapse: "collapse"
+    borderCollapse: "collapse",
+    marginTop: 12,
+    background: "#fff",
+    borderRadius: 10,
+    overflow: "hidden",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.06)"
+  },
+  th: {
+    padding: "12px 14px",
+    background: "#f1f5f9",
+    fontSize: 13,
+    fontWeight: 600,
+    textAlign: "left",
+    borderBottom: "1px solid #e5e7eb",
+    userSelect: "none"
+  },
+  td: {
+    padding: "12px 14px",
+    fontSize: 14,
+    borderBottom: "1px solid #f1f5f9",
+    userSelect: "none"
+  },
+  tr: {
+    transition: "background 0.15s"
   },
   btnPrimary: {
     background: "#2563eb",
