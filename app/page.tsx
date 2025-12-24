@@ -308,7 +308,7 @@ export default function LandingPage() {
         
         <div className="max-w-7xl mx-auto px-4 mt-20 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center text-gray-500 text-sm">
           <p>© 2025 Main Olympic Center. Bütün hüquqlar qorunur.</p>
-          <p className="mt-2 md:mt-0">Created by HARX Group</p>
+          <p className="mt-2 md:mt-0">Created by DestTex </p>
         </div>
       </section>
 
