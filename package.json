@@ -14,7 +14,8 @@
     "next": "latest",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "html2canvas": "^1.4.1"
+    "html2canvas": "^1.4.1",
+    "framer-motion": "^11.0.0",
   },
   "devDependencies": {
     "@types/node": "20.10.8",
