@@ -6,8 +6,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// --- KÖMƏKÇİ FUNKSİYALAR (Sənin yazdığın kimi qaldı) ---
-
 // Azərbaycan hərflərini düzgün böyüdüb-kiçiltmək üçün
 function toTitleCaseAz(s: any) {
   const t = String(s || "").trim().replace(/\s+/g, " ");
@@ -17,16 +15,6 @@ function toTitleCaseAz(s: any) {
     .filter(Boolean)
     .map((w) => w.charAt(0).toLocaleUpperCase('az') + w.slice(1).toLocaleLowerCase('az'))
     .join(" ");
-}
-
-function digitsOnly(s: any) {
-  return String(s || "").replace(/\D/g, "");
-}
-
-function normalizeAzPhone(operator: any, sevenDigits: any) {
-  const op = digitsOnly(operator);
-  const rest = digitsOnly(sevenDigits);
-  return `+994${op}${rest}`;
 }
 
 async function generateExamId() {
@@ -53,22 +41,38 @@ export async function POST(req: Request) {
     const lastName = toTitleCaseAz(body.lastName);
     const fatherName = toTitleCaseAz(body.fatherName); 
     const className = String(body.className || "").trim();
-    const examName = body.examName; // <-- YENİ: İmtahan adı
+    const examName = body.examName; 
 
-    // Telefonları düzəldirik
-    const phone1 = normalizeAzPhone(body.operator1, body.phone7_1);
-    // İkinci nömrə varsa düzəldirik, yoxdursa null
-    const phone2Raw = body.phone7_2 ? normalizeAzPhone(body.operator2, body.phone7_2) : null;
-    // Əgər phone2 phone1 ilə eynidirsə və ya boşdursa, null edirik (dublikat olmasın)
-    const phone2 = (phone2Raw && phone2Raw !== phone1) ? phone2Raw : null;
+    // --- DƏYİŞİKLİK 1: TELEFONLAR ---
+    // Frontend-dən nömrə artıq hazır gəlir (+994501234567), ona görə 'normalizeAzPhone' lazım deyil.
+    // Sadəcə stringə çevirib boşluqları silirik.
+    const phone1 = String(body.phone7_1 || "").trim();
+    
+    // 2-ci nömrə: Əgər boşdursa null olsun, doludursa götürək
+    let phone2 = body.phone7_2 ? String(body.phone7_2).trim() : null;
+
+    // Əgər 2-ci nömrə 1-ci ilə eynidirsə, onu ləğv edirik (dublikat olmasın)
+    if (phone2 === phone1) phone2 = null;
+
 
     // --- 2. VALİDASİYALAR ---
     if (!firstName || !lastName || !fatherName) {
       return NextResponse.json({ error: "Ad, Soyad və Ata adı boş ola bilməz" }, { status: 400 });
     }
-    if (!/^\+994\d{9}$/.test(phone1)) {
-      return NextResponse.json({ error: "Telefon nömrəsi yanlışdır" }, { status: 400 });
+
+    // Telefon formatı (+994 və 9 rəqəm)
+    const phoneRegex = /^\+994\d{9}$/;
+
+    if (!phoneRegex.test(phone1)) {
+      return NextResponse.json({ error: "Əsas nömrənin formatı yanlışdır" }, { status: 400 });
     }
+
+    // --- DƏYİŞİKLİK 2: İKİNCİ NÖMRƏ İSTƏYƏ BAĞLIDIR ---
+    // Yalnız phone2 doludursa yoxlayırıq. Boşdursa xəta vermirik.
+    if (phone2 && !phoneRegex.test(phone2)) {
+      return NextResponse.json({ error: "Əlavə nömrənin formatı yanlışdır" }, { status: 400 });
+    }
+
     if (!className) {
       return NextResponse.json({ error: "Sinif seçilməlidir" }, { status: 400 });
     }
@@ -76,8 +80,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "İmtahan seçilməlidir" }, { status: 400 });
     }
 
-    // --- 3. İMTAHANIN AKTİVLİK YOXLANIŞI (YENİ) ---
-    // Bazadan baxırıq: Belə imtahan varmı və aktivdirmi?
+    // --- 3. İMTAHANIN AKTİVLİK YOXLANIŞI ---
     const { data: activeExam, error: examCheckErr } = await supabase
       .from("exams")
       .select("id")
@@ -89,10 +92,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Bu imtahan mövcud deyil və ya qeydiyyat dayandırılıb." }, { status: 400 });
     }
 
-    // --- 4. TƏKRAR QEYDİYYAT YOXLANIŞI (YENİLƏNDİ) ---
-    // Məntiq: Ad + Soyad + Telefon + İMTAHAN ADI eynidirsə, deməli artıq yazılıb.
-    // Amma başqa imtahana yazılırsa, icazə veririk.
-    
+    // --- 4. TƏKRAR QEYDİYYAT YOXLANIŞI ---
     const { data: existing, error: exErr } = await supabase
       .from("students")
       .select("exam_id")
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
           phone1: phone1, 
           first_name: firstName, 
           last_name: lastName,
-          exam_name: examName // <-- Əsas fərq buradadır
+          exam_name: examName 
       })
       .maybeSingle();
 
@@ -109,7 +109,6 @@ export async function POST(req: Request) {
     }
 
     if (existing?.exam_id) {
-      // Artıq bu imtahana yazılıb
       return NextResponse.json({ examId: existing.exam_id, already: true });
     }
 
@@ -123,14 +122,14 @@ export async function POST(req: Request) {
         last_name: lastName,
         parent_name: fatherName, 
         phone1: phone1,
-        phone2: phone2, // Artıq yuxarıda təmizləmişik
+        phone2: phone2, 
         class: className,
-        exam_name: examName // <-- Bazaya yazırıq
+        exam_name: examName 
       },
     ]);
 
     if (insErr) {
-      // Race condition yoxlaması (Eyni anda basanda)
+      // Race condition yoxlaması
       const { data: again } = await supabase
         .from("students")
         .select("exam_id")
