@@ -4,15 +4,17 @@ import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
 
+// Supabase müştərisini yaradırıq
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// Məlumat tipləri
 interface Exam {
   id: number;
   name: string;
-  class_grade: string;
+  class_grade: string; // Sinif sütunu
   url: string;
 }
 
@@ -22,8 +24,8 @@ export default function ExamRegister() {
   const [error, setError] = useState<string | null>(null);
   
   // DATA STATE-ləri
-  const [allExams, setAllExams] = useState<Exam[]>([]);
-  const [filteredExams, setFilteredExams] = useState<Exam[]>([]);
+  const [allExams, setAllExams] = useState<Exam[]>([]); // Bütün imtahanlar
+  const [filteredExams, setFilteredExams] = useState<Exam[]>([]); // Seçilən sinfə aid olanlar
   
   // DİNAMİK SİNİF STATE-i (YALNIZ AKTİV SİNİFLƏR)
   const [availableClasses, setAvailableClasses] = useState<string[]>([]);
@@ -44,11 +46,11 @@ export default function ExamRegister() {
         const examsData = data as Exam[];
         setAllExams(examsData);
 
-        // --- MƏNTİQ: Bazadakı imtahanlardan unikal sinifləri tapırıq ---
-        const uniqueClasses = [...new Set(examsData.map(item => item.class_grade))];
+        // --- DÜZƏLİŞ: TypeScript xətasını həll edən hissə ---
+        // Array.from(...) istifadə edirik ki, build zamanı xəta verməsin
+        const uniqueClasses = Array.from(new Set(examsData.map(item => item.class_grade)));
         
-        // Sinifləri rəqəm sırasına görə düzürük (1, 2, 10, 11...)
-        // Əgər "Müəllimlər" kimi söz varsa, onu sona saxlayırıq
+        // Sinifləri rəqəm sırasına görə düzürük (1, 2, ... 11, Müəllimlər)
         const sortedClasses = uniqueClasses.sort((a, b) => {
              const numA = parseInt(a);
              const numB = parseInt(b);
@@ -70,15 +72,18 @@ export default function ExamRegister() {
       setSelectedExamId("");
       return;
     }
+    // Bazadakı sinif adı ilə seçiləni müqayisə edirik
     const filtered = allExams.filter(ex => ex.class_grade == selectedClass);
     setFilteredExams(filtered);
-    setSelectedExamId(""); 
+    setSelectedExamId(""); // Sinif dəyişəndə imtahan seçimini sıfırla
   }, [selectedClass, allExams]);
 
+  // Yalnız rəqəm girişi
   function onlyNumbers(e: any) {
     e.target.value = e.target.value.replace(/\D/g, "");
   }
 
+  // Formu göndərmək
   async function submitForm(e: any) {
     e.preventDefault();
     if (loading) return;
@@ -117,8 +122,6 @@ export default function ExamRegister() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Xəta oldu");
       
-      // Uğurlu olduqda, imtahanın birbaşa linkinə yönləndirə də bilərik,
-      // və ya sadəcə ID göstərə bilərik.
       setResult({ examId: data.examId });
     } catch (err: any) {
       setError(err.message || "Server xətası");
@@ -145,6 +148,7 @@ export default function ExamRegister() {
         </div>
 
         {result ? (
+          // --- NƏTİCƏ EKRANI ---
           <div className="text-center">
             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🎉</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Qeydiyyat Uğurlu!</h2>
@@ -158,6 +162,7 @@ export default function ExamRegister() {
             </button>
           </div>
         ) : (
+          // --- FORM EKRANI ---
           <form onSubmit={submitForm} className="space-y-4">
             <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">İmtahan Qeydiyyatı</h1>
             
