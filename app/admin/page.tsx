@@ -15,8 +15,11 @@ import {
   Upload, 
   Trash2,
   RefreshCw,
-  Edit,     // Redaktə ikonu
-  X         // Bağlamaq ikonu
+  Edit,
+  X,
+  Link as LinkIcon, // Link ikonu əlavə edildi
+  PlusCircle,
+  ExternalLink
 } from "lucide-react";
 
 // --- SUPABASE SETUP ---
@@ -27,14 +30,14 @@ const supabase = createClient(
 
 // --- TİPLƏR ---
 interface Student {
-  id: number;          // Bazadakı unikal ID (int8)
+  id: number;
   exam_id: string;
   first_name: string;
   last_name: string;
-  parent_name: string; // Valideyn adı
+  parent_name: string;
   class: string;
   phone1: string;
-  phone2: string;      // İkinci nömrə
+  phone2: string;
   created_at?: string;
 }
 
@@ -50,6 +53,14 @@ interface GalleryItem {
   image_url: string;
 }
 
+// YENİ: İmtahan Tipi
+interface Exam {
+  id: number;
+  name: string;
+  url: string;
+  created_at?: string;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("students");
@@ -59,11 +70,17 @@ export default function AdminDashboard() {
   const [students, setStudents] = useState<Student[]>([]);
   const [settings, setSettings] = useState<Setting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]); // YENİ: İmtahanlar siyahısı
+  
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  // Yeni İmtahan Əlavə Etmə State-ləri
+  const [newExamName, setNewExamName] = useState("");
+  const [newExamUrl, setNewExamUrl] = useState("");
+
   // --- EDIT MODAL STATE ---
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null); // Hal-hazırda redaktə edilən tələbə
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   useEffect(() => {
     fetchAllData();
@@ -72,17 +89,22 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
-      // 1. Tənzimləmələr (Sən dediyin kimi 'settings' cədvəlinə qaytardım)
+      // 1. Tənzimləmələr
       const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
       if (setData) setSettings(setData as any);
 
-      // 2. Tələbələr (Bütün sütunları çəkirik)
+      // 2. Tələbələr
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
 
       // 3. Qalereya
       const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
       if (galData) setGallery(galData as any);
+
+      // 4. İmtahanlar (YENİ)
+      const { data: examData } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
+      if (examData) setExams(examData as any);
+
     } catch (error) {
       console.error("Data yüklənərkən xəta:", error);
     } finally {
@@ -90,29 +112,50 @@ export default function AdminDashboard() {
     }
   }
 
-  // ==========================
-  // --- TƏLƏBƏ ƏMƏLİYYATLARI ---
-  // ==========================
+  // =========================
+  // --- İMTAHAN ƏMƏLİYYATLARI (YENİ) ---
+  // =========================
 
-  // 1. Tələbəni Silmək
-  async function deleteStudent(id: number) {
-    if(!confirm("Bu tələbəni silmək istədiyinizə əminsiniz?")) return;
-    
-    const { error } = await supabase.from("students").delete().eq("id", id);
-    
+  async function addExam(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newExamName || !newExamUrl) return alert("Zəhmət olmasa həm adı, həm də linki daxil edin.");
+
+    const { error } = await supabase.from("exams").insert({
+        name: newExamName,
+        url: newExamUrl
+    });
+
     if (error) {
-      alert("Xəta: " + error.message);
+        alert("Xəta: " + error.message);
     } else {
-      fetchAllData(); // Siyahını yenilə
+        alert("İmtahan linki əlavə olundu! ✅");
+        setNewExamName("");
+        setNewExamUrl("");
+        fetchAllData();
     }
   }
 
-  // 2. Tələbəni Redaktəyə Açmaq (Modalı açır)
+  async function deleteExam(id: number) {
+    if(!confirm("Bu imtahan linkini silmək istədiyinizə əminsiniz?")) return;
+    const { error } = await supabase.from("exams").delete().eq("id", id);
+    if (!error) fetchAllData();
+  }
+
+  // =========================
+  // --- TƏLƏBƏ ƏMƏLİYYATLARI ---
+  // =========================
+
+  async function deleteStudent(id: number) {
+    if(!confirm("Bu tələbəni silmək istədiyinizə əminsiniz?")) return;
+    const { error } = await supabase.from("students").delete().eq("id", id);
+    if (error) alert("Xəta: " + error.message);
+    else fetchAllData();
+  }
+
   function handleEditClick(student: Student) {
     setEditingStudent(student);
   }
 
-  // 3. Dəyişiklikləri Yadda Saxlamaq (Save)
   async function handleSaveStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!editingStudent) return;
@@ -134,17 +177,16 @@ export default function AdminDashboard() {
       alert("Xəta: " + error.message);
     } else {
       alert("Tələbə məlumatları yeniləndi! ✅");
-      setEditingStudent(null); // Modalı bağla
-      fetchAllData(); // Cədvəli yenilə
+      setEditingStudent(null);
+      fetchAllData();
     }
   }
 
-  // ==========================
+  // =========================
   // --- DİGƏR FUNKSİYALAR ---
-  // ==========================
+  // =========================
 
   async function updateSetting(key: string, newValue: string) {
-    // BURANI DA 'settings' ETDİM
     const { error } = await supabase.from("settings").update({ value: newValue }).eq("key", key);
     if (!error) {
       alert("Məlumat yeniləndi! ✅");
@@ -229,6 +271,9 @@ export default function AdminDashboard() {
           <nav className="space-y-2 px-2 md:px-4">
             <button onClick={() => setActiveTab("students")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "students" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <Users size={20} /> <span className="hidden md:block">Tələbələr</span>
+            </button>
+            <button onClick={() => setActiveTab("exams")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "exams" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
+              <LinkIcon size={20} /> <span className="hidden md:block">İmtahan Linkləri</span>
             </button>
             <button onClick={() => setActiveTab("settings")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "settings" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <Settings size={20} /> <span className="hidden md:block">Tənzimləmələr</span>
@@ -320,11 +365,73 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* TAB: İMTAHAN LİNKLƏRİ (YENİ) */}
+          {activeTab === "exams" && (
+            <div className="max-w-4xl mx-auto space-y-8">
+                {/* YENİ İMTAHAN ƏLAVƏ ET */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                        <PlusCircle className="text-amber-500" /> Yeni İmtahan Linki Yarat
+                    </h2>
+                    <form onSubmit={addExam} className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 w-full">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Adı / Başlıq</label>
+                            <input 
+                                placeholder="Məs: 5-ci Sinif Sınaq İmtahanı"
+                                value={newExamName}
+                                onChange={(e) => setNewExamName(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                            />
+                        </div>
+                        <div className="flex-1 w-full">
+                            <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Linki (URL)</label>
+                            <input 
+                                placeholder="https://..."
+                                value={newExamUrl}
+                                onChange={(e) => setNewExamUrl(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                            />
+                        </div>
+                        <button type="submit" className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-lg font-bold transition flex items-center gap-2">
+                            <Save size={18} /> Əlavə et
+                        </button>
+                    </form>
+                </div>
+
+                {/* MÖVCUD İMTAHANLAR */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                     <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                        <LinkIcon className="text-blue-600" /> Aktiv İmtahanlar
+                    </h2>
+                    <div className="space-y-4">
+                        {exams.map((exam) => (
+                            <div key={exam.id} className="flex flex-col md:flex-row items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-xl hover:shadow-md transition gap-4">
+                                <div className="flex-1">
+                                    <h3 className="font-bold text-lg text-gray-800">{exam.name}</h3>
+                                    <a href={exam.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline flex items-center gap-1 mt-1 break-all">
+                                        <ExternalLink size={14} /> {exam.url}
+                                    </a>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => deleteExam(exam.id)} className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition" title="Sil">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        {exams.length === 0 && (
+                            <p className="text-center text-gray-400 py-4">Hələ heç bir imtahan linki əlavə edilməyib.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+          )}
+
           {/* TAB: TƏNZİMLƏMƏLƏR (SETTINGS) */}
           {activeTab === "settings" && (
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Settings size={24} className="text-amber-500" /> Sayt Məlumatları
+                <Settings size={24} className="text-amber-500" /> Digər Tənzimləmələr
               </h2>
               <div className="space-y-6">
                 {settings.map((item) => (
