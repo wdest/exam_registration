@@ -134,8 +134,11 @@ export default function AdminPage() {
     return (
       <div style={styles.loginWrap}>
         <form onSubmit={login} style={styles.loginBox}>
-          <img src="/desttex.png" alt="DestTex" style={styles.logo} />
-          <h2 style={{ marginBottom: 15 }}>Admin Panel</h2>
+          <div style={styles.loginHeader}>
+  <img src="/desttex.png" alt="DestTex" style={styles.logoLeft} />
+  <h2>Admin Panel</h2>
+</div>
+
 
           <input
             type="password"
