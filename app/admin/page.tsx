@@ -172,6 +172,7 @@ export default function AdminPage() {
               <th style={styles.th}>Valideyn</th>
               <th style={styles.th}>Sinif</th>
               <th style={styles.th}>Telefon</th>
+              <th style={styles.th}>Telefon 2</th>
               <th style={styles.th}>Tarix</th>
             </tr>
           </thead>
@@ -189,7 +190,10 @@ export default function AdminPage() {
                   <td style={styles.td}>{s.parent_name}</td>
                   <td style={{ ...styles.td, textAlign: "center" }}>{s.class}</td>
                   <td style={styles.td}>{s.phone1}</td>
+                  <td style={styles.td}>{s.phone2 || "-"}</td>
                   <td style={styles.td}>
+                    
+                    
                     {s.created_at && new Date(s.created_at).toLocaleString("az-AZ")}
                   </td>
                 </tr>
