@@ -73,18 +73,30 @@ export default function Page() {
     }
   }
 
-  // 3. Şəkli Yükləmə Funksiyası
+  // 3. Şəkli Yükləmə Funksiyası (FIX: Keyfiyyət artırıldı)
   const downloadImage = async () => {
     if (resultRef.current) {
-        const canvas = await html2canvas(resultRef.current, {
-            scale: 2, // Yüksək keyfiyyət üçün
-            backgroundColor: "#ffffff"
-        });
-        const image = canvas.toDataURL("image/png");
-        const link = document.createElement("a");
-        link.href = image;
-        link.download = `MOC_Netice_${result.students.first_name}.png`;
-        link.click();
+        setLoading(true); // Yüklənərkən gözləmə göstərək
+        try {
+            const canvas = await html2canvas(resultRef.current, {
+                scale: 3, // Daha yüksək keyfiyyət
+                useCORS: true, // Şəkillərin düzgün yüklənməsi üçün
+                logging: false,
+                backgroundColor: "#ffffff", // Arxa fonu ağ edirik
+                windowWidth: resultRef.current.scrollWidth,
+                windowHeight: resultRef.current.scrollHeight
+            });
+            const image = canvas.toDataURL("image/png", 1.0);
+            const link = document.createElement("a");
+            link.href = image;
+            link.download = `MOC_Netice_${result.students.first_name}.png`;
+            link.click();
+        } catch (err) {
+            console.error("Şəkil yüklənmə xətası:", err);
+            setError("Şəkli yükləyərkən xəta baş verdi.");
+        } finally {
+            setLoading(false);
+        }
     }
   };
 
@@ -94,8 +106,14 @@ export default function Page() {
       ? `${result.students.first_name} ${result.students.last_name}`
       : "Ad tapılmadı";
 
-    // Boş qalan sualları hesablamaq (əgər total varsa)
-    const emptyCount = result.total ? (result.total - (result.correct_count + result.wrong_count)) : 0;
+    // Məlumat yoxdursa "-" göstərmək üçün köməkçi funksiya
+    const displayValue = (val: any) => (val !== null && val !== undefined ? val : "-");
+
+    // Boş qalan sualları hesablamaq (əgər total və digərləri varsa)
+    let emptyCount: any = "-";
+    if (result.total && result.correct_count != null && result.wrong_count != null) {
+        emptyCount = result.total - (result.correct_count + result.wrong_count);
+    }
 
     return (
       <div className="min-h-screen bg-orange-50/30 flex flex-col items-center justify-center p-4 relative overflow-y-auto">
@@ -118,103 +136,110 @@ export default function Page() {
 
           <button
             onClick={downloadImage}
-            className="flex items-center gap-2 text-white font-bold px-5 py-2 bg-amber-500 hover:bg-amber-600 rounded-xl shadow-lg shadow-amber-200 transition active:scale-95"
+            disabled={loading}
+            className="flex items-center gap-2 text-white font-bold px-5 py-2 bg-amber-500 hover:bg-amber-600 rounded-xl shadow-lg shadow-amber-200 transition active:scale-95 disabled:opacity-70"
           >
-            <Download size={18} /> Yüklə (PNG)
+            {loading ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />} 
+            {loading ? "Yüklənir..." : "Yüklə (PNG)"}
           </button>
         </div>
 
         {/* --- NƏTİCƏ KARTI (KARNE) --- */}
-        <div ref={resultRef} className="w-full max-w-2xl bg-white p-8 md:p-12 rounded-3xl shadow-2xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden">
+        {/* html2canvas bu div-i çəkəcək */}
+        <div ref={resultRef} className="w-full max-w-2xl bg-white p-8 md:p-12 rounded-3xl shadow-2xl shadow-gray-200/50 border border-gray-100 relative overflow-hidden print:shadow-none print:border-none">
           
-          {/* Logo Watermark */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none">
-             <Image src="/logo.png" alt="watermark" width={400} height={400} />
+          {/* Logo Watermark (Çapda və PNG-də daha yaxşı görünməsi üçün opacity artırıldı) */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.05] pointer-events-none">
+             <Image src="/logo.png" alt="watermark" width={400} height={400} className="object-contain" />
           </div>
 
           {/* Başlıq */}
-          <div className="text-center border-b-2 border-dashed border-gray-100 pb-8 mb-8">
+          <div className="text-center border-b-2 border-dashed border-gray-100 pb-8 mb-8 relative z-10">
             <div className="flex items-center justify-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl">M</div>
-                <h2 className="text-2xl font-black text-gray-800 uppercase tracking-wide">İmtahan Nəticəsi</h2>
+                <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-md">M</div>
+                <h2 className="text-3xl font-black text-gray-800 uppercase tracking-wide">İmtahan Nəticəsi</h2>
             </div>
             <p className="text-gray-500 font-medium">Main Olympic Center - Rəsmi Hesabat</p>
           </div>
 
           {/* Şagird Məlumatları */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-1">Şagird</p>
-                <p className="text-lg font-bold text-gray-800">{fullName}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 relative z-10">
+             <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">Şagird</p>
+                <p className="text-xl font-black text-gray-800">{fullName}</p>
              </div>
-             <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-1">Sinif / İmtahan</p>
-                <p className="text-lg font-bold text-gray-800">{result.students.class}-ci Sinif | {selectedExam}</p>
+             <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-2">Sinif / İmtahan</p>
+                <p className="text-xl font-black text-gray-800">{result.students.class}-ci Sinif | {selectedExam}</p>
              </div>
           </div>
 
           {/* Əsas Nəticə (Dairə) */}
-          <div className="flex justify-center mb-10">
+          <div className="flex justify-center mb-12 relative z-10">
              <div className="relative">
-                <div className="w-40 h-40 rounded-full border-8 border-amber-100 flex flex-col items-center justify-center bg-white shadow-inner">
-                    <span className="text-5xl font-black text-amber-500">{result.score}</span>
-                    <span className="text-sm text-gray-400 font-bold uppercase mt-1">Ümumi Bal</span>
+                {/* Dairənin arxasında yüngül parıltı */}
+                <div className="absolute inset-0 bg-amber-200 rounded-full blur-xl opacity-30"></div>
+                <div className="w-48 h-48 rounded-full border-8 border-amber-100 flex flex-col items-center justify-center bg-white shadow-xl relative z-10">
+                    <span className="text-6xl font-black text-amber-500 leading-none">{displayValue(result.score)}</span>
+                    <span className="text-sm text-gray-400 font-bold uppercase mt-2 tracking-wider">Ümumi Bal</span>
                 </div>
-                {result.percent > 0 && (
-                    <div className="absolute -right-4 top-0 bg-green-500 text-white font-bold px-3 py-1 rounded-full shadow-lg text-sm">
+                {result.percent != null && (
+                    <div className="absolute -right-4 -top-2 bg-green-500 text-white font-bold px-4 py-2 rounded-full shadow-lg text-lg z-20 border-2 border-white">
                         {result.percent}%
                     </div>
                 )}
              </div>
           </div>
 
-          {/* Detallı Statistika */}
-          <div className="grid grid-cols-3 gap-4 text-center">
-             <div className="p-4 rounded-2xl bg-green-50 text-green-700 border border-green-100">
-                <CheckCircle className="mx-auto mb-2 opacity-80" size={24} />
-                <div className="text-2xl font-black">{result.correct_count}</div>
-                <div className="text-xs font-bold uppercase opacity-70">Düzgün</div>
+          {/* Detallı Statistika (FIX: Boş dəyərlər üçün '-' yoxlaması) */}
+          <div className="grid grid-cols-3 gap-4 text-center relative z-10">
+             <div className="p-5 rounded-2xl bg-green-50 text-green-700 border border-green-100">
+                <CheckCircle className="mx-auto mb-3 opacity-80" size={28} />
+                <div className="text-3xl font-black">{displayValue(result.correct_count)}</div>
+                <div className="text-xs font-bold uppercase opacity-70 mt-1">Düzgün</div>
              </div>
-             <div className="p-4 rounded-2xl bg-red-50 text-red-700 border border-red-100">
-                <XCircle className="mx-auto mb-2 opacity-80" size={24} />
-                <div className="text-2xl font-black">{result.wrong_count}</div>
-                <div className="text-xs font-bold uppercase opacity-70">Səhv</div>
+             <div className="p-5 rounded-2xl bg-red-50 text-red-700 border border-red-100">
+                <XCircle className="mx-auto mb-3 opacity-80" size={28} />
+                <div className="text-3xl font-black">{displayValue(result.wrong_count)}</div>
+                <div className="text-xs font-bold uppercase opacity-70 mt-1">Səhv</div>
              </div>
-             <div className="p-4 rounded-2xl bg-gray-100 text-gray-600 border border-gray-200">
-                <HelpCircle className="mx-auto mb-2 opacity-80" size={24} />
-                <div className="text-2xl font-black">{emptyCount > 0 ? emptyCount : "-"}</div>
-                <div className="text-xs font-bold uppercase opacity-70">Boş</div>
+             <div className="p-5 rounded-2xl bg-gray-100 text-gray-600 border border-gray-200">
+                <HelpCircle className="mx-auto mb-3 opacity-80" size={28} />
+                <div className="text-3xl font-black">{emptyCount}</div>
+                <div className="text-xs font-bold uppercase opacity-70 mt-1">Boş</div>
              </div>
           </div>
 
           {/* Footer */}
-          <div className="mt-10 pt-6 border-t border-gray-100 flex justify-between items-end">
+          <div className="mt-12 pt-6 border-t-2 border-dashed border-gray-100 flex justify-between items-end relative z-10">
              <div>
-                <p className="text-xs text-gray-400 font-bold">Tarix</p>
-                <p className="text-sm text-gray-600 font-medium">{new Date().toLocaleDateString("az-AZ")}</p>
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Tarix</p>
+                <p className="text-sm text-gray-600 font-medium mt-1">{new Date().toLocaleDateString("az-AZ")}</p>
              </div>
-             <div className="text-right">
-                <Image src="/logo.png" alt="logo" width={80} height={40} className="opacity-80 object-contain ml-auto" />
-                <p className="text-[10px] text-amber-500 font-bold tracking-widest mt-1">MAIN OLYMPIC CENTER</p>
+             <div className="text-right flex flex-col items-end">
+                {/* Logo üçün useCORS vacibdir */}
+                <Image src="/logo.png" alt="logo" width={100} height={50} className="object-contain mb-1" unoptimized />
+                <p className="text-[10px] text-amber-600 font-black tracking-[0.2em] uppercase">MAIN OLYMPIC CENTER</p>
              </div>
           </div>
 
         </div>
+        {/* html2canvas sonu */}
 
-        <div className="mt-8 text-center text-gray-400 text-sm">
-           Nəticə avtomatik formalaşdırılıb.
+        <div className="mt-8 text-center text-gray-400 text-sm font-medium">
+           Nəticə avtomatik formalaşdırılıb və rəsmi sənəddir.
         </div>
       </div>
     );
   }
 
   /* ===================== AXTARIŞ EKRANI ===================== */
+  // (Bu hissə dəyişməyib, olduğu kimi qalır)
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-orange-50/30 p-6 relative overflow-hidden">
 
       <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
       
-      {/* İşıq Effektləri (Amber rəngdə) */}
       <div className="absolute top-[10%] left-[5%] w-72 h-72 bg-amber-200 rounded-full blur-[120px] opacity-30"></div>
       <div className="absolute bottom-[10%] right-[5%] w-80 h-80 bg-orange-200 rounded-full blur-[120px] opacity-30"></div>
 
@@ -236,7 +261,6 @@ export default function Page() {
 
         <form onSubmit={checkResult} className="space-y-6">
           
-          {/* İmtahan Seçimi */}
           <div>
             <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest ml-1">İmtahan</label>
             <div className="relative group">
@@ -256,7 +280,6 @@ export default function Page() {
             </div>
           </div>
 
-          {/* ID Daxil Etmə */}
           <div>
             <label className="block text-xs font-bold text-gray-400 mb-2 uppercase tracking-widest ml-1">Şagird ID</label>
             <div className="relative group">
