@@ -1,5 +1,10 @@
 import "./globals.css";
-import Navbar from "@/components/Navbar"; // <--- 1. Navbar-ı import edirik
+
+// KÖHNƏ (Xəta verən):
+// import Navbar from "@/components/Navbar"; 
+
+// YENİ (Bunu yaz):
+import Navbar from "../components/Navbar"; 
 
 export default function RootLayout({
   children,
@@ -8,12 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased bg-gray-50"> {/* Arxa fon rəngi əlavə etdim */}
+      <body className="antialiased bg-gray-50">
         
-        {/* 2. Navbar-ı bura qoyuruq ki, hər səhifədə görünsün */}
         <Navbar />
 
-        {/* 3. Məzmunu main içinə alırıq */}
         <main className="min-h-[calc(100vh-64px)]">
            {children}
         </main>
