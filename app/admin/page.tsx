@@ -314,7 +314,7 @@ export default function AdminDashboard() {
         <aside className="w-20 md:w-64 bg-white border-r border-gray-200 flex flex-col pt-4 pb-4">
           <nav className="space-y-2 px-2 md:px-4">
             <button onClick={() => setActiveTab("students")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "students" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
-              <Users size={20} /> <span className="hidden md:block">Tələbələr</span>
+              <Users size={20} /> <span className="hidden md:block">Qeydoyyatdan Kecmis Tələbələr</span>
             </button>
             <button onClick={() => setActiveTab("exams")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "exams" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <LinkIcon size={20} /> <span className="hidden md:block">İmtahan Linkləri</span>
