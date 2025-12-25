@@ -1,14 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Search, Loader2, ArrowLeft } from "lucide-react";
+import { createClient } from "@supabase/supabase-js"; // Supabase əlavə olundu
+import { Search, Loader2, ArrowLeft, ChevronDown } from "lucide-react";
+
+// Supabase Client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default function Page() {
   const [id, setId] = useState("");
+  const [selectedExam, setSelectedExam] = useState(""); // YENİ: Seçilən imtahan
+  const [examList, setExamList] = useState<string[]>([]); // YENİ: İmtahan siyahısı
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<any>(null);
+
+  // 1. Səhifə açılanda imtahan adlarını gətiririk
+  useEffect(() => {
+    async function fetchExams() {
+      const { data } = await supabase
+        .from("exams")
+        .select("name")
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        // Təkrarlanan adları silirik
+        const uniqueNames = Array.from(new Set(data.map((item: any) => item.name)));
+        setExamList(uniqueNames as string[]);
+      }
+    }
+    fetchExams();
+  }, []);
 
   function onlyNumbers(e: any) {
     e.target.value = e.target.value.replace(/\D/g, "");
@@ -16,14 +43,20 @@ export default function Page() {
 
   async function checkResult(e?: any) {
     if (e) e.preventDefault();
-    if (!id.trim()) return;
+    
+    // YENİ: Həm ID, həm İmtahan seçilməlidir
+    if (!id.trim() || !selectedExam) {
+        setError("Zəhmət olmasa İmtahanı seçin və ID daxil edin");
+        return;
+    }
 
     setLoading(true);
     setError("");
     setResult(null);
 
     try {
-      const res = await fetch(`/api/netice?id=${id.trim()}`);
+      // API-yə həm ID, həm də ExamName göndəririk
+      const res = await fetch(`/api/netice?id=${id.trim()}&examName=${encodeURIComponent(selectedExam)}`);
       const json = await res.json();
 
       if (!res.ok) {
@@ -54,6 +87,7 @@ export default function Page() {
             onClick={() => {
               setResult(null);
               setId("");
+              // İmtahan seçimini saxlaya bilərik və ya sıfırlaya bilərik
             }}
             className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-bold px-4 py-2 bg-white rounded-2xl shadow border transition active:scale-95"
           >
@@ -64,53 +98,35 @@ export default function Page() {
         <div className="w-full max-w-md bg-white p-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] z-10 animate-in fade-in zoom-in duration-300">
 
           <div className="text-center mb-6">
-            {/* LOGO */}
             <div className="bg-blue-600 w-20 h-20 rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-blue-200 mb-4">
-              <Image
-                src="/logo.png"
-                alt="Main Olympic Center Logo"
-                width={100}
-                height={100}
-                className="object-contain"
-                priority
-              />
+              <Image src="/logo.png" alt="Logo" width={100} height={100} className="object-contain" priority />
             </div>
 
-            <h2 className="text-2xl font-black text-slate-800">
-              Nəticə Hesabatı
-            </h2>
-
-            <p className="text-blue-600 font-bold text-xs uppercase tracking-widest mt-2">
-              Main Olympic Center
-            </p>
+            <h2 className="text-2xl font-black text-slate-800">Nəticə Hesabatı</h2>
+            <p className="text-blue-600 font-bold text-xs uppercase tracking-widest mt-2">Main Olympic Center</p>
           </div>
 
           <div className="space-y-4 text-center">
-            <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">
-              Şagird
-            </p>
-            <p className="text-xl font-black text-slate-800">
-              {fullName}
-            </p>
+            <p className="text-sm text-slate-400 uppercase tracking-widest font-bold">Şagird</p>
+            <p className="text-xl font-black text-slate-800">{fullName}</p>
+            
+            {/* Şagirdin sinfini və imtahan adını göstərmək üçün */}
+            <p className="text-sm text-slate-500 font-medium">{selectedExam}</p>
 
             <div className="rounded-2xl bg-slate-50 p-4 border">
-              <p className="font-bold text-slate-700">
-                {result.quiz}
-              </p>
-              <p className="text-slate-600 mt-1">
-                Bal: <b>{result.score}</b> / {result.total}
-              </p>
+              <p className="font-bold text-slate-700">{result.quiz}</p>
+              <p className="text-slate-600 mt-1">Bal: <b>{result.score}</b> / {result.total || 100}</p>
+              
+              {/* Faiz yoxdursa hesablayaq və ya backenddən gələni göstərək */}
               <p className="text-3xl font-black text-blue-600 mt-2">
-                {result.percent}%
+                {result.percent ? `${result.percent}%` : ""}
               </p>
             </div>
           </div>
         </div>
 
         <div className="mt-12 text-center z-10">
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em] mb-2">
-            Rəsmi İmtahan Portalı
-          </p>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em] mb-2">Rəsmi İmtahan Portalı</p>
           <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full"></div>
         </div>
       </div>
@@ -128,33 +144,38 @@ export default function Page() {
       <div className="w-full max-w-md bg-white p-8 md:p-12 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.04)] z-10">
 
         <div className="text-center mb-10">
-          {/* LOGO */}
           <div className="bg-blue-600 w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-blue-200 mb-6">
-            <Image
-              src="/logo.png"
-              alt="Main Olympic Center Logo"
-              width={56}
-              height={56}
-              className="object-contain"
-              priority
-            />
+            <Image src="/logo.png" alt="Logo" width={56} height={56} className="object-contain" priority />
           </div>
-
-          <h2 className="text-3xl font-black text-slate-800">
-            Nəticəni Yoxla
-          </h2>
-
-          <p className="text-blue-600 font-bold text-xs uppercase tracking-widest italic mt-3">
-            Main Olympic Center
-          </p>
+          <h2 className="text-3xl font-black text-slate-800">Nəticəni Yoxla</h2>
+          <p className="text-blue-600 font-bold text-xs uppercase tracking-widest italic mt-3">Main Olympic Center</p>
         </div>
 
         <form onSubmit={checkResult} className="space-y-6">
+          
+          {/* --- YENİ: İMTAHAN SEÇİMİ --- */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-[0.15em]">
-              Şagird ID
-            </label>
+            <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-[0.15em]">İmtahan</label>
+            <div className="relative">
+              <select
+                value={selectedExam}
+                onChange={(e) => setSelectedExam(e.target.value)}
+                className="w-full pl-5 pr-12 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none font-bold text-lg text-slate-800 appearance-none cursor-pointer"
+              >
+                <option value="">İmtahanı seçin...</option>
+                {examList.map((exam, idx) => (
+                    <option key={idx} value={exam}>{exam}</option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none">
+                <ChevronDown size={22} />
+              </div>
+            </div>
+          </div>
 
+          {/* --- ID DAXİL ETMƏ --- */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-[0.15em]">Şagird ID</label>
             <div className="relative">
               <input
                 value={id}
@@ -171,7 +192,7 @@ export default function Page() {
 
           <button
             type="submit"
-            disabled={loading || !id}
+            disabled={loading || !id || !selectedExam}
             className="w-full bg-slate-900 hover:bg-blue-600 text-white font-bold py-5 rounded-2xl transition-all shadow-lg hover:shadow-blue-200 flex items-center justify-center gap-3 active:scale-[0.98] disabled:opacity-50"
           >
             {loading ? (
@@ -190,9 +211,7 @@ export default function Page() {
       </div>
 
       <div className="mt-12 text-center z-10">
-        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em] mb-2">
-          Rəsmi İmtahan Portalı
-        </p>
+        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em] mb-2">Rəsmi İmtahan Portalı</p>
         <div className="h-1 w-12 bg-blue-500 mx-auto rounded-full"></div>
       </div>
     </div>
