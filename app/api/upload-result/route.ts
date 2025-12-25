@@ -9,7 +9,7 @@ function getSupabase() {
   return createClient(url, key);
 }
 
-// AI üçün Cavab Şablonu (Schema)
+// AI üçün Cavab Şablonu
 const examSchema = {
   description: "Bütün şagirdlərin imtahan nəticələri siyahısı",
   type: SchemaType.ARRAY,
@@ -36,10 +36,9 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // 🔥 YENİLƏNMİŞ HİSSƏ: Gemini 3 Flash Modeli 🔥
-    // Google sənədlərinə görə (Dec 2025) ən yeni model ID-si budur:
+    // Model (Sizdə işləyən versiya)
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash-preview", // Və ya sadəcə "gemini-3-flash"
+      model: "gemini-1.5-flash-001", // Və ya "gemini-3-flash-preview" (əgər o sizdə işləyirsə)
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: examSchema,
@@ -56,7 +55,7 @@ export async function POST(req: Request) {
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
     const prompt = `
-      Bu sənəd ZipGrade imtahan nəticələridir. Hər zolaq (strip) bir şagirdin nəticəsidir.
+      Bu sənəd ZipGrade imtahan nəticələridir. 
       Məlumatları analiz et və JSON array qaytar.
       
       Sahələr:
@@ -73,27 +72,46 @@ export async function POST(req: Request) {
     ]);
 
     const responseText = result.response.text();
-    console.log("Gemini 3 Cavabı:", responseText);
-
     const resultsArray = JSON.parse(responseText);
 
     if (!Array.isArray(resultsArray)) {
         return NextResponse.json({ error: "Gemini düzgün formatda cavab vermədi" }, { status: 500 });
     }
 
-    // Bazaya yazırıq
+    // --- YENİ HİSSƏ: TƏKRARLARI TƏMİZLƏMƏK ---
+    // Eyni student_id və quiz cütlüyündən yalnız birini saxlayırıq.
+    const uniqueMap = new Map();
+
+    resultsArray.forEach((item: any) => {
+        // Məlumatları təmizləyirik
+        const stdId = String(item.student_id).trim();
+        const quizName = (item.quiz || examName || "İmtahan").trim();
+        
+        // Unikal açar yaradırıq (məs: "19576598_TIMO")
+        const uniqueKey = `${stdId}_${quizName}`;
+
+        // Əgər bu şagird bu siyahıda hələ yoxdursa, əlavə edirik
+        if (!uniqueMap.has(uniqueKey)) {
+             uniqueMap.set(uniqueKey, {
+                 student_id: stdId,
+                 quiz: quizName,
+                 score: Number(item.score),
+                 total: Number(item.total),
+                 percent: Number(item.percent),
+                 correct_count: Number(item.score), 
+                 wrong_count: Number(item.total) - Number(item.score)
+             });
+        }
+    });
+
+    // Təmizlənmiş siyahını alırıq
+    const cleanData = Array.from(uniqueMap.values());
+
+    // Bazaya yazırıq (Artıq xəta verməyəcək)
     const { error: dbError } = await supabase
       .from("results")
       .upsert(
-        resultsArray.map((item: any) => ({
-          student_id: String(item.student_id),
-          quiz: item.quiz || examName || "İmtahan",
-          score: Number(item.score),
-          total: Number(item.total),
-          percent: Number(item.percent),
-          correct_count: Number(item.score), 
-          wrong_count: Number(item.total) - Number(item.score)
-        })),
+        cleanData,
         { onConflict: "student_id,quiz" }
       );
 
@@ -101,8 +119,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      processed_count: resultsArray.length, 
-      message: `${resultsArray.length} şagirdin nəticəsi bazaya uğurla yazıldı (Gemini 3).` 
+      processed_count: cleanData.length, 
+      message: `${cleanData.length} nəticə (təkrarlar silindi) bazaya yazıldı.` 
     });
 
   } catch (e: any) {
