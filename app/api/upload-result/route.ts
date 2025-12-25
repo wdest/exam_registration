@@ -36,9 +36,9 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // Model (Sizdə işləyən versiya)
+    // 🔥 MODEL: GEMINI 3 FLASH 🔥
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash-001", // Və ya "gemini-3-flash-preview" (əgər o sizdə işləyirsə)
+      model: "gemini-3-flash", // Sənin istədiyin model
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: examSchema,
@@ -78,19 +78,17 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Gemini düzgün formatda cavab vermədi" }, { status: 500 });
     }
 
-    // --- YENİ HİSSƏ: TƏKRARLARI TƏMİZLƏMƏK ---
-    // Eyni student_id və quiz cütlüyündən yalnız birini saxlayırıq.
+    // --- TƏKRARLARI TƏMİZLƏMƏK (Deduplication) ---
     const uniqueMap = new Map();
 
     resultsArray.forEach((item: any) => {
-        // Məlumatları təmizləyirik
         const stdId = String(item.student_id).trim();
         const quizName = (item.quiz || examName || "İmtahan").trim();
         
-        // Unikal açar yaradırıq (məs: "19576598_TIMO")
+        // Unikal açar: ID + İmtahan Adı
         const uniqueKey = `${stdId}_${quizName}`;
 
-        // Əgər bu şagird bu siyahıda hələ yoxdursa, əlavə edirik
+        // Əgər bu nəticə hələ siyahıda yoxdursa, əlavə et
         if (!uniqueMap.has(uniqueKey)) {
              uniqueMap.set(uniqueKey, {
                  student_id: stdId,
@@ -104,10 +102,9 @@ export async function POST(req: Request) {
         }
     });
 
-    // Təmizlənmiş siyahını alırıq
     const cleanData = Array.from(uniqueMap.values());
 
-    // Bazaya yazırıq (Artıq xəta verməyəcək)
+    // Bazaya yazırıq
     const { error: dbError } = await supabase
       .from("results")
       .upsert(
@@ -120,7 +117,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       success: true, 
       processed_count: cleanData.length, 
-      message: `${cleanData.length} nəticə (təkrarlar silindi) bazaya yazıldı.` 
+      message: `${cleanData.length} nəticə (təkrarlar silinib) Gemini 3 ilə bazaya yazıldı.` 
     });
 
   } catch (e: any) {
