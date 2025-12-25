@@ -19,7 +19,11 @@ import {
   X,
   Link as LinkIcon,
   PlusCircle,
-  ExternalLink
+  ExternalLink,
+  FileText, // YENİ: Nəticələr üçün ikon
+  CheckCircle,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 
 const supabase = createClient(
@@ -52,12 +56,11 @@ interface GalleryItem {
   image_url: string;
 }
 
-// YENİLƏNMİŞ İmtahan Tipi (class_grade əlavə olundu)
 interface Exam {
   id: number;
   name: string;
   url: string;
-  class_grade: string; // YENİ: Sinif məlumatı
+  class_grade: string;
   created_at?: string;
 }
 
@@ -74,12 +77,16 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  // Yeni İmtahan State-ləri
+  // İmtahan State-ləri
   const [newExamName, setNewExamName] = useState("");
   const [newExamUrl, setNewExamUrl] = useState("");
-  const [newExamClass, setNewExamClass] = useState("1"); // YENİ: Sinif seçimi üçün
+  const [newExamClass, setNewExamClass] = useState("1");
 
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+
+  // --- YENİ: Nəticə Yükləmə State-ləri ---
+  const [uploadExamSelect, setUploadExamSelect] = useState(""); // Seçilən imtahan
+  const [uploadMessage, setUploadMessage] = useState(""); // Uğur/Xəta mesajı
 
   useEffect(() => {
     fetchAllData();
@@ -97,7 +104,6 @@ export default function AdminDashboard() {
       const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
       if (galData) setGallery(galData as any);
 
-      // İmtahanları sinifə görə sıralayaq
       const { data: examData } = await supabase.from("exams").select("*").order("class_grade", { ascending: true });
       if (examData) setExams(examData as any);
 
@@ -108,12 +114,11 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- İMTAHAN ƏMƏLİYYATLARI (YENİLƏNİB) ---
+  // --- İMTAHAN ƏMƏLİYYATLARI ---
   async function addExam(e: React.FormEvent) {
     e.preventDefault();
     if (!newExamName || !newExamUrl || !newExamClass) return alert("Zəhmət olmasa bütün xanaları doldurun.");
 
-    // YENİ: Bazaya 'class_grade' də göndəririk
     const { error } = await supabase.from("exams").insert({
         name: newExamName,
         url: newExamUrl,
@@ -171,6 +176,44 @@ export default function AdminDashboard() {
       alert("Tələbə məlumatları yeniləndi! ✅");
       setEditingStudent(null);
       fetchAllData();
+    }
+  }
+
+  // --- YENİ: NƏTİCƏ YÜKLƏMƏ FUNKSİYASI ---
+  async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    // Əgər imtahan seçilməyibsə xəbərdarlıq et
+    if (!uploadExamSelect) {
+        alert("Zəhmət olmasa əvvəlcə siyahıdan imtahanı seçin!");
+        e.target.value = ""; // Inputu təmizlə
+        return;
+    }
+
+    setUploading(true);
+    setUploadMessage("");
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("pdf", file);
+    formData.append("exam_name", uploadExamSelect); // Seçilən imtahan adını da göndəririk
+
+    try {
+        const res = await fetch("/api/upload-result", {
+            method: "POST",
+            body: formData,
+        });
+        const json = await res.json();
+
+        if (res.ok) {
+            setUploadMessage(`✅ Uğurlu! ${json.processed_count || json.count || 0} nəticə bazaya yazıldı.`);
+        } else {
+            setUploadMessage(`❌ Xəta: ${json.error}`);
+        }
+    } catch (err: any) {
+        setUploadMessage("❌ Server xətası baş verdi.");
+    } finally {
+        setUploading(false);
+        e.target.value = ""; // Inputu təmizlə
     }
   }
 
@@ -264,6 +307,10 @@ export default function AdminDashboard() {
             <button onClick={() => setActiveTab("exams")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "exams" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <LinkIcon size={20} /> <span className="hidden md:block">İmtahan Linkləri</span>
             </button>
+            {/* YENİ TAB: NƏTİCƏLƏR */}
+            <button onClick={() => setActiveTab("results")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "results" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
+              <FileText size={20} /> <span className="hidden md:block">Nəticələri Yüklə</span>
+            </button>
             <button onClick={() => setActiveTab("settings")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "settings" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <Settings size={20} /> <span className="hidden md:block">Tənzimləmələr</span>
             </button>
@@ -354,7 +401,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: EXAMS (YENİLƏNİB) */}
+          {/* TAB: EXAMS */}
           {activeTab === "exams" && (
             <div className="max-w-4xl mx-auto space-y-8">
                 {/* YENİ İMTAHAN YARAT */}
@@ -363,7 +410,6 @@ export default function AdminDashboard() {
                         <PlusCircle className="text-amber-500" /> Yeni İmtahan Linki Yarat
                     </h2>
                     <form onSubmit={addExam} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        {/* Sinif Seçimi */}
                         <div className="col-span-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">Sinif</label>
                             <select 
@@ -385,8 +431,6 @@ export default function AdminDashboard() {
                                 <option value="Müəllimlər">Müəllimlər</option>
                             </select>
                         </div>
-                        
-                        {/* İmtahan Adı */}
                         <div className="col-span-1 md:col-span-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Adı</label>
                             <input 
@@ -396,8 +440,6 @@ export default function AdminDashboard() {
                                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                             />
                         </div>
-
-                        {/* Link */}
                         <div className="col-span-1 md:col-span-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">Link (URL)</label>
                             <input 
@@ -407,7 +449,6 @@ export default function AdminDashboard() {
                                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                             />
                         </div>
-
                         <div className="col-span-1">
                             <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-lg font-bold transition flex justify-center items-center gap-2">
                                 <Save size={18} /> Əlavə et
@@ -418,7 +459,7 @@ export default function AdminDashboard() {
 
                 {/* MÖVCUD İMTAHANLAR */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-                     <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                      <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                         <LinkIcon className="text-blue-600" /> Aktiv İmtahanlar
                     </h2>
                     <div className="space-y-4">
@@ -429,184 +470,4 @@ export default function AdminDashboard() {
                                         <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-md border border-blue-200">
                                             {exam.class_grade}-ci sinif
                                         </span>
-                                        <h3 className="font-bold text-gray-800">{exam.name}</h3>
-                                    </div>
-                                    <a href={exam.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline flex items-center gap-1 break-all">
-                                        <ExternalLink size={14} /> {exam.url}
-                                    </a>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <button onClick={() => deleteExam(exam.id)} className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition" title="Sil">
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                        {exams.length === 0 && (
-                            <p className="text-center text-gray-400 py-4">Hələ heç bir imtahan linki əlavə edilməyib.</p>
-                        )}
-                    </div>
-                </div>
-            </div>
-          )}
-
-          {/* TAB: SETTINGS */}
-          {activeTab === "settings" && (
-            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Settings size={24} className="text-amber-500" /> Digər Tənzimləmələr
-              </h2>
-              <div className="space-y-6">
-                {settings.map((item) => (
-                  <div key={item.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                    <label className="block text-sm font-bold text-gray-700 mb-2">{item.label}</label>
-                    <div className="flex gap-3">
-                      <input 
-                        id={`input-${item.key}`} 
-                        defaultValue={item.value} 
-                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
-                      />
-                      <button 
-                         onClick={() => {
-                            const val = (document.getElementById(`input-${item.key}`) as HTMLInputElement).value;
-                            updateSetting(item.key, val);
-                         }}
-                         className="flex items-center gap-2 bg-blue-600 text-white px-5 rounded-lg font-medium hover:bg-blue-700 transition"
-                      >
-                        <Save size={18} /> Yadda saxla
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* TAB: GALLERY */}
-          {activeTab === "gallery" && (
-             <div className="space-y-8 max-w-6xl mx-auto">
-                <div className="bg-white p-6 rounded-2xl shadow-sm border flex justify-between items-center">
-                  <h2 className="text-lg font-bold flex items-center gap-2"><ImageIcon size={22} className="text-amber-500" /> Qalereya</h2>
-                  <label className={`cursor-pointer flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg ${uploading ? 'opacity-70' : ''}`}>
-                    {uploading ? <RefreshCw className="animate-spin" /> : <Upload size={20} />}
-                    {uploading ? "Yüklənir..." : "Yeni Şəkil"}
-                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
-                  </label>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-                  {gallery.map((img) => (
-                    <div key={img.id} className="relative group rounded-xl overflow-hidden shadow-md bg-white border border-gray-100 aspect-square">
-                      <img src={img.image_url} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
-                        <button onClick={() => deleteImage(img.id, img.image_url)} className="bg-red-600 text-white p-3 rounded-full hover:bg-red-700 transition shadow-xl hover:scale-110">
-                          <Trash2 size={24} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-             </div>
-          )}
-
-        </main>
-      </div>
-
-      {/* --- MODAL: EDIT STUDENT --- */}
-      {editingStudent && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Edit size={24} className="text-blue-600" /> Tələbəni Redaktə Et
-              </h2>
-              <button onClick={() => setEditingStudent(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X size={24}/></button>
-            </div>
-            
-            <form onSubmit={handleSaveStudent} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Ad</label>
-                  <input 
-                    value={editingStudent.first_name}
-                    onChange={(e) => setEditingStudent({...editingStudent, first_name: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Soyad</label>
-                  <input 
-                    value={editingStudent.last_name}
-                    onChange={(e) => setEditingStudent({...editingStudent, last_name: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                 <label className="block text-sm font-medium text-gray-700 mb-1">Ata adı (Valideyn)</label>
-                 <input 
-                   value={editingStudent.parent_name || ""}
-                   onChange={(e) => setEditingStudent({...editingStudent, parent_name: e.target.value})}
-                   className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Sinif</label>
-                  <input 
-                    value={editingStudent.class}
-                    onChange={(e) => setEditingStudent({...editingStudent, class: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam ID</label>
-                  <input 
-                    value={editingStudent.exam_id}
-                    onChange={(e) => setEditingStudent({...editingStudent, exam_id: e.target.value})}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-1">Telefon 1</label>
-                   <input 
-                     value={editingStudent.phone1}
-                     onChange={(e) => setEditingStudent({...editingStudent, phone1: e.target.value})}
-                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                     required
-                   />
-                </div>
-                <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-1">Telefon 2</label>
-                   <input 
-                     value={editingStudent.phone2 || ""}
-                     onChange={(e) => setEditingStudent({...editingStudent, phone2: e.target.value})}
-                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                   />
-                </div>
-              </div>
-
-              <div className="pt-4 flex gap-3">
-                <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition">
-                  Ləğv et
-                </button>
-                <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">
-                  Yadda saxla
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
+                                        <h3 className="font-bold text
