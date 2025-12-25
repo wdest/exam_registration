@@ -26,8 +26,6 @@ export default function LandingPage() {
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // --- YENİ: Sayt Məlumatları State-i ---
-  // İlkin olaraq boş qalmamaq üçün standart dəyərlər qoyuruq
   const [siteInfo, setSiteInfo] = useState({
     phone: "+994 50 123 45 67",
     address: "Bakı şəhəri, Nərimanov r.",
@@ -38,7 +36,6 @@ export default function LandingPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        // 1. Qalereyanı çək
         const { data: galData } = await supabase
           .from("gallery")
           .select("*")
@@ -46,11 +43,9 @@ export default function LandingPage() {
         
         if (galData) setGalleryImages(galData);
 
-        // 2. Sayt Məlumatlarını (Telefon, Ünvan) çək
         const { data: settingsData } = await supabase.from("settings").select("*");
         
         if (settingsData) {
-          // Bazadan gələn array-i obyektə çeviririk ki, rahat işlədək
           const newInfo: any = { ...siteInfo };
           settingsData.forEach((item) => {
             if (item.key) newInfo[item.key] = item.value;
@@ -201,50 +196,62 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 4. QALEREYA --- */}
-      <section id="gallery" className="py-24 bg-orange-50/50 border-t border-orange-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* --- 4. QALEREYA (SONSUZ KARUSEL) --- */}
+      <section id="gallery" className="py-24 bg-orange-50/50 border-t border-orange-100 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
           <motion.div 
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            className="text-center mb-12"
+            className="text-center"
           >
             <h2 className="text-3xl font-bold text-gray-900">Mərkəzimizdən Görüntülər</h2>
             <p className="mt-4 text-gray-500">Tələbələrimizin uğurları və dərs mühiti</p>
           </motion.div>
+        </div>
 
-          {loading ? (
-            <div className="text-center py-10 text-amber-500 animate-pulse font-medium">Yüklənir...</div>
-          ) : galleryImages.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-gray-200">
-              <p className="text-gray-400">Hələlik qalereyada şəkil yoxdur.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {galleryImages.map((item, index) => (
-                <motion.div 
-                  key={item.id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  className="group relative overflow-hidden rounded-2xl shadow-md h-64 cursor-pointer"
+        {loading ? (
+          <div className="text-center py-10 text-amber-500 animate-pulse font-medium">Yüklənir...</div>
+        ) : galleryImages.length === 0 ? (
+          <div className="text-center py-12 max-w-2xl mx-auto bg-white rounded-2xl border-2 border-dashed border-gray-200">
+            <p className="text-gray-400">Hələlik qalereyada şəkil yoxdur.</p>
+          </div>
+        ) : (
+          <div className="relative w-full">
+            {/* Şəkillərin kənarlarında yumşaq keçid (fade effect) üçün */}
+            <div className="absolute left-0 top-0 bottom-0 w-20 bg-gradient-to-r from-orange-50 via-orange-50/80 to-transparent z-10 pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-20 bg-gradient-to-l from-orange-50 via-orange-50/80 to-transparent z-10 pointer-events-none" />
+
+            {/* Sonsuz Sürüşən Konteyner */}
+            <motion.div 
+              className="flex gap-8 w-max"
+              // X oxu üzrə hərəkət edir: 0%-dən -50%-ə (çünki şəkilləri 2 qat artırdıq)
+              animate={{ x: ["0%", "-50%"] }} 
+              transition={{
+                 ease: "linear",
+                 duration: 40, // Sürəti burdan tənzimlə (rəqəm böyüdükcə yavaşlayır)
+                 repeat: Infinity,
+              }}
+            >
+              {/* Şəkilləri 2 dəfə təkrarlayırıq ki, sonsuz dövr yaransın */}
+              {[...galleryImages, ...galleryImages].map((item, index) => (
+                <div 
+                  key={index} 
+                  className="relative w-72 h-48 sm:w-80 sm:h-56 md:w-96 md:h-64 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-4 border-white hover:scale-105 transition duration-300"
                 >
                   <img 
                     src={item.image_url} 
                     alt="MOC Qalereya" 
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition duration-300"></div>
-                </motion.div>
+                </div>
               ))}
-            </div>
-          )}
-        </div>
+            </motion.div>
+          </div>
+        )}
       </section>
 
-      {/* --- 5. ƏLAQƏ (Footer) - DİNAMİK MƏLUMATLARLA --- */}
+      {/* --- 5. ƏLAQƏ (Footer) --- */}
       <section id="contact" className="bg-white border-t border-gray-200 pt-20 pb-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-16">
           
@@ -258,19 +265,16 @@ export default function LandingPage() {
               Main Olympic Center - Təhsilin olimpiadası. Bizimlə hədəflərinizə daha sürətli çatın.
             </p>
             <div className="space-y-4">
-              {/* DİNAMİK ÜNVAN */}
               <p className="flex items-center text-gray-700 group cursor-pointer">
                 <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📍</span> 
                 {siteInfo.address || "Ünvan yüklənir..."}
               </p>
               
-              {/* DİNAMİK TELEFON */}
               <a href={`tel:${siteInfo.phone}`} className="flex items-center text-gray-700 group cursor-pointer hover:text-amber-600">
                 <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📞</span> 
                 {siteInfo.phone || "Telefon yüklənir..."}
               </a>
               
-              {/* DİNAMİK EMAİL */}
               <a href={`mailto:${siteInfo.email}`} className="flex items-center text-gray-700 group cursor-pointer hover:text-amber-600">
                 <span className="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-3 group-hover:bg-amber-500 group-hover:text-white transition">📧</span> 
                 {siteInfo.email || "Email yüklənir..."}
