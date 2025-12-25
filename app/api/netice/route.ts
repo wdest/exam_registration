@@ -9,10 +9,10 @@ function getSupabase() {
   return createClient(url, key);
 }
 
-// 1. Şemamızı Massiv (Array) şəklində dəyişirik
+// 1. Gemini Şeması (Dəyişmədi)
 const examSchema = {
   description: "Bütün şagirdlərin imtahan nəticələri siyahısı",
-  type: SchemaType.ARRAY, // Bir neçə nəticə gözləyirik
+  type: SchemaType.ARRAY,
   items: {
     type: SchemaType.OBJECT,
     properties: {
@@ -26,30 +26,48 @@ const examSchema = {
   },
 };
 
+// 2. GET Metodu - YENİLƏNDİ (İmtahan adına görə yoxlama)
 export async function GET(req: Request) {
   try {
     const supabase = getSupabase();
     if (!supabase) return NextResponse.json({ error: "Server xətası" }, { status: 500 });
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
+    const examName = searchParams.get("examName"); // <--- YENİ: İmtahan adı
+
     if (!id) return NextResponse.json({ error: "ID yoxdur" }, { status: 400 });
 
-    const { data, error } = await supabase
+    // Sorğunu hazırlayırıq
+    let query = supabase
       .from("results")
-      .select("*, students(first_name, last_name)")
-      .eq("student_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      // !inner istifadə edirik ki, əlaqəli cədvəldə (students) filterləmə apara bilək
+      .select("*, students!inner(first_name, last_name, class, exam_name)")
+      .eq("student_id", id); // Nəticələr cədvəlindəki unikal kod
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // Əgər frontend-dən imtahan adı gəlibsə, onu da yoxlayırıq
+    if (examName) {
+       query = query.eq("students.exam_name", examName);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+        console.error("Supabase Error:", error);
+        return NextResponse.json({ error: "Məlumat bazasında xəta" }, { status: 500 });
+    }
+
+    if (!data) {
+        return NextResponse.json({ error: "Nəticə tapılmadı. İmtahan adını və kodu düzgün seçdiyinizə əmin olun." }, { status: 404 });
+    }
+
     return NextResponse.json(data);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
 
-// 2. Yenilənmiş POST Metodu: Hər səhifəni oxuyub bazaya yazır
+// 3. POST Metodu (Dəyişmədi - PDF yükləmək üçün)
 export async function POST(req: Request) {
   try {
     const supabase = getSupabase();
@@ -58,7 +76,7 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash", // Çox səhifəli fayllar üçün ən stabil model
+      model: "gemini-1.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: examSchema,
@@ -72,9 +90,8 @@ export async function POST(req: Request) {
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // Gemini-yə PDF-i tam göndəririk və hər səhifəni ayrıca analiz etməsini deyirik
     const result = await model.generateContent([
-      "Bu PDF-in hər səhifəsi fərqli bir şagirdin nəticəsidir. BÜTÜN səhifələri oxu və hər şagird üçün məlumatları JSON siyahısı (array) formatında qaytar.",
+      "Bu PDF-in hər səhifəsi fərqli bir şagirdin nəticəsidir. BÜTÜN səhifələri oxu və hər şagird üçün məlumatları JSON siyahısı (array) formatında qaytar. 'student_id' sahəsinə kağızdakı ID-ni (unikal kodu) yaz.",
       { inlineData: { data: base64Data, mimeType: "application/pdf" } },
     ]);
 
@@ -84,19 +101,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Gemini düzgün formatda cavab vermədi" }, { status: 500 });
     }
 
-    // Bazaya toplu şəkildə yazırıq (Bulk Upsert)
-    // Bu, hər şagird üçün ayrıca sətir yaradacaq
+    // Bazaya yazırıq
     const { error: dbError } = await supabase
       .from("results")
       .upsert(
         resultsArray.map((item: any) => ({
-          student_id: String(item.student_id),
+          student_id: String(item.student_id), // Bu kod students cədvəlindəki exam_id ilə eyni olmalıdır
           quiz: item.quiz || "İmtahan",
           score: Number(item.score),
           total: Number(item.total),
           percent: Number(item.percent),
         })),
-        { onConflict: "student_id,quiz" }
+        { onConflict: "student_id" } // Conflict olanda yenilə
       );
 
     if (dbError) throw dbError;
