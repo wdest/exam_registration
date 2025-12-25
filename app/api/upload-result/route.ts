@@ -9,7 +9,6 @@ function getSupabase() {
   return createClient(url, key);
 }
 
-// AI üçün Cavab Şablonu
 const examSchema = {
   description: "Bütün şagirdlərin imtahan nəticələri siyahısı",
   type: SchemaType.ARRAY,
@@ -36,9 +35,10 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // 🔥 MODEL: GEMINI 3 FLASH 🔥
+    // 🔥 DÜZƏLİŞ: Model adında '.0' əlavə etdik (Google standartı)
+    // Əgər yenə 404 versə, "gemini-3.0-flash-001" yoxlayarsan
     const model = genAI.getGenerativeModel({
-      model: "gemini-3-flash", // Sənin istədiyin model
+      model: "gemini-3.0-flash", 
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: examSchema,
@@ -78,17 +78,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Gemini düzgün formatda cavab vermədi" }, { status: 500 });
     }
 
-    // --- TƏKRARLARI TƏMİZLƏMƏK (Deduplication) ---
+    // --- TƏKRARLARI TƏMİZLƏMƏK (Bunu saxlayırıq ki, xəta verməsin) ---
     const uniqueMap = new Map();
 
     resultsArray.forEach((item: any) => {
         const stdId = String(item.student_id).trim();
         const quizName = (item.quiz || examName || "İmtahan").trim();
-        
-        // Unikal açar: ID + İmtahan Adı
         const uniqueKey = `${stdId}_${quizName}`;
 
-        // Əgər bu nəticə hələ siyahıda yoxdursa, əlavə et
         if (!uniqueMap.has(uniqueKey)) {
              uniqueMap.set(uniqueKey, {
                  student_id: stdId,
@@ -117,11 +114,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       success: true, 
       processed_count: cleanData.length, 
-      message: `${cleanData.length} nəticə (təkrarlar silinib) Gemini 3 ilə bazaya yazıldı.` 
+      message: `${cleanData.length} nəticə (Gemini 3.0 ilə) uğurla yükləndi.` 
     });
 
   } catch (e: any) {
     console.error("API Xətası:", e.message);
+    
+    // Model adını dəqiqləşdirmək üçün köməkçi mesaj
+    if (e.message.includes("404") || e.message.includes("not found")) {
+        return NextResponse.json({ error: "Model adı səhvdir. Google AI Studio-dan dəqiq ID-ni yoxlayın (məs: gemini-3.0-flash-001)." }, { status: 500 });
+    }
+
     return NextResponse.json({ error: "Xəta: " + e.message }, { status: 500 });
   }
 }
