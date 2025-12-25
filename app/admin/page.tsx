@@ -20,7 +20,7 @@ import {
   Link as LinkIcon,
   PlusCircle,
   ExternalLink,
-  FileText, // YENİ: Nəticələr üçün ikon
+  FileText,
   CheckCircle,
   AlertCircle,
   Loader2
@@ -84,9 +84,9 @@ export default function AdminDashboard() {
 
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // --- YENİ: Nəticə Yükləmə State-ləri ---
-  const [uploadExamSelect, setUploadExamSelect] = useState(""); // Seçilən imtahan
-  const [uploadMessage, setUploadMessage] = useState(""); // Uğur/Xəta mesajı
+  // Nəticə Yükləmə State-ləri
+  const [uploadExamSelect, setUploadExamSelect] = useState(""); 
+  const [uploadMessage, setUploadMessage] = useState(""); 
 
   useEffect(() => {
     fetchAllData();
@@ -179,14 +179,13 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- YENİ: NƏTİCƏ YÜKLƏMƏ FUNKSİYASI ---
+  // --- NƏTİCƏ YÜKLƏMƏ FUNKSİYASI ---
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files || e.target.files.length === 0) return;
     
-    // Əgər imtahan seçilməyibsə xəbərdarlıq et
     if (!uploadExamSelect) {
         alert("Zəhmət olmasa əvvəlcə siyahıdan imtahanı seçin!");
-        e.target.value = ""; // Inputu təmizlə
+        e.target.value = ""; 
         return;
     }
 
@@ -195,7 +194,7 @@ export default function AdminDashboard() {
     const file = e.target.files[0];
     const formData = new FormData();
     formData.append("pdf", file);
-    formData.append("exam_name", uploadExamSelect); // Seçilən imtahan adını da göndəririk
+    formData.append("exam_name", uploadExamSelect); 
 
     try {
         const res = await fetch("/api/upload-result", {
@@ -213,7 +212,7 @@ export default function AdminDashboard() {
         setUploadMessage("❌ Server xətası baş verdi.");
     } finally {
         setUploading(false);
-        e.target.value = ""; // Inputu təmizlə
+        e.target.value = ""; 
     }
   }
 
@@ -470,4 +469,247 @@ export default function AdminDashboard() {
                                         <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-md border border-blue-200">
                                             {exam.class_grade}-ci sinif
                                         </span>
-                                        <h3 className="font-bold text
+                                        <h3 className="font-bold text-gray-800">{exam.name}</h3>
+                                    </div>
+                                    <a href={exam.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline flex items-center gap-1 break-all">
+                                        <ExternalLink size={14} /> {exam.url}
+                                    </a>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => deleteExam(exam.id)} className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition" title="Sil">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        {exams.length === 0 && (
+                            <p className="text-center text-gray-400 py-4">Hələ heç bir imtahan linki əlavə edilməyib.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+          )}
+
+          {/* --- YENİ TAB: NƏTİCƏLƏR --- */}
+          {activeTab === "results" && (
+             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 max-w-lg mx-auto mt-8">
+                <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
+                        <FileText size={32} />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-800">İmtahan Nəticələrini Yüklə</h2>
+                    <p className="text-gray-500 mt-2">ZipGrade PDF hesabatını yükləyərək nəticələri bazaya əlavə edin.</p>
+                </div>
+
+                <div className="space-y-6">
+                    {/* 1. İmtahan Seçimi */}
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Hansı imtahan üçün?</label>
+                        <select 
+                            value={uploadExamSelect}
+                            onChange={(e) => setUploadExamSelect(e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50"
+                        >
+                            <option value="">İmtahanı Seçin...</option>
+                            {/* Unikal imtahan adlarını göstəririk */}
+                            {Array.from(new Set(exams.map(e => e.name))).map((examName, idx) => (
+                                <option key={idx} value={examName}>{examName}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* 2. PDF Yükləmə */}
+                    <div className={`border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition relative ${!uploadExamSelect ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <input 
+                            type="file" 
+                            accept=".pdf" 
+                            onChange={handleResultUpload} 
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            disabled={uploading || !uploadExamSelect}
+                        />
+                        
+                        {uploading ? (
+                            <div className="flex flex-col items-center text-amber-500">
+                                <Loader2 className="animate-spin mb-2" size={32} />
+                                <span className="font-medium">AI PDF-i analiz edir...</span>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center text-gray-500">
+                                <Upload className="mb-2" size={32} />
+                                <span className="font-medium">PDF faylını bura atın</span>
+                                <span className="text-xs text-gray-400 mt-1">və ya seçmək üçün toxunun</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Mesaj */}
+                    {uploadMessage && (
+                        <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 ${uploadMessage.includes("Uğurlu") ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"}`}>
+                            {uploadMessage.includes("Uğurlu") ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
+                            {uploadMessage}
+                        </div>
+                    )}
+                </div>
+             </div>
+          )}
+
+          {/* TAB: SETTINGS */}
+          {activeTab === "settings" && (
+            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                <Settings size={24} className="text-amber-500" /> Digər Tənzimləmələr
+              </h2>
+              <div className="space-y-6">
+                {settings.map((item) => (
+                  <div key={item.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                    <label className="block text-sm font-bold text-gray-700 mb-2">{item.label}</label>
+                    <div className="flex gap-3">
+                      <input 
+                        id={`input-${item.key}`} 
+                        defaultValue={item.value} 
+                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
+                      />
+                      <button 
+                          onClick={() => {
+                            const val = (document.getElementById(`input-${item.key}`) as HTMLInputElement).value;
+                            updateSetting(item.key, val);
+                          }}
+                          className="flex items-center gap-2 bg-blue-600 text-white px-5 rounded-lg font-medium hover:bg-blue-700 transition"
+                      >
+                        <Save size={18} /> Yadda saxla
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: GALLERY */}
+          {activeTab === "gallery" && (
+             <div className="space-y-8 max-w-6xl mx-auto">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border flex justify-between items-center">
+                  <h2 className="text-lg font-bold flex items-center gap-2"><ImageIcon size={22} className="text-amber-500" /> Qalereya</h2>
+                  <label className={`cursor-pointer flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg ${uploading ? 'opacity-70' : ''}`}>
+                    {uploading ? <RefreshCw className="animate-spin" /> : <Upload size={20} />}
+                    {uploading ? "Yüklənir..." : "Yeni Şəkil"}
+                    <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                  {gallery.map((img) => (
+                    <div key={img.id} className="relative group rounded-xl overflow-hidden shadow-md bg-white border border-gray-100 aspect-square">
+                      <img src={img.image_url} className="w-full h-full object-cover transition duration-500 group-hover:scale-110" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center">
+                        <button onClick={() => deleteImage(img.id, img.image_url)} className="bg-red-600 text-white p-3 rounded-full hover:bg-red-700 transition shadow-xl hover:scale-110">
+                          <Trash2 size={24} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+             </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* --- MODAL: EDIT STUDENT --- */}
+      {editingStudent && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Edit size={24} className="text-blue-600" /> Tələbəni Redaktə Et
+              </h2>
+              <button onClick={() => setEditingStudent(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500"><X size={24}/></button>
+            </div>
+            
+            <form onSubmit={handleSaveStudent} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ad</label>
+                  <input 
+                    value={editingStudent.first_name}
+                    onChange={(e) => setEditingStudent({...editingStudent, first_name: e.target.value})}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Soyad</label>
+                  <input 
+                    value={editingStudent.last_name}
+                    onChange={(e) => setEditingStudent({...editingStudent, last_name: e.target.value})}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Ata adı (Valideyn)</label>
+                  <input 
+                    value={editingStudent.parent_name || ""}
+                    onChange={(e) => setEditingStudent({...editingStudent, parent_name: e.target.value})}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sinif</label>
+                  <input 
+                    value={editingStudent.class}
+                    onChange={(e) => setEditingStudent({...editingStudent, class: e.target.value})}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Exam ID</label>
+                  <input 
+                    value={editingStudent.exam_id}
+                    onChange={(e) => setEditingStudent({...editingStudent, exam_id: e.target.value})}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Telefon 1</label>
+                   <input 
+                     value={editingStudent.phone1}
+                     onChange={(e) => setEditingStudent({...editingStudent, phone1: e.target.value})}
+                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                     required
+                   />
+                </div>
+                <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-1">Telefon 2</label>
+                   <input 
+                     value={editingStudent.phone2 || ""}
+                     onChange={(e) => setEditingStudent({...editingStudent, phone2: e.target.value})}
+                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                   />
+                </div>
+              </div>
+
+              <div className="pt-4 flex gap-3">
+                <button type="button" onClick={() => setEditingStudent(null)} className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-bold hover:bg-gray-200 transition">
+                  Ləğv et
+                </button>
+                <button type="submit" className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition shadow-lg shadow-blue-500/30">
+                  Yadda saxla
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
