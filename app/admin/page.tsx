@@ -24,7 +24,7 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Filter // Yeni ikon
+  Filter 
 } from "lucide-react";
 
 const supabase = createClient(
@@ -42,7 +42,7 @@ interface Student {
   class: string;
   phone1: string;
   phone2: string;
-  exam_name?: string; // YENİ: İmtahan adı (filtrləmə üçün)
+  exam_name?: string;
   created_at?: string;
 }
 
@@ -77,7 +77,6 @@ export default function AdminDashboard() {
   const [exams, setExams] = useState<Exam[]>([]); 
   
   const [search, setSearch] = useState("");
-  // YENİ: İmtahan filtri üçün state
   const [filterExam, setFilterExam] = useState(""); 
 
   const [uploading, setUploading] = useState(false);
@@ -260,7 +259,6 @@ export default function AdminDashboard() {
   }
 
   function exportExcel() {
-    // Excel üçün yalnız filtrdən keçmiş tələbələri götürək
     const filteredForExport = students.filter(s => {
         const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
         const matchesExam = filterExam ? s.exam_name === filterExam : true;
@@ -314,7 +312,7 @@ export default function AdminDashboard() {
         <aside className="w-20 md:w-64 bg-white border-r border-gray-200 flex flex-col pt-4 pb-4">
           <nav className="space-y-2 px-2 md:px-4">
             <button onClick={() => setActiveTab("students")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "students" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
-              <Users size={20} /> <span className="hidden md:block">Qeydoyyatdan Kecmis Tələbələr</span>
+              <Users size={20} /> <span className="hidden md:block">Tələbələr</span>
             </button>
             <button onClick={() => setActiveTab("exams")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "exams" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <LinkIcon size={20} /> <span className="hidden md:block">İmtahan Linkləri</span>
@@ -344,14 +342,11 @@ export default function AdminDashboard() {
                     Qeydiyyat Siyahısı
                   </h2>
                   <p className="text-gray-500 text-sm mt-1">
-                      {/* Ümumi say filtrlənmiş sayla dəyişir */}
                       Göstərilir: {students.filter(s => (!filterExam || s.exam_name === filterExam)).length} / {students.length} tələbə
                   </p>
                 </div>
                 
                 <div className="flex flex-col md:flex-row gap-3">
-                  
-                  {/* --- YENİ: İMTAHAN FİLTRİ --- */}
                   <div className="relative">
                     <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <select
@@ -360,7 +355,6 @@ export default function AdminDashboard() {
                         className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500 bg-white w-full md:w-48 appearance-none cursor-pointer"
                     >
                         <option value="">Bütün İmtahanlar</option>
-                        {/* Exams array-dən unikal adları götürürük */}
                         {Array.from(new Set(exams.map(e => e.name))).map((name, i) => (
                             <option key={i} value={name}>{name}</option>
                         ))}
@@ -388,7 +382,7 @@ export default function AdminDashboard() {
                   <thead className="bg-gray-50 text-gray-700 uppercase font-bold text-xs">
                     <tr>
                       <th className="p-4">Exam ID</th>
-                      <th className="p-4">İmtahan</th> {/* YENİ SÜTUN */}
+                      <th className="p-4">İmtahan</th>
                       <th className="p-4">Ad Soyad</th>
                       <th className="p-4">Valideyn</th>
                       <th className="p-4">Sinif</th>
@@ -401,16 +395,13 @@ export default function AdminDashboard() {
                   <tbody className="divide-y divide-gray-100">
                     {students
                         .filter(s => {
-                            // 1. Axtarış Filtri
                             const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
-                            // 2. İmtahan Filtri (Dropdown)
                             const matchesExam = filterExam ? s.exam_name === filterExam : true;
                             return matchesSearch && matchesExam;
                         })
                         .map((s) => (
                       <tr key={s.id} className="hover:bg-gray-50 transition">
                         <td className="p-4 font-mono text-blue-600 font-bold">{s.exam_id}</td>
-                        {/* İmtahan Adı Sütunu */}
                         <td className="p-4 font-medium text-gray-800">
                             {s.exam_name ? (
                                 <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold border border-gray-200">
@@ -454,7 +445,6 @@ export default function AdminDashboard() {
           {/* TAB: EXAMS */}
           {activeTab === "exams" && (
             <div className="max-w-4xl mx-auto space-y-8">
-                {/* YENİ İMTAHAN YARAT */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <PlusCircle className="text-amber-500" /> Yeni İmtahan Linki Yarat
@@ -507,7 +497,6 @@ export default function AdminDashboard() {
                     </form>
                 </div>
 
-                {/* MÖVCUD İMTAHANLAR */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                       <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                         <LinkIcon className="text-blue-600" /> Aktiv İmtahanlar
@@ -541,7 +530,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* --- YENİ TAB: NƏTİCƏLƏR --- */}
+          {/* TAB: RESULTS */}
           {activeTab === "results" && (
              <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 max-w-lg mx-auto mt-8">
                 <div className="text-center mb-8">
@@ -553,7 +542,6 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="space-y-6">
-                    {/* 1. İmtahan Seçimi */}
                     <div>
                         <label className="block text-sm font-bold text-gray-700 mb-2">Hansı imtahan üçün?</label>
                         <select 
@@ -562,14 +550,12 @@ export default function AdminDashboard() {
                             className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50"
                         >
                             <option value="">İmtahanı Seçin...</option>
-                            {/* Unikal imtahan adlarını göstəririk */}
                             {Array.from(new Set(exams.map(e => e.name))).map((examName, idx) => (
                                 <option key={idx} value={examName}>{examName}</option>
                             ))}
                         </select>
                     </div>
 
-                    {/* 2. PDF Yükləmə */}
                     <div className={`border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition relative ${!uploadExamSelect ? 'opacity-50 pointer-events-none' : ''}`}>
                         <input 
                             type="file" 
@@ -593,7 +579,6 @@ export default function AdminDashboard() {
                         )}
                     </div>
 
-                    {/* Mesaj */}
                     {uploadMessage && (
                         <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 ${uploadMessage.includes("Uğurlu") ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"}`}>
                             {uploadMessage.includes("Uğurlu") ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
@@ -604,14 +589,17 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* TAB: SETTINGS */}
+          {/* TAB: SETTINGS (FİLTRLƏNDİ) */}
           {activeTab === "settings" && (
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Settings size={24} className="text-amber-500" /> Digər Tənzimləmələr
               </h2>
               <div className="space-y-6">
-                {settings.map((item) => (
+                {settings
+                  // FİLTR: "Sinif" sözü olanları gizlət
+                  .filter(item => !item.label.includes("Sinif"))
+                  .map((item) => (
                   <div key={item.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <label className="block text-sm font-bold text-gray-700 mb-2">{item.label}</label>
                     <div className="flex gap-3">
