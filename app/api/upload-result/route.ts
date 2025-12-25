@@ -9,6 +9,7 @@ function getSupabase() {
   return createClient(url, key);
 }
 
+// AI üçün Cavab Şablonu
 const examSchema = {
   description: "Bütün şagirdlərin imtahan nəticələri siyahısı",
   type: SchemaType.ARRAY,
@@ -35,10 +36,9 @@ export async function POST(req: Request) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // 🔥 DÜZƏLİŞ: Model adında '.0' əlavə etdik (Google standartı)
-    // Əgər yenə 404 versə, "gemini-3.0-flash-001" yoxlayarsan
+    // 🔥 MODEL ADI YENİLƏNDİ: gemini-3-flash-preview 🔥
     const model = genAI.getGenerativeModel({
-      model: "gemini-3.0-flash", 
+      model: "gemini-3-flash-preview", 
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: examSchema,
@@ -78,7 +78,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Gemini düzgün formatda cavab vermədi" }, { status: 500 });
     }
 
-    // --- TƏKRARLARI TƏMİZLƏMƏK (Bunu saxlayırıq ki, xəta verməsin) ---
+    // --- TƏKRARLARI TƏMİZLƏMƏK (Deduplication) ---
+    // Bu hissə "ON CONFLICT" xətasının qarşısını alır
     const uniqueMap = new Map();
 
     resultsArray.forEach((item: any) => {
@@ -114,15 +115,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       success: true, 
       processed_count: cleanData.length, 
-      message: `${cleanData.length} nəticə (Gemini 3.0 ilə) uğurla yükləndi.` 
+      message: `${cleanData.length} nəticə (Gemini 3 Preview ilə) uğurla yükləndi.` 
     });
 
   } catch (e: any) {
     console.error("API Xətası:", e.message);
     
-    // Model adını dəqiqləşdirmək üçün köməkçi mesaj
+    // Əgər yenə 404 versə, istifadəçiyə dəqiq mesaj göstərək
     if (e.message.includes("404") || e.message.includes("not found")) {
-        return NextResponse.json({ error: "Model adı səhvdir. Google AI Studio-dan dəqiq ID-ni yoxlayın (məs: gemini-3.0-flash-001)." }, { status: 500 });
+        return NextResponse.json({ error: "Model tapılmadı ('gemini-3-flash-preview'). Google AI Studio-dan dəqiq model ID-ni yoxlayın." }, { status: 500 });
     }
 
     return NextResponse.json({ error: "Xəta: " + e.message }, { status: 500 });
