@@ -14,7 +14,7 @@ import {
   EyeOff, 
   GraduationCap, 
   FileText, 
-  ShieldCheck 
+  Presentation // Müəllim üçün yeni ikon
 } from "lucide-react";
 
 const supabase = createClient(
@@ -22,22 +22,20 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Login Məzmunu (Suspense daxilində olmalıdır)
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // URL-dən tipi götürürük (student, exam, admin)
+  // URL-dən tipi götürürük (student, exam, teacher)
   const initialType = searchParams.get("type") || "student";
 
   const [activeTab, setActiveTab] = useState(initialType);
-  const [identifier, setIdentifier] = useState(""); // ID və ya İstifadəçi adı
+  const [identifier, setIdentifier] = useState(""); 
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // URL dəyişdikdə tabı dəyiş
   useEffect(() => {
     const type = searchParams.get("type");
     if (type) setActiveTab(type);
@@ -49,34 +47,31 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      // --- 1. ADMIN GİRİŞİ ---
-      if (activeTab === "admin") {
-        // Admin üçün sadə yoxlama (Real layihədə Supabase Auth istifadə etmək daha yaxşıdır)
-        if (identifier === "admin" && password === "moc123") { // Şifrəni özün dəyişərsən
-           document.cookie = "admin_token=true; path=/; max-age=86400"; // 1 günlük cookie
+      // --- 1. MÜƏLLİM GİRİŞİ (Əvvəlki Admin) ---
+      if (activeTab === "teacher") {
+        // Müəllim üçün yoxlama (Demo: user=muellim, pass=moc123)
+        if (identifier.toLowerCase() === "muellim" && password === "moc123") { 
+           // Uğurlu giriş -> Admin panelinə yönləndir (və ya teacher dashboard)
+           document.cookie = "admin_token=true; path=/; max-age=86400"; 
            router.push("/admin");
         } else {
-           throw new Error("Yanlış admin məlumatları");
+           throw new Error("Yanlış müəllim məlumatları");
         }
       } 
-      
       // --- 2. ŞAGİRD VƏ YA İMTAHAN GİRİŞİ ---
       else {
-        // Burada şagirdin ID-sini yoxlayırıq
         const { data, error: dbError } = await supabase
           .from("students")
           .select("*")
-          .eq("exam_id", identifier.trim()) // exam_id-ni giriş ID-si kimi istifadə edirik
+          .eq("exam_id", identifier.trim())
           .single();
 
         if (dbError || !data) {
            throw new Error("İstifadəçi tapılmadı. ID nömrəsini yoxlayın.");
         }
 
-        // Uğurlu giriş -> Kabinetə yönləndir
-        // Burada gələcəkdə yaradacağımız kabinet səhifəsinə yönləndiririk
         alert(`Xoş gəldin, ${data.first_name} ${data.last_name}!`);
-        // router.push(`/cabinet`); // Kabinet səhifəsi hazır olanda bunu açarsan
+        // router.push("/cabinet"); // Gələcəkdə şagird kabineti linki
       }
 
     } catch (err: any) {
@@ -86,21 +81,19 @@ function LoginContent() {
     }
   }
 
-  // Tabların Məlumatları
+  // Tabların Məlumatları (Admin -> Müəllim ilə əvəz olundu)
   const tabs = [
-    { id: "student", label: "Şagird", icon: GraduationCap, color: "text-amber-600 bg-amber-50 border-amber-200" },
-    { id: "exam", label: "İmtahan", icon: FileText, color: "text-orange-600 bg-orange-50 border-orange-200" },
-    { id: "admin", label: "Admin", icon: ShieldCheck, color: "text-gray-700 bg-gray-100 border-gray-200" },
+    { id: "student", label: "Şagird", icon: GraduationCap, color: "text-amber-600 bg-amber-50" },
+    { id: "exam", label: "İmtahan", icon: FileText, color: "text-orange-600 bg-orange-50" },
+    { id: "teacher", label: "Müəllim", icon: Presentation, color: "text-blue-600 bg-blue-50" }, // Yeni Müəllim Tabı
   ];
 
-  const currentTab = tabs.find(t => t.id === activeTab) || tabs[0];
-
   return (
-    <div className="min-h-screen flex bg-white font-sans">
+    // Tam ekran (Navbar-ı gizlətmək üçün fixed)
+    <div className="fixed inset-0 z-[100] flex bg-white font-sans overflow-auto">
       
       {/* --- SOL TƏRƏF (Bəzəkli Şəkil) --- */}
       <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-amber-500 to-orange-600 relative items-center justify-center overflow-hidden">
-        {/* Arxa fon bəzəkləri */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-orange-700/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
         
@@ -118,20 +111,19 @@ function LoginContent() {
       {/* --- SAĞ TƏRƏF (Form) --- */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 md:p-12 relative bg-gray-50/30">
         
-        {/* Geri Qayıt Düyməsi */}
-        <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-gray-500 hover:text-amber-600 transition font-medium">
+        {/* NAVIGATOR: Geri Qayıt Düyməsi */}
+        <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-gray-500 hover:text-amber-600 transition font-medium z-10">
             <ArrowLeft size={20} /> Ana Səhifə
         </Link>
 
         <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100">
             
-            {/* Başlıq */}
             <div className="text-center mb-8">
                 <h3 className="text-2xl font-black text-gray-800 mb-2">Xoş Gəlmisiniz! 👋</h3>
                 <p className="text-gray-500 text-sm">Zəhmət olmasa giriş növünü seçin</p>
             </div>
 
-            {/* Tablar (Şagird / İmtahan / Admin) */}
+            {/* TABLAR */}
             <div className="grid grid-cols-3 gap-2 mb-8 p-1 bg-gray-100/50 rounded-xl border border-gray-100">
                 {tabs.map((tab) => (
                     <button
@@ -148,19 +140,16 @@ function LoginContent() {
                             : "text-gray-400 hover:text-gray-600 hover:bg-gray-200/50 scale-95"
                         }`}
                     >
-                        <tab.icon size={20} className={`mb-1 ${activeTab === tab.id ? (tab.id === 'admin' ? 'text-gray-800' : 'text-amber-500') : ''}`} />
+                        <tab.icon size={20} className={`mb-1 ${activeTab === tab.id ? (tab.id === 'teacher' ? 'text-blue-600' : 'text-amber-500') : ''}`} />
                         {tab.label}
                     </button>
                 ))}
             </div>
 
-            {/* Form */}
             <form onSubmit={handleLogin} className="space-y-5">
-                
-                {/* ID Input */}
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">
-                        {activeTab === "admin" ? "İstifadəçi Adı" : "Şagird ID"}
+                        {activeTab === "teacher" ? "İstifadəçi Adı" : "Şagird ID"}
                     </label>
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-amber-500 transition">
@@ -171,14 +160,14 @@ function LoginContent() {
                             value={identifier}
                             onChange={(e) => setIdentifier(e.target.value)}
                             className="w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-gray-100 text-gray-900 rounded-xl focus:ring-0 focus:border-amber-500 outline-none transition font-medium placeholder-gray-300"
-                            placeholder={activeTab === "admin" ? "admin" : "Məs: 19576598"}
+                            placeholder={activeTab === "teacher" ? "muellim" : "Məs: 19576598"}
                             required
                         />
                     </div>
                 </div>
 
-                {/* Şifrə Input (Yalnız Admin üçün) */}
-                {activeTab === "admin" && (
+                {/* Şifrə Input (Yalnız Müəllim üçün) */}
+                {activeTab === "teacher" && (
                     <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Şifrə</label>
                         <div className="relative group">
@@ -204,20 +193,18 @@ function LoginContent() {
                     </div>
                 )}
 
-                {/* Xəta Mesajı */}
                 {error && (
                     <div className="p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center gap-2 animate-pulse border border-red-100">
                         <span>⚠️</span> {error}
                     </div>
                 )}
 
-                {/* Submit Düyməsi */}
                 <button
                     type="submit"
                     disabled={loading}
                     className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transform active:scale-[0.98] transition-all flex items-center justify-center gap-2
-                        ${activeTab === 'admin' 
-                            ? 'bg-gray-800 hover:bg-black shadow-gray-300' 
+                        ${activeTab === 'teacher' 
+                            ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-200' 
                             : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-amber-200'
                         }
                     `}
@@ -228,8 +215,8 @@ function LoginContent() {
 
             <div className="mt-8 text-center">
                 <p className="text-gray-400 text-xs">
-                    {activeTab === 'admin' 
-                        ? "Admin paneli yalnız səlahiyyətli şəxslər üçündür."
+                    {activeTab === 'teacher' 
+                        ? "Müəllim girişi yalnız səlahiyyətli şəxslər üçündür."
                         : "ID nömrənizi unutmusunuzsa, bizimlə əlaqə saxlayın."
                     }
                 </p>
@@ -241,10 +228,9 @@ function LoginContent() {
   );
 }
 
-// Əsas Səhifə Komponenti
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-amber-500" size={40}/></div>}>
+    <Suspense fallback={<div className="fixed inset-0 bg-white z-[100] flex items-center justify-center"><Loader2 className="animate-spin text-amber-500" size={40}/></div>}>
       <LoginContent />
     </Suspense>
   );
