@@ -8,8 +8,9 @@ import { Home, PenTool, LayoutDashboard, ClipboardList } from "lucide-react";
 export default function Navbar() {
   const pathname = usePathname();
 
-  // 1. Ana səhifədə Navbar-ı gizlədirik
-  if (pathname === "/") {
+  // --- DÜZƏLİŞ ---
+  // Ana səhifədə ("/") VƏ Login səhifəsində ("/student-login") Navbar gizlədilsin.
+  if (pathname === "/" || pathname === "/student-login") {
     return null;
   }
 
@@ -60,7 +61,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* NƏTİCƏLƏR LİNKİ - (Buranı düzəltdim: /netice) */}
+            {/* NƏTİCƏLƏR LİNKİ */}
             {!isActive("/netice") && (
               <Link 
                 href="/netice" 
