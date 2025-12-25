@@ -23,7 +23,8 @@ import {
   FileText,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Filter // Yeni ikon
 } from "lucide-react";
 
 const supabase = createClient(
@@ -41,6 +42,7 @@ interface Student {
   class: string;
   phone1: string;
   phone2: string;
+  exam_name?: string; // YENİ: İmtahan adı (filtrləmə üçün)
   created_at?: string;
 }
 
@@ -75,6 +77,9 @@ export default function AdminDashboard() {
   const [exams, setExams] = useState<Exam[]>([]); 
   
   const [search, setSearch] = useState("");
+  // YENİ: İmtahan filtri üçün state
+  const [filterExam, setFilterExam] = useState(""); 
+
   const [uploading, setUploading] = useState(false);
 
   // İmtahan State-ləri
@@ -255,8 +260,16 @@ export default function AdminDashboard() {
   }
 
   function exportExcel() {
-    const rows = students.map((s) => ({
+    // Excel üçün yalnız filtrdən keçmiş tələbələri götürək
+    const filteredForExport = students.filter(s => {
+        const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
+        const matchesExam = filterExam ? s.exam_name === filterExam : true;
+        return matchesSearch && matchesExam;
+    });
+
+    const rows = filteredForExport.map((s) => ({
       ID: s.exam_id,
+      İmtahan: s.exam_name || "-",
       Ad: s.first_name,
       Soyad: s.last_name,
       Valideyn: s.parent_name,
@@ -306,7 +319,6 @@ export default function AdminDashboard() {
             <button onClick={() => setActiveTab("exams")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "exams" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <LinkIcon size={20} /> <span className="hidden md:block">İmtahan Linkləri</span>
             </button>
-            {/* YENİ TAB: NƏTİCƏLƏR */}
             <button onClick={() => setActiveTab("results")} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl font-medium transition ${activeTab === "results" ? "bg-amber-50 text-amber-700" : "text-gray-600 hover:bg-gray-50"}`}>
               <FileText size={20} /> <span className="hidden md:block">Nəticələri Yüklə</span>
             </button>
@@ -331,9 +343,30 @@ export default function AdminDashboard() {
                     <Users size={24} className="text-amber-500" />
                     Qeydiyyat Siyahısı
                   </h2>
-                  <p className="text-gray-500 text-sm mt-1">Ümumi: {students.length} tələbə</p>
+                  <p className="text-gray-500 text-sm mt-1">
+                      {/* Ümumi say filtrlənmiş sayla dəyişir */}
+                      Göstərilir: {students.filter(s => (!filterExam || s.exam_name === filterExam)).length} / {students.length} tələbə
+                  </p>
                 </div>
-                <div className="flex gap-3">
+                
+                <div className="flex flex-col md:flex-row gap-3">
+                  
+                  {/* --- YENİ: İMTAHAN FİLTRİ --- */}
+                  <div className="relative">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <select
+                        value={filterExam}
+                        onChange={(e) => setFilterExam(e.target.value)}
+                        className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500 bg-white w-full md:w-48 appearance-none cursor-pointer"
+                    >
+                        <option value="">Bütün İmtahanlar</option>
+                        {/* Exams array-dən unikal adları götürürük */}
+                        {Array.from(new Set(exams.map(e => e.name))).map((name, i) => (
+                            <option key={i} value={name}>{name}</option>
+                        ))}
+                    </select>
+                  </div>
+
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input 
@@ -343,6 +376,7 @@ export default function AdminDashboard() {
                       className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:border-amber-500 w-full md:w-64"
                     />
                   </div>
+                  
                   <button onClick={exportExcel} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-sm">
                     <Download size={18} /> Excel
                   </button>
@@ -354,6 +388,7 @@ export default function AdminDashboard() {
                   <thead className="bg-gray-50 text-gray-700 uppercase font-bold text-xs">
                     <tr>
                       <th className="p-4">Exam ID</th>
+                      <th className="p-4">İmtahan</th> {/* YENİ SÜTUN */}
                       <th className="p-4">Ad Soyad</th>
                       <th className="p-4">Valideyn</th>
                       <th className="p-4">Sinif</th>
@@ -364,9 +399,25 @@ export default function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {students.filter(s => (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase())).map((s) => (
+                    {students
+                        .filter(s => {
+                            // 1. Axtarış Filtri
+                            const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
+                            // 2. İmtahan Filtri (Dropdown)
+                            const matchesExam = filterExam ? s.exam_name === filterExam : true;
+                            return matchesSearch && matchesExam;
+                        })
+                        .map((s) => (
                       <tr key={s.id} className="hover:bg-gray-50 transition">
                         <td className="p-4 font-mono text-blue-600 font-bold">{s.exam_id}</td>
+                        {/* İmtahan Adı Sütunu */}
+                        <td className="p-4 font-medium text-gray-800">
+                            {s.exam_name ? (
+                                <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-bold border border-gray-200">
+                                    {s.exam_name}
+                                </span>
+                            ) : "-"}
+                        </td>
                         <td className="p-4 font-medium text-gray-900">{s.first_name} {s.last_name}</td>
                         <td className="p-4 text-gray-500">{s.parent_name || "-"}</td>
                         <td className="p-4"><span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">{s.class}</span></td>
@@ -392,7 +443,7 @@ export default function AdminDashboard() {
                       </tr>
                     ))}
                     {students.length === 0 && (
-                      <tr><td colSpan={8} className="p-8 text-center text-gray-400">Heç bir məlumat tapılmadı</td></tr>
+                      <tr><td colSpan={9} className="p-8 text-center text-gray-400">Heç bir məlumat tapılmadı</td></tr>
                     )}
                   </tbody>
                 </table>
