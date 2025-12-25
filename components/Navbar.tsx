@@ -1,15 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image"; // Logo üçün
+import Image from "next/image"; 
 import { usePathname } from "next/navigation";
-import { Home, PenTool, LayoutDashboard, ClipboardList } from "lucide-react"; // ClipboardList - Nəticələr üçün ikon
+import { Home, PenTool, LayoutDashboard, ClipboardList } from "lucide-react"; 
 
 export default function Navbar() {
   const pathname = usePathname();
 
-  // ŞƏRT 1: Əgər Ana səhifədəyiksə, bu Navbar-ı GÖSTƏRMƏ (return null)
-  // Çünki ana səhifənin öz dizaynı var.
+  // 1. Ana səhifədə Navbar-ı GÖSTƏRMİRİK
   if (pathname === "/") {
     return null;
   }
@@ -25,13 +24,13 @@ export default function Navbar() {
           {/* SOL TƏRƏF - LOGO */}
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-2 transition hover:opacity-80">
-              {/* ŞƏRT 2: Yazı əvəzinə Logo şəkli */}
               <Image 
                 src="/logo.png" 
                 alt="MOC Logo" 
-                width={120} // Ölçünü özünə uyğun tənzimlə
+                width={140} 
                 height={50} 
-                className="object-contain h-10 w-auto"
+                className="object-contain h-12 w-auto"
+                priority
               />
             </Link>
           </div>
@@ -39,7 +38,7 @@ export default function Navbar() {
           {/* SAĞ TƏRƏF - MENYU LİNKLƏRİ */}
           <div className="flex items-center gap-2 md:gap-4">
             
-            {/* 1. ANA SƏHİFƏ (Əgər ana səhifədə deyiliksə göstər - onsuz da navbar orda yoxdur, amma məntiq qalsın) */}
+            {/* Ana Səhifə Linki (Əgər Ana səhifədə deyiliksə göstər) */}
             {!isActive("/") && (
               <Link 
                 href="/" 
@@ -50,7 +49,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* 2. QEYDİYYAT (Əgər Qeydiyyat səhifəsində deyiliksə göstər) */}
+            {/* Qeydiyyat Linki (Əgər Qeydiyyat səhifəsində deyiliksə göstər) */}
             {!isActive("/exam") && (
               <Link 
                 href="/exam" 
@@ -61,7 +60,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* 3. NƏTİCƏLƏR (YENİ - Əgər Nəticələr səhifəsində deyiliksə göstər) */}
+            {/* Nəticələr Linki (Əgər Nəticələr səhifəsində deyiliksə göstər) */}
             {!isActive("/results") && (
               <Link 
                 href="/results" 
@@ -72,7 +71,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* 4. ADMIN PANEL (Əgər Admin səhifəsində deyiliksə göstər) */}
+            {/* Admin Linki (Əgər Admin səhifəsində deyiliksə göstər) */}
             {!isActive("/admin") && (
               <Link 
                 href="/admin" 
