@@ -9,10 +9,10 @@ function getSupabase() {
   return createClient(url, key);
 }
 
-// 1. Şemamızı Massiv (Array) şəklində dəyişirik
+// AI üçün Cavab Şablonu (Schema)
 const examSchema = {
   description: "Bütün şagirdlərin imtahan nəticələri siyahısı",
-  type: SchemaType.ARRAY, // Bir neçə nəticə gözləyirik
+  type: SchemaType.ARRAY,
   items: {
     type: SchemaType.OBJECT,
     properties: {
@@ -30,11 +30,16 @@ export async function POST(req: Request) {
   try {
     const supabase = getSupabase();
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!supabase || !apiKey) return NextResponse.json({ error: "Konfiqurasiya xətası" }, { status: 500 });
+    
+    if (!apiKey) return NextResponse.json({ error: "API Key tapılmadı." }, { status: 500 });
+    if (!supabase) return NextResponse.json({ error: "Supabase xətası." }, { status: 500 });
 
     const genAI = new GoogleGenerativeAI(apiKey);
+    
+    // 🔥 YENİLƏNMİŞ HİSSƏ: Gemini 3 Flash Modeli 🔥
+    // Google sənədlərinə görə (Dec 2025) ən yeni model ID-si budur:
     const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash", // Çox səhifəli fayllar üçün ən stabil model
+      model: "gemini-3-flash-preview", // Və ya sadəcə "gemini-3-flash"
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: examSchema,
@@ -43,34 +48,51 @@ export async function POST(req: Request) {
 
     const formData = await req.formData();
     const file = formData.get("pdf") as File;
+    const examName = formData.get("exam_name") as string;
+
     if (!file) return NextResponse.json({ error: "PDF tapılmadı" }, { status: 400 });
 
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    // Gemini-yə PDF-i tam göndəririk və hər səhifəni ayrıca analiz etməsini deyirik
+    const prompt = `
+      Bu sənəd ZipGrade imtahan nəticələridir. Hər zolaq (strip) bir şagirdin nəticəsidir.
+      Məlumatları analiz et və JSON array qaytar.
+      
+      Sahələr:
+      - student_id: Tələbə ID-si.
+      - quiz: İmtahan adı (əgər yoxdursa "${examName || 'İmtahan'}" istifadə et).
+      - score: Toplanan bal.
+      - total: Ümumi sual sayı.
+      - percent: Faiz.
+    `;
+
     const result = await model.generateContent([
-      "Bu PDF-in hər səhifəsi fərqli bir şagirdin nəticəsidir. BÜTÜN səhifələri oxu və hər şagird üçün məlumatları JSON siyahısı (array) formatında qaytar.",
+      prompt,
       { inlineData: { data: base64Data, mimeType: "application/pdf" } },
     ]);
 
-    const resultsArray = JSON.parse(result.response.text());
+    const responseText = result.response.text();
+    console.log("Gemini 3 Cavabı:", responseText);
+
+    const resultsArray = JSON.parse(responseText);
 
     if (!Array.isArray(resultsArray)) {
         return NextResponse.json({ error: "Gemini düzgün formatda cavab vermədi" }, { status: 500 });
     }
 
-    // Bazaya toplu şəkildə yazırıq (Bulk Upsert)
-    // Bu, hər şagird üçün ayrıca sətir yaradacaq
+    // Bazaya yazırıq
     const { error: dbError } = await supabase
       .from("results")
       .upsert(
         resultsArray.map((item: any) => ({
           student_id: String(item.student_id),
-          quiz: item.quiz || "İmtahan",
+          quiz: item.quiz || examName || "İmtahan",
           score: Number(item.score),
           total: Number(item.total),
           percent: Number(item.percent),
+          correct_count: Number(item.score), 
+          wrong_count: Number(item.total) - Number(item.score)
         })),
         { onConflict: "student_id,quiz" }
       );
@@ -80,11 +102,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       success: true, 
       processed_count: resultsArray.length, 
-      message: `${resultsArray.length} şagirdin nəticəsi bazaya yazıldı.` 
+      message: `${resultsArray.length} şagirdin nəticəsi bazaya uğurla yazıldı (Gemini 3).` 
     });
 
   } catch (e: any) {
-    console.error("Xəta:", e.message);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("API Xətası:", e.message);
+    return NextResponse.json({ error: "Xəta: " + e.message }, { status: 500 });
   }
 }
