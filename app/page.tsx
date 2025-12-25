@@ -3,8 +3,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, UserCircle, GraduationCap, FileText, Menu, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion"; 
+import { UserCircle, Menu, X } from "lucide-react"; // Dropdown ikonları silindi
 
 // Supabase
 const supabase = createClient(
@@ -26,8 +26,9 @@ const itemVariants = {
 export default function LandingPage() {
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobil menyu üçün state
-  const [isMobileCabinetOpen, setIsMobileCabinetOpen] = useState(false); // Mobil kabinet sub-menyu
+  
+  // Mobil Menyu State (Kabinet sub-menyu state-i silindi)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [siteInfo, setSiteInfo] = useState({
     phone: "+994 50 123 45 67",
@@ -75,7 +76,7 @@ export default function LandingPage() {
             >
               <Image 
                 src="/logo.png" 
-                alt="Logo" 
+                alt="Main Olympic Center Logo" 
                 width={140} 
                 height={50} 
                 className="object-contain h-12 md:h-16 w-auto" 
@@ -83,7 +84,7 @@ export default function LandingPage() {
               />
             </motion.div>
 
-            {/* DESKTOP MENU (Gizli: mobile, Görünür: md+) */}
+            {/* --- DESKTOP MENU --- */}
             <div className="hidden md:flex items-center space-x-8 font-medium text-gray-600">
               <a href="#services" className="hover:text-amber-600 transition">Xidmətlər</a>
               <a href="#contact" className="hover:text-amber-600 transition">Əlaqə</a>
@@ -91,33 +92,21 @@ export default function LandingPage() {
                 <span>📊</span> Nəticələr
               </Link>
 
-              {/* Desktop Kabinet Dropdown */}
-              <div className="relative group">
-                <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-amber-50 text-gray-700 hover:text-amber-600 transition font-bold border border-gray-100">
-                    <UserCircle size={20} />
-                    Kabinetə Giriş
-                    <ChevronDown size={16} className="group-hover:rotate-180 transition duration-300"/>
-                </button>
-                <div className="absolute top-full right-0 pt-4 w-72 hidden group-hover:block transform origin-top-right">
-                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-2">
-                        <Link href="/login?type=exam" className="flex items-center gap-4 p-3 hover:bg-orange-50 rounded-xl transition group/item">
-                            <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center group-hover/item:bg-orange-500 group-hover/item:text-white transition"><FileText size={20} /></div>
-                            <div><p className="text-sm font-bold text-gray-800">İmtahan Kabineti</p><p className="text-xs text-gray-400">Sınaq iştirakçıları üçün</p></div>
-                        </Link>
-                        <Link href="/login?type=student" className="flex items-center gap-4 p-3 hover:bg-amber-50 rounded-xl transition mt-1 group/item">
-                            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center group-hover/item:bg-amber-500 group-hover/item:text-white transition"><GraduationCap size={20} /></div>
-                            <div><p className="text-sm font-bold text-gray-800">Şagird Kabineti</p><p className="text-xs text-gray-400">Kurs tələbələri üçün</p></div>
-                        </Link>
-                    </div>
-                </div>
-              </div>
+              {/* --- DÜZƏLİŞ: Dropdown yoxdur, birbaşa student-login linki --- */}
+              <Link 
+                href="/student-login" 
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-amber-50 text-gray-700 hover:text-amber-600 transition font-bold border border-gray-100"
+              >
+                  <UserCircle size={20} />
+                  Kabinetə Giriş
+              </Link>
 
               <Link href="/exam" className="bg-amber-500 text-white px-6 py-3 rounded-xl hover:bg-amber-600 transition shadow-lg shadow-amber-500/20 font-bold">
                 İmtahan Qeydiyyatı
               </Link>
             </div>
 
-            {/* MOBILE MENU BUTTON (Görünür: mobile, Gizli: md+) */}
+            {/* --- MOBILE MENU BUTTON --- */}
             <div className="md:hidden flex items-center">
               <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-600 p-2">
                 {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -126,39 +115,30 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* MOBILE MENU DROPDOWN */}
+        {/* --- MOBILE MENU CONTENT --- */}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div 
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="md:hidden bg-white border-t border-gray-100 overflow-hidden"
+              className="md:hidden bg-white border-t border-gray-100 overflow-hidden shadow-lg"
             >
               <div className="px-4 py-6 space-y-4 flex flex-col">
                 <a href="#services" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700">Xidmətlər</a>
                 <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700">Əlaqə</a>
                 <Link href="/netice" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700 flex items-center gap-2"><span>📊</span> Nəticələr</Link>
                 
-                {/* Mobile Kabinet Toggle */}
-                <div>
-                  <button 
-                    onClick={() => setIsMobileCabinetOpen(!isMobileCabinetOpen)}
-                    className="flex items-center justify-between w-full text-lg font-medium text-gray-700 bg-gray-50 p-3 rounded-xl"
-                  >
-                    <span className="flex items-center gap-2"><UserCircle size={20}/> Kabinetə Giriş</span>
-                    <ChevronDown size={16} className={`transition ${isMobileCabinetOpen ? 'rotate-180' : ''}`}/>
-                  </button>
-                  
-                  {isMobileCabinetOpen && (
-                    <div className="pl-4 mt-2 space-y-2">
-                       <Link href="/login?type=exam" className="block p-3 rounded-lg bg-orange-50 text-orange-700 font-medium">📄 İmtahan Kabineti</Link>
-                       <Link href="/login?type=student" className="block p-3 rounded-lg bg-amber-50 text-amber-700 font-medium">🎓 Şagird Kabineti</Link>
-                    </div>
-                  )}
-                </div>
+                {/* --- DÜZƏLİŞ: Mobildə də birbaşa link --- */}
+                <Link 
+                    href="/student-login" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-2 w-full text-lg font-bold text-gray-800 bg-gray-50 p-3 rounded-xl hover:bg-amber-50"
+                >
+                    <UserCircle size={20}/> Kabinetə Giriş
+                </Link>
 
-                <Link href="/exam" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center bg-amber-500 text-white py-3 rounded-xl font-bold shadow-md">
+                <Link href="/exam" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center bg-amber-500 text-white py-4 rounded-xl font-bold shadow-md text-lg">
                   İmtahan Qeydiyyatı
                 </Link>
               </div>
@@ -168,7 +148,6 @@ export default function LandingPage() {
       </nav>
 
       {/* --- 2. HERO SECTION --- */}
-      {/* Padding telefonda (pt-32) azaldıldı, desktopda (md:pt-48) artırıldı */}
       <section className="pt-32 pb-16 md:pt-48 md:pb-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-orange-50 via-white to-white">
         <div className="max-w-7xl mx-auto text-center">
           <motion.h1 
