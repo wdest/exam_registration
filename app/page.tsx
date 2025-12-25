@@ -4,6 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
+// Yeni ikonlar əlavə etdik
+import { ChevronDown, UserCircle, GraduationCap, FileText } from "lucide-react";
 
 // Supabase tənzimləmələri
 const supabase = createClient(
@@ -93,12 +95,51 @@ export default function LandingPage() {
               className="hidden md:flex items-center space-x-8 font-medium text-gray-600"
             >
               <a href="#services" className="hover:text-amber-600 transition duration-200">Xidmətlər</a>
-              <a href="#gallery" className="hover:text-amber-600 transition duration-200">Həyatımız</a>
+              {/* "Həyatımız" silindi */}
               <a href="#contact" className="hover:text-amber-600 transition duration-200">Əlaqə</a>
               
               <Link href="/netice" className="hover:text-amber-600 transition duration-200 flex items-center gap-1">
                 <span>📊</span> Nəticələr
               </Link>
+
+              {/* --- YENİ: KABİNETƏ GİRİŞ DROPDOWN --- */}
+              <div className="relative group">
+                <button className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-amber-50 text-gray-700 hover:text-amber-600 transition font-bold border border-gray-100">
+                    <UserCircle size={20} />
+                    Kabinetə Giriş
+                    <ChevronDown size={16} className="group-hover:rotate-180 transition duration-300"/>
+                </button>
+
+                {/* Dropdown Menu */}
+                <div className="absolute top-full right-0 pt-4 w-72 hidden group-hover:block transform origin-top-right transition-all duration-200">
+                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-2 overflow-hidden ring-1 ring-black ring-opacity-5">
+                        
+                        {/* Seçim 1: İmtahan Kabineti */}
+                        <Link href="/login?type=exam" className="flex items-center gap-4 p-3 hover:bg-orange-50 rounded-xl transition group/item">
+                            <div className="w-10 h-10 bg-orange-100 text-orange-600 rounded-lg flex items-center justify-center group-hover/item:bg-orange-500 group-hover/item:text-white transition">
+                                <FileText size={20} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-gray-800">İmtahan Kabineti</p>
+                                <p className="text-xs text-gray-400">Sınaq iştirakçıları üçün</p>
+                            </div>
+                        </Link>
+
+                        {/* Seçim 2: Şagird Kabineti */}
+                        <Link href="/login?type=student" className="flex items-center gap-4 p-3 hover:bg-amber-50 rounded-xl transition mt-1 group/item">
+                            <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center group-hover/item:bg-amber-500 group-hover/item:text-white transition">
+                                <GraduationCap size={20} />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-gray-800">Şagird Kabineti</p>
+                                <p className="text-xs text-gray-400">Kurs tələbələri üçün</p>
+                            </div>
+                        </Link>
+
+                    </div>
+                </div>
+              </div>
+              {/* --- KABİNET SONU --- */}
 
               <Link 
                 href="/exam" 
@@ -228,9 +269,9 @@ export default function LandingPage() {
               // X oxu üzrə hərəkət edir: 0%-dən -50%-ə (çünki şəkilləri 2 qat artırdıq)
               animate={{ x: ["0%", "-50%"] }} 
               transition={{
-                 ease: "linear",
-                 duration: 40, // Sürəti burdan tənzimlə (rəqəm böyüdükcə yavaşlayır)
-                 repeat: Infinity,
+                  ease: "linear",
+                  duration: 40, // Sürəti burdan tənzimlə (rəqəm böyüdükcə yavaşlayır)
+                  repeat: Infinity,
               }}
             >
               {/* Şəkilləri 2 dəfə təkrarlayırıq ki, sonsuz dövr yaransın */}
