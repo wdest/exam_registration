@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 import { motion, AnimatePresence } from "framer-motion"; 
-import { UserCircle, Menu, X } from "lucide-react"; // Dropdown ikonları silindi
+import { UserCircle, Menu, X } from "lucide-react"; 
 
 // Supabase
 const supabase = createClient(
@@ -27,7 +27,6 @@ export default function LandingPage() {
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Mobil Menyu State (Kabinet sub-menyu state-i silindi)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [siteInfo, setSiteInfo] = useState({
@@ -92,7 +91,6 @@ export default function LandingPage() {
                 <span>📊</span> Nəticələr
               </Link>
 
-              {/* --- DÜZƏLİŞ: Dropdown yoxdur, birbaşa student-login linki --- */}
               <Link 
                 href="/student-login" 
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-amber-50 text-gray-700 hover:text-amber-600 transition font-bold border border-gray-100"
@@ -129,7 +127,6 @@ export default function LandingPage() {
                 <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700">Əlaqə</a>
                 <Link href="/netice" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700 flex items-center gap-2"><span>📊</span> Nəticələr</Link>
                 
-                {/* --- DÜZƏLİŞ: Mobildə də birbaşa link --- */}
                 <Link 
                     href="/student-login" 
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -173,20 +170,31 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.4 }}
-            className="flex flex-col sm:flex-row justify-center gap-4 px-4"
+            className="flex flex-col items-center gap-6 px-4" // Dəyişiklik: Alt-alta düzülüş üçün flex-col
           >
+             {/* Üst sıra: Mövcud 2 düymə */}
+             <div className="flex flex-col sm:flex-row justify-center gap-4 w-full sm:w-auto">
+                 <Link 
+                   href="/exam" 
+                   className="w-full sm:w-auto px-8 py-4 bg-amber-500 text-white font-bold rounded-xl shadow-xl hover:bg-amber-600 transform hover:-translate-y-1 transition duration-200 text-center"
+                 >
+                   Sınağa Yazıl
+                 </Link>
+                 <a 
+                   href="#contact" 
+                   className="w-full sm:w-auto px-8 py-4 bg-white text-amber-600 font-bold rounded-xl border-2 border-amber-100 shadow-sm hover:border-amber-500 hover:bg-orange-50 transition text-center"
+                 >
+                   Əlaqə Saxla
+                 </a>
+             </div>
+
+             {/* Alt sıra: Yeni İmtahana Başla düyməsi */}
              <Link 
-               href="/exam" 
-               className="w-full sm:w-auto px-8 py-4 bg-amber-500 text-white font-bold rounded-xl shadow-xl hover:bg-amber-600 transform hover:-translate-y-1 transition duration-200 text-center"
+               href="/redirect" 
+               className="w-full sm:w-96 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xl rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
              >
-               Sınağa Yazıl
+               🚀 İmtahana Başla
              </Link>
-             <a 
-               href="#contact" 
-               className="w-full sm:w-auto px-8 py-4 bg-white text-amber-600 font-bold rounded-xl border-2 border-amber-100 shadow-sm hover:border-amber-500 hover:bg-orange-50 transition text-center"
-             >
-               Əlaqə Saxla
-             </a>
           </motion.div>
         </div>
       </section>
