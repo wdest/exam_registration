@@ -5,26 +5,10 @@ import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx"; // Excel kitabxanası
 import { useRouter } from "next/navigation";
 import { 
-  Users, 
-  Settings, 
-  Image as ImageIcon, 
-  LogOut, 
-  Search, 
-  Download, 
-  Save, 
-  Upload, 
-  Trash2,
-  RefreshCw,
-  Edit,
-  X,
-  Link as LinkIcon,
-  PlusCircle,
-  ExternalLink,
-  FileText,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  Filter 
+  Users, Settings, Image as ImageIcon, LogOut, Search, Download, 
+  Save, Upload, Trash2, RefreshCw, Edit, X, Link as LinkIcon, 
+  PlusCircle, ExternalLink, FileText, CheckCircle, AlertCircle, 
+  Loader2, Filter, FileImage 
 } from "lucide-react";
 
 const supabase = createClient(
@@ -64,6 +48,7 @@ interface Exam {
   url: string;
   class_grade: string;
   created_at?: string;
+  certificate_url?: string; // Yeni sütun
 }
 
 export default function AdminDashboard() {
@@ -91,6 +76,10 @@ export default function AdminDashboard() {
   // Nəticə Yükləmə State-ləri
   const [uploadExamSelect, setUploadExamSelect] = useState(""); 
   const [uploadMessage, setUploadMessage] = useState(""); 
+
+  // Sertifikat Yükləmə State-ləri
+  const [certExamSelect, setCertExamSelect] = useState("");
+  const [certMessage, setCertMessage] = useState("");
 
   useEffect(() => {
     fetchAllData();
@@ -183,7 +172,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- YENİ: CSV/EXCEL YÜKLƏMƏ FUNKSİYASI (Sürətli Versiya) ---
+  // --- CSV/EXCEL YÜKLƏMƏ ---
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files || e.target.files.length === 0) return;
     
@@ -206,7 +195,6 @@ export default function AdminDashboard() {
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
             
-            // Excel-i JSON formatına çeviririk
             const data: any[] = XLSX.utils.sheet_to_json(ws);
 
             if (data.length === 0) {
@@ -215,7 +203,6 @@ export default function AdminDashboard() {
                 return;
             }
 
-            // Məlumatları bazaya uyğunlaşdırırıq
             const formattedData = data.map((row) => {
                 const score = Number(row.EarnedPoints || row.Score || row.Bal || 0);
                 const total = Number(row.PossiblePoints || row.Total || 0);
@@ -232,7 +219,6 @@ export default function AdminDashboard() {
                 };
             }).filter(item => item.student_id && item.student_id !== "undefined");
 
-            // Bazaya yazırıq (API vasitəsilə)
             const res = await fetch("/api/upload-result", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -257,6 +243,54 @@ export default function AdminDashboard() {
     };
 
     reader.readAsBinaryString(file);
+  }
+
+  // --- SERTİFİKAT ŞABLONU YÜKLƏMƏ (YENİ) ---
+  async function handleCertificateUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    if (!certExamSelect) {
+        alert("Zəhmət olmasa imtahanı seçin!");
+        e.target.value = ""; 
+        return;
+    }
+
+    setUploading(true);
+    setCertMessage("");
+    
+    try {
+      const file = e.target.files[0];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `cert_${Date.now()}.${fileExt}`;
+      const filePath = `certificates/${fileName}`; // certificates qovluğuna yükləyirik
+
+      const { error: uploadError } = await supabase.storage
+        .from("images")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("images")
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from("exams")
+        .update({ certificate_url: publicUrl })
+        .eq("name", certExamSelect);
+
+      if (updateError) throw updateError;
+
+      setCertMessage("✅ Sertifikat şablonu uğurla yükləndi!");
+      fetchAllData(); 
+
+    } catch (error: any) {
+      console.error("Sertifikat xətası:", error);
+      setCertMessage(`❌ Xəta: ${error.message}`);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   }
 
   // --- DİGƏR ---
@@ -569,62 +603,122 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: RESULTS (CSV/EXCEL İLƏ YENİLƏNDİ) */}
+          {/* TAB: RESULTS (YENİLƏNDİ - SERTİFİKAT YÜKLƏMƏ İLƏ) */}
           {activeTab === "results" && (
-             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 max-w-lg mx-auto mt-8">
-                <div className="text-center mb-8">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600">
-                        <FileText size={32} />
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-800">Nəticələri Yüklə</h2>
-                    <p className="text-gray-500 mt-2">ZipGrade Excel (.csv, .xlsx) faylını yükləyərək nəticələri bazaya əlavə edin.</p>
-                </div>
-
-                <div className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">Hansı imtahan üçün?</label>
-                        <select 
-                            value={uploadExamSelect}
-                            onChange={(e) => setUploadExamSelect(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50"
-                        >
-                            <option value="">İmtahanı Seçin...</option>
-                            {Array.from(new Set(exams.map(e => e.name))).map((examName, idx) => (
-                                <option key={idx} value={examName}>{examName}</option>
-                            ))}
-                        </select>
+             <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+                
+                {/* 1. CSV YÜKLƏMƏ BLOKU */}
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 h-full">
+                    <div className="text-center mb-6">
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-600">
+                            <FileText size={24} />
+                        </div>
+                        <h2 className="text-xl font-bold text-gray-800">1. Nəticələri Yüklə</h2>
+                        <p className="text-sm text-gray-500">ZipGrade Excel (.csv, .xlsx) faylını yükləyin</p>
                     </div>
 
-                    <div className={`border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition relative ${!uploadExamSelect ? 'opacity-50 pointer-events-none' : ''}`}>
-                        <input 
-                            type="file" 
-                            accept=".csv, .xlsx, .xls" 
-                            onChange={handleResultUpload} 
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            disabled={uploading || !uploadExamSelect}
-                        />
-                        
-                        {uploading ? (
-                            <div className="flex flex-col items-center text-amber-500">
-                                <Loader2 className="animate-spin mb-2" size={32} />
-                                <span className="font-medium">Emal edilir...</span>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center text-gray-500">
-                                <Upload className="mb-2" size={32} />
-                                <span className="font-medium">Excel faylını bura atın</span>
-                                <span className="text-xs text-gray-400 mt-1">və ya seçmək üçün toxunun</span>
+                    <div className="space-y-4">
+                        <div>
+                            <select 
+                                value={uploadExamSelect}
+                                onChange={(e) => setUploadExamSelect(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-gray-50"
+                            >
+                                <option value="">İmtahan Seçin...</option>
+                                {Array.from(new Set(exams.map(e => e.name))).map((examName, idx) => (
+                                    <option key={idx} value={examName}>{examName}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className={`border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition relative ${!uploadExamSelect ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <input 
+                                type="file" 
+                                accept=".csv, .xlsx, .xls" 
+                                onChange={handleResultUpload} 
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                disabled={uploading || !uploadExamSelect}
+                            />
+                            
+                            {uploading && !certMessage ? (
+                                <div className="flex flex-col items-center text-amber-500">
+                                    <Loader2 className="animate-spin mb-2" size={32} />
+                                    <span className="font-medium">Emal edilir...</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center text-gray-500">
+                                    <Upload className="mb-2" size={32} />
+                                    <span className="font-medium">Excel faylını bura atın</span>
+                                    <span className="text-xs text-gray-400 mt-1">və ya seçmək üçün toxunun</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {uploadMessage && (
+                            <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 ${uploadMessage.includes("Uğurlu") ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"}`}>
+                                {uploadMessage.includes("Uğurlu") ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
+                                {uploadMessage}
                             </div>
                         )}
                     </div>
-
-                    {uploadMessage && (
-                        <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 ${uploadMessage.includes("Uğurlu") ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"}`}>
-                            {uploadMessage.includes("Uğurlu") ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
-                            {uploadMessage}
-                        </div>
-                    )}
                 </div>
+
+                {/* 2. SERTİFİKAT ŞABLONU YÜKLƏMƏ BLOKU */}
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 h-full">
+                    <div className="text-center mb-6">
+                        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3 text-purple-600">
+                            <FileImage size={24} />
+                        </div>
+                        <h2 className="text-xl font-bold text-gray-800">2. Sertifikat Şablonu</h2>
+                        <p className="text-sm text-gray-500">Bu imtahan üçün boş şablon (.jpg, .png) yükləyin</p>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <select 
+                                value={certExamSelect}
+                                onChange={(e) => setCertExamSelect(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-gray-50"
+                            >
+                                <option value="">İmtahan Seçin...</option>
+                                {Array.from(new Set(exams.map(e => e.name))).map((examName, idx) => (
+                                    <option key={idx} value={examName}>{examName}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className={`border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:bg-gray-50 transition relative ${!certExamSelect ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handleCertificateUpload} 
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                disabled={uploading || !certExamSelect}
+                            />
+                            
+                            {uploading && !uploadMessage ? (
+                                <div className="flex flex-col items-center text-purple-500">
+                                    <Loader2 className="animate-spin mb-2" size={32} />
+                                    <span className="font-medium">Yüklənir...</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center text-gray-500">
+                                    <ImageIcon className="mb-2" size={32} />
+                                    <span className="font-medium">Şəkil faylını bura atın</span>
+                                    <span className="text-xs text-gray-400 mt-1">və ya seçmək üçün toxunun</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {certMessage && (
+                            <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-3 ${certMessage.includes("uğurlu") ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"}`}>
+                                {certMessage.includes("uğurlu") ? <CheckCircle size={20}/> : <AlertCircle size={20}/>}
+                                {certMessage}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
              </div>
           )}
 
