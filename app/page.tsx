@@ -170,30 +170,30 @@ export default function LandingPage() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.4 }}
-            className="flex flex-col items-center gap-6 px-4" // Dəyişiklik: Alt-alta düzülüş üçün flex-col
+            className="flex flex-col items-center gap-6 px-4"
           >
-             {/* Üst sıra: Mövcud 2 düymə */}
+             {/* 1. ÜST SIRA (Köməkçi/Kiçik düymələr): İmtahana Başla + Əlaqə */}
              <div className="flex flex-col sm:flex-row justify-center gap-4 w-full sm:w-auto">
                  <Link 
-                   href="/exam" 
-                   className="w-full sm:w-auto px-8 py-4 bg-amber-500 text-white font-bold rounded-xl shadow-xl hover:bg-amber-600 transform hover:-translate-y-1 transition duration-200 text-center"
+                   href="/redirect" 
+                   className="w-full sm:w-auto px-6 py-3 bg-white text-gray-600 font-bold rounded-xl border-2 border-gray-100 shadow-sm hover:border-blue-500 hover:text-blue-600 transition duration-200 text-center flex items-center justify-center gap-2"
                  >
-                   Sınağa Yazıl
+                   🚀 İmtahana Başla
                  </Link>
                  <a 
                    href="#contact" 
-                   className="w-full sm:w-auto px-8 py-4 bg-white text-amber-600 font-bold rounded-xl border-2 border-amber-100 shadow-sm hover:border-amber-500 hover:bg-orange-50 transition text-center"
+                   className="w-full sm:w-auto px-6 py-3 bg-white text-gray-600 font-bold rounded-xl border-2 border-gray-100 shadow-sm hover:border-orange-500 hover:text-orange-600 transition text-center"
                  >
                    Əlaqə Saxla
                  </a>
              </div>
 
-             {/* Alt sıra: Yeni İmtahana Başla düyməsi */}
+             {/* 2. ALT SIRA (ƏSAS/BÖYÜK DÜYMƏ): Sınağa Yazıl (Satış) */}
              <Link 
-               href="/redirect" 
-               className="w-full sm:w-96 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xl rounded-xl shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
+               href="/exam" 
+               className="w-full sm:w-96 py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-xl rounded-xl shadow-xl hover:shadow-orange-500/30 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
              >
-               🚀 İmtahana Başla
+               ✍️ Sınağa Yazıl
              </Link>
           </motion.div>
         </div>
