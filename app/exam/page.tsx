@@ -76,14 +76,14 @@ export default function ExamRegister() {
     e.target.value = e.target.value.replace(/\D/g, "");
   }
 
-  // --- Şəkilçi Düzəldən Funksiya (1-ci, 6-cı, 9-cu, 10-cu) ---
+  // --- Şəkilçi Düzəldən Funksiya ---
   function getSuffix(grade: string) {
       const num = parseInt(grade);
       if ([1, 2, 5, 7, 8, 11].includes(num)) return "-ci";
       if ([3, 4].includes(num)) return "-cü";
       if ([6].includes(num)) return "-cı";
       if ([9, 10].includes(num)) return "-cu";
-      return "-ci"; // Default
+      return "-ci"; 
   }
 
   async function submitForm(e: any) {
@@ -91,10 +91,24 @@ export default function ExamRegister() {
     if (loading) return;
     setError(null);
 
+    // 1. İmtahan və Sinif seçimi yoxlaması
     if (!selectedExamName || !selectedClass) {
       setError("Zəhmət olmasa imtahanı və sinfi seçin!");
       return;
     }
+
+    const f = e.target;
+    
+    // --- YENİ HİSSƏ: Telefon Nömrələrinin Eyniliyini Yoxlamaq ---
+    const phone1_full = f.operator1.value + f.phone7_1.value;
+    const phone2_val = f.phone7_2.value;
+    const phone2_full = phone2_val ? (f.operator2.value + phone2_val) : null;
+
+    if (phone2_full && phone1_full === phone2_full) {
+        setError("Əsas nömrə ilə əlavə nömrə eyni ola bilməz! Zəhmət olmasa fərqli nömrə qeyd edin.");
+        return;
+    }
+    // -----------------------------------------------------------
 
     const exactExam = allExams.find(
         ex => ex.name === selectedExamName && ex.class_grade === selectedClass
@@ -106,14 +120,13 @@ export default function ExamRegister() {
     }
 
     setLoading(true);
-    const f = e.target;
 
     const formData = {
       firstName: f.firstName.value,
       lastName: f.lastName.value,
       fatherName: f.fatherName.value,
-      phone7_1: "+994" + f.operator1.value + f.phone7_1.value,
-      phone7_2: f.phone7_2.value ? "+994" + f.operator2.value + f.phone7_2.value : null,
+      phone7_1: "+994" + phone1_full,
+      phone7_2: phone2_full ? "+994" + phone2_full : null,
       className: selectedClass, 
       examName: selectedExamName  
     };
@@ -127,11 +140,10 @@ export default function ExamRegister() {
 
       const data = await res.json();
       
-      // --- XƏTA YOXLAMASI ---
       if (!res.ok) {
-          // Əgər server "Duplicate entry" və ya bənzər xəta qaytarsa
+          // Bazada təkrar qeydiyyat yoxlaması
           if (res.status === 409 || data.error?.includes("already exists") || data.error?.includes("duplicate")) {
-              throw new Error("Bu nömrə ilə artıq qeydiyyatdan keçmisiniz! Zəhmət olmasa fərqli nömrə yazın.");
+              throw new Error("Bu şagird artıq qeydiyyatdan keçib!");
           }
           throw new Error(data.error || "Xəta baş verdi");
       }
@@ -202,7 +214,7 @@ export default function ExamRegister() {
               </select>
             </div>
 
-            {/* SİNİF SEÇİMİ (Düzəliş edildi: -ci, -cu) */}
+            {/* SİNİF SEÇİMİ */}
             <motion.div 
                initial={{ opacity: 0.5, height: 'auto' }}
                animate={{ opacity: selectedExamName ? 1 : 0.5 }}
