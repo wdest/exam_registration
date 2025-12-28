@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image"; 
 import { createClient } from "@supabase/supabase-js";
 import { motion } from "framer-motion";
+import { AlertCircle, CheckCircle } from "lucide-react"; // İkonlar əlavə etdik
 
 // Supabase müştərisini yaradırıq
 const supabase = createClient(
@@ -25,7 +26,6 @@ export default function ExamRegister() {
   
   // DATA STATE-ləri
   const [allExams, setAllExams] = useState<Exam[]>([]); 
-  
   const [uniqueExamNames, setUniqueExamNames] = useState<string[]>([]); 
   const [availableClassesForExam, setAvailableClassesForExam] = useState<string[]>([]); 
 
@@ -76,7 +76,6 @@ export default function ExamRegister() {
     e.target.value = e.target.value.replace(/\D/g, "");
   }
 
-  // --- Şəkilçi Düzəldən Funksiya ---
   function getSuffix(grade: string) {
       const num = parseInt(grade);
       if ([1, 2, 5, 7, 8, 11].includes(num)) return "-ci";
@@ -91,7 +90,7 @@ export default function ExamRegister() {
     if (loading) return;
     setError(null);
 
-    // 1. İmtahan və Sinif seçimi yoxlaması
+    // 1. Seçim Yoxlaması
     if (!selectedExamName || !selectedClass) {
       setError("Zəhmət olmasa imtahanı və sinfi seçin!");
       return;
@@ -99,7 +98,7 @@ export default function ExamRegister() {
 
     const f = e.target;
     
-    // --- YENİ HİSSƏ: Telefon Nömrələrinin Eyniliyini Yoxlamaq ---
+    // 2. Nömrə Eyniliyi Yoxlaması
     const phone1_full = f.operator1.value + f.phone7_1.value;
     const phone2_val = f.phone7_2.value;
     const phone2_full = phone2_val ? (f.operator2.value + phone2_val) : null;
@@ -108,7 +107,6 @@ export default function ExamRegister() {
         setError("Əsas nömrə ilə əlavə nömrə eyni ola bilməz! Zəhmət olmasa fərqli nömrə qeyd edin.");
         return;
     }
-    // -----------------------------------------------------------
 
     const exactExam = allExams.find(
         ex => ex.name === selectedExamName && ex.class_grade === selectedClass
@@ -141,9 +139,9 @@ export default function ExamRegister() {
       const data = await res.json();
       
       if (!res.ok) {
-          // Bazada təkrar qeydiyyat yoxlaması
+          // --- XÜSUSİ XƏTA MESAJI ---
           if (res.status === 409 || data.error?.includes("already exists") || data.error?.includes("duplicate")) {
-              throw new Error("Bu şagird artıq qeydiyyatdan keçib!");
+              throw new Error("⚠️ Siz bu nömrə ilə artıq qeydiyyatdan keçmisiniz!");
           }
           throw new Error(data.error || "Xəta baş verdi");
       }
@@ -175,7 +173,9 @@ export default function ExamRegister() {
 
         {result ? (
           <div className="text-center">
-            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">🎉</div>
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={40} />
+            </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Qeydiyyat Uğurlu!</h2>
             <p className="text-gray-600 mb-6">Sizin İmtahan Kodunuz:</p>
             <div className="bg-orange-50 border-2 border-dashed border-orange-200 rounded-xl p-6 mb-6">
@@ -190,7 +190,13 @@ export default function ExamRegister() {
           <form onSubmit={submitForm} className="space-y-4">
             <h1 className="text-2xl font-bold text-center text-gray-900 mb-6">İmtahan Qeydiyyatı</h1>
             
-            {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm text-center font-bold border border-red-100 animate-pulse">{error}</div>}
+            {/* XƏTA MESAJI DİZAYNI */}
+            {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm font-bold flex items-center gap-3 animate-pulse">
+                    <AlertCircle size={24} className="flex-shrink-0" />
+                    <span>{error}</span>
+                </div>
+            )}
 
             {/* İMTAHAN SEÇİMİ */}
             <div>
@@ -276,9 +282,9 @@ export default function ExamRegister() {
             <button 
               disabled={loading}
               type="submit" 
-              className="w-full py-4 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 transition disabled:opacity-70 disabled:cursor-not-allowed mt-4"
+              className="w-full py-4 bg-amber-500 text-white font-bold rounded-xl shadow-lg hover:bg-amber-600 transition disabled:opacity-70 disabled:cursor-not-allowed mt-4 flex items-center justify-center gap-2"
             >
-              {loading ? "Qeydiyyat gedir..." : "Təsdiqlə və Kod Al"}
+              {loading ? "Gözləyin..." : "Təsdiqlə və Kod Al"}
             </button>
           </form>
         )}
