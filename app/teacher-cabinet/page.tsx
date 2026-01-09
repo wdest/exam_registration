@@ -56,10 +56,10 @@ export default function TeacherCabinet() {
   const [attendance, setAttendance] = useState<{[key: string]: boolean}>({});
   const [isValidDay, setIsValidDay] = useState(true); 
 
-  // --- ANALİZ STATE (YENİ) ---
+  // --- ANALİZ STATE ---
   const [analyticsGroupId, setAnalyticsGroupId] = useState<string>("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]); // Qrafik üçün data
+  const [chartData, setChartData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState({ avgScore: 0, avgAttendance: 0 });
 
   // AUTH
@@ -87,21 +87,18 @@ export default function TeacherCabinet() {
     if (gData) setGroups(gData);
   };
 
-  // --- ANALİZ HESABLAMALARI (YENİ) ---
+  // --- ANALİZ HESABLAMALARI (DÜZƏLİŞ EDİLDİ: 1-10 SİSTEMİ) ---
   const calculateAnalytics = async (groupId: string) => {
     if (!groupId) return;
     setAnalyticsGroupId(groupId);
 
-    // 1. Qrup üzvlərini gətir
     const { data: members } = await supabase.from('group_members').select(`student_id, local_students ( * )`).eq('group_id', groupId);
     if (!members) return;
     const studentsInGroup = members.map((m: any) => m.local_students);
 
-    // 2. Bütün qiymətləri gətir
     const { data: allGrades } = await supabase.from('daily_grades').select('*').eq('group_id', groupId).order('grade_date', { ascending: true });
     if (!allGrades) return;
 
-    // --- A. ŞAGİRD ÜZRƏ ANALİZ ---
     let totalGroupScore = 0;
     let totalGroupAttendance = 0;
     let scoreCount = 0;
@@ -110,13 +107,11 @@ export default function TeacherCabinet() {
     const stats = studentsInGroup.map((student: any) => {
         const studentGrades = allGrades.filter((g: any) => g.student_id === student.id);
         
-        // Ortalama Bal
         const scoredDays = studentGrades.filter((g: any) => g.score !== null);
         const avgScore = scoredDays.length > 0 
             ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length 
             : 0;
 
-        // Davamiyyət Faizi
         const totalDays = studentGrades.length;
         const presentDays = studentGrades.filter((g: any) => g.attendance === true).length;
         const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
@@ -126,22 +121,21 @@ export default function TeacherCabinet() {
 
         return {
             ...student,
-            avgScore: avgScore.toFixed(0),
+            avgScore: avgScore.toFixed(1), // Məs: 8.5
             attendanceRate: attendanceRate.toFixed(0),
             totalClasses: totalDays
         };
     });
 
-    // Sıralama (Bala görə)
+    // Sıralama
     stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
     setAnalyticsData(stats);
     setGroupStats({
-        avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(0)) : 0,
+        avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0,
         avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0
     });
 
-    // --- B. CHART (QRAFİK) DATASI HAZIRLAMAQ ---
-    // Tarix üzrə qruplaşdırırıq: { "2024-01-01": [bal1, bal2], ... }
+    // Chart Data Hazırlığı (10 bal = 100%)
     const gradesByDate: {[key: string]: number[]} = {};
     allGrades.forEach((g: any) => {
         if (g.score !== null) {
@@ -150,18 +144,15 @@ export default function TeacherCabinet() {
         }
     });
 
-    // Chart üçün array yaradırıq
     const chart = Object.keys(gradesByDate).map(date => {
         const scores = gradesByDate[date];
         const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-        return { date, avg: Math.round(avg) };
+        return { date, avg: parseFloat(avg.toFixed(1)) };
     });
-    // Tarixə görə sırala (son 10 gün)
     setChartData(chart.slice(-10)); 
   };
 
-
-  // --- CRUD (Old Functions) ---
+  // --- CRUD ---
   const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const nameRegex = /^[a-zA-ZəüöğıçşƏÜÖĞIÇŞ\s]+$/;
@@ -214,27 +205,55 @@ export default function TeacherCabinet() {
   const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
   const checkScheduleValidity = () => { if (!selectedGroup) return; setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[new Date(gradingDate).getDay()])); };
+  
   const fetchGradesForDate = async () => {
     if (!selectedGroup) return; setGrades({}); setAttendance({});
     const { data } = await supabase.from('daily_grades').select('*').eq('group_id', selectedGroup.id).eq('grade_date', gradingDate);
-    if (data) { const nG: any = {}, nA: any = {}; data.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); }
+    if (data) { 
+        const nG: any = {}, nA: any = {}; 
+        data.forEach((r: any) => { 
+            if (r.score !== null) nG[r.student_id] = r.score; 
+            nA[r.student_id] = r.attendance; 
+        }); 
+        setGrades(nG); 
+        setAttendance(nA); 
+    }
   };
+
   const fetchGroupMembers = async (groupId: number) => { const { data } = await supabase.from('group_members').select(`student_id, local_students ( * )`).eq('group_id', groupId); if (data) setGroupStudents(data.map((item: any) => item.local_students)); };
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; const { error } = await supabase.from('group_members').insert({ group_id: selectedGroup.id, student_id: studentToAdd }); if (!error) { alert("Əlavə olundu!"); setStudentToAdd(""); fetchGroupMembers(selectedGroup.id); } else alert("Artıq qrupdadır."); };
+  
+  // --- SAVE (ATTENDANCE FIX) ---
   const saveGrades = async () => {
     if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return;
     await supabase.from('daily_grades').delete().eq('group_id', selectedGroup.id).eq('grade_date', gradingDate);
-    const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false }));
-    await supabase.from('daily_grades').insert(updates); alert("Yadda saxlanıldı!");
+    
+    const updates = groupStudents.map(student => ({ 
+        group_id: selectedGroup.id, 
+        student_id: student.id, 
+        grade_date: gradingDate, 
+        score: grades[student.id] ? parseInt(grades[student.id]) : null, 
+        attendance: attendance[student.id] !== false 
+    }));
+    
+    await supabase.from('daily_grades').insert(updates); 
+    alert("Yadda saxlanıldı!");
   };
+
+  // --- ATTENDANCE TOGGLE ---
+  const toggleAttendance = (studentId: string) => {
+      const currentStatus = attendance[studentId] !== false;
+      setAttendance({ ...attendance, [studentId]: !currentStatus });
+  };
+
   const handleLogout = () => { document.cookie = "teacher_token=; path=/; max-age=0"; router.push("/login?type=teacher"); };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600">Yüklənir...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
-      <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
-        <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2"><BookOpen className="text-blue-600" /> Müəllim Kabineti</h1>
+    <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans">
+      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
+        <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2"><BookOpen className="text-blue-600" /> Müəllim Kabineti</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm font-semibold bg-blue-50 text-blue-700 px-3 py-1 rounded-full">👤 {teacher?.full_name || teacher?.username}</span>
           <button onClick={handleLogout} className="text-red-500 hover:text-red-700 font-medium"><LogOut size={18} /></button>
@@ -243,10 +262,10 @@ export default function TeacherCabinet() {
 
       <main className="p-4 md:p-8 max-w-7xl mx-auto">
         <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
-            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500'}`}><Users size={20} /> Dashboard</button>
-            <button onClick={() => setActiveTab('students')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'students' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500'}`}><GraduationCap size={20} /> Şagird</button>
-            <button onClick={() => setActiveTab('groups')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'groups' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500'}`}><BookOpen size={20} /> Jurnal</button>
-            <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'analytics' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
+            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Users size={20} /> Dashboard</button>
+            <button onClick={() => setActiveTab('students')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'students' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><GraduationCap size={20} /> Şagird</button>
+            <button onClick={() => setActiveTab('groups')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'groups' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BookOpen size={20} /> Jurnal</button>
+            <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'analytics' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
         </div>
 
         {activeTab === 'dashboard' && (
@@ -256,15 +275,15 @@ export default function TeacherCabinet() {
                     <p className="opacity-90">Bu gün: {new Date().toLocaleDateString('az-AZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div onClick={() => setActiveTab('students')} className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition cursor-pointer flex items-center gap-4">
+                    <div onClick={() => setActiveTab('students')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4">
                         <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={32} /></div>
                         <div><h3 className="text-xl font-bold">Şagirdlər</h3><p className="text-gray-500 text-sm">Ümumi: {students.length}</p></div>
                     </div>
-                    <div onClick={() => setActiveTab('groups')} className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition cursor-pointer flex items-center gap-4">
+                    <div onClick={() => setActiveTab('groups')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4">
                         <div className="p-4 bg-green-50 text-green-600 rounded-xl"><BookOpen size={32} /></div>
                         <div><h3 className="text-xl font-bold">Jurnal</h3><p className="text-gray-500 text-sm">Aktiv Qrup: {groups.length}</p></div>
                     </div>
-                    <div onClick={() => setActiveTab('analytics')} className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition cursor-pointer flex items-center gap-4">
+                    <div onClick={() => setActiveTab('analytics')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4">
                         <div className="p-4 bg-purple-50 text-purple-600 rounded-xl"><Activity size={32} /></div>
                         <div><h3 className="text-xl font-bold">Statistika</h3><p className="text-gray-500 text-sm">Analiz et</p></div>
                     </div>
@@ -272,13 +291,12 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- ANALİZ / STATİSTİKA BÖLMƏSİ (YENİ & TƏKMİL) --- */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in">
                 <div className="mb-8">
                     <h2 className="text-2xl font-bold mb-4">Qrup Statistikası</h2>
                     <select 
-                        className="p-3 border rounded-xl bg-white w-full md:w-1/3 shadow-sm outline-none cursor-pointer"
+                        className="p-3 border rounded-xl bg-white dark:bg-gray-800 w-full md:w-1/3 shadow-sm outline-none cursor-pointer"
                         onChange={(e) => calculateAnalytics(e.target.value)}
                         value={analyticsGroupId}
                     >
@@ -289,59 +307,47 @@ export default function TeacherCabinet() {
 
                 {analyticsGroupId && (
                     <div className="space-y-8">
-                        {/* ÜMUMİ KARTLAR */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border flex items-center justify-between">
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
                                 <div><p className="text-gray-500 text-sm font-bold">Ortalama Bal</p><h3 className="text-4xl font-bold text-blue-600">{groupStats.avgScore}</h3></div>
                                 <div className="p-4 bg-blue-50 rounded-full text-blue-600"><TrendingUp size={32}/></div>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border flex items-center justify-between">
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
                                 <div><p className="text-gray-500 text-sm font-bold">Davamiyyət Faizi</p><h3 className="text-4xl font-bold text-green-600">{groupStats.avgAttendance}%</h3></div>
                                 <div className="p-4 bg-green-50 rounded-full text-green-600"><PieChart size={32}/></div>
                             </div>
                         </div>
 
-                        {/* CHART (QRAFİK) - GÜNDƏLİK PROQRES */}
                         {chartData.length > 0 && (
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border">
-                                <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Activity size={20} className="text-purple-600"/> Qrup Ortalamasının Dəyişimi (Trend)</h3>
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
+                                <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Activity size={20} className="text-purple-600"/> Trend (Son Dərslər)</h3>
                                 <div className="h-64 flex items-end justify-between gap-2 px-2">
                                     {chartData.map((d, i) => (
                                         <div key={i} className="flex flex-col items-center flex-1 group relative">
-                                            {/* Tooltip */}
                                             <div className="absolute -top-8 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition mb-2">
                                                 {d.avg} Bal
                                             </div>
-                                            {/* Bar */}
+                                            {/* Bar hündürlüyü: 10 bal = 100%. (avg * 10) */}
                                             <div 
                                                 className="w-full bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all relative"
-                                                style={{ height: `${d.avg}%` }}
+                                                style={{ height: `${Math.min(d.avg * 10, 100)}%` }} // Max 100%
                                             ></div>
-                                            {/* Date */}
                                             <span className="text-[10px] text-gray-400 mt-2 font-medium -rotate-45 origin-left translate-y-2">{d.date.slice(5)}</span>
                                         </div>
                                     ))}
                                 </div>
-                                <div className="mt-6 border-t pt-2 text-center text-xs text-gray-400">Son dərslərin nəticələri</div>
                             </div>
                         )}
 
-                        {/* ŞAGİRD REYTİNQ CƏDVƏLİ */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border overflow-hidden">
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
                             <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
                             <table className="w-full text-left text-sm">
-                                <thead className="bg-gray-50 text-gray-800 font-bold border-b">
-                                    <tr>
-                                        <th className="p-3">#</th>
-                                        <th className="p-3">Şagird</th>
-                                        <th className="p-3">Ortalama</th>
-                                        <th className="p-3">Davamiyyət</th>
-                                        <th className="p-3">Status</th>
-                                    </tr>
+                                <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold border-b dark:border-gray-600">
+                                    <tr><th className="p-3">#</th><th className="p-3">Şagird</th><th className="p-3">Ortalama (10)</th><th className="p-3">Davamiyyət</th><th className="p-3">Status</th></tr>
                                 </thead>
                                 <tbody>
                                     {analyticsData.map((s, index) => (
-                                        <tr key={s.id} className="border-b hover:bg-gray-50">
+                                        <tr key={s.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                                             <td className="p-3 font-bold text-gray-400">{index + 1}</td>
                                             <td className="p-3 font-medium">{s.first_name} {s.last_name}</td>
                                             <td className="p-3 font-bold text-blue-600 text-lg">{s.avgScore}</td>
@@ -354,8 +360,9 @@ export default function TeacherCabinet() {
                                                 </div>
                                             </td>
                                             <td className="p-3">
-                                                {parseFloat(s.avgScore) >= 90 ? <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Əlaçı</span> :
-                                                 parseFloat(s.avgScore) >= 70 ? <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
+                                                {/* STATUS MƏNTİQİ: 9-dan yuxarı Əlaçı */}
+                                                {parseFloat(s.avgScore) >= 9 ? <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Əlaçı</span> :
+                                                 parseFloat(s.avgScore) >= 7 ? <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
                                                  <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>}
                                             </td>
                                         </tr>
@@ -378,7 +385,7 @@ export default function TeacherCabinet() {
         {/* --- ŞAGİRDLƏR --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
-                <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border h-fit sticky top-24">
+                <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-fit sticky top-24">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold flex items-center gap-2">
                             {editingId ? <><Pencil size={18} className="text-orange-500"/> Redaktə Et</> : <><Plus size={18}/> Yeni Şagird</>}
@@ -388,14 +395,14 @@ export default function TeacherCabinet() {
                         )}
                     </div>
                     <form onSubmit={handleAddOrUpdateStudent} className="space-y-4">
-                        <input required placeholder="Ad" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.first_name} onChange={e => setNewStudent({...newStudent, first_name: e.target.value})} />
-                        <input required placeholder="Soyad" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
-                        <input placeholder="Ata adı" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.father_name} onChange={e => setNewStudent({...newStudent, father_name: e.target.value})} />
+                        <input required placeholder="Ad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.first_name} onChange={e => setNewStudent({...newStudent, first_name: e.target.value})} />
+                        <input required placeholder="Soyad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
+                        <input placeholder="Ata adı" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.father_name} onChange={e => setNewStudent({...newStudent, father_name: e.target.value})} />
                         <div className="flex gap-2">
-                            <select className="w-1/3 p-3 bg-gray-50 border rounded-xl outline-none text-sm" value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)}>
+                            <select className="w-1/3 p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none text-sm" value={phonePrefix} onChange={(e) => setPhonePrefix(e.target.value)}>
                                 {PHONE_PREFIXES.map(p => <option key={p} value={p}>{p}</option>)}
                             </select>
-                            <input placeholder="880 88 88" className="w-2/3 p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.phone} 
+                            <input placeholder="880 88 88" className="w-2/3 p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.phone} 
                                 onChange={e => {
                                     const val = e.target.value.replace(/\D/g, '').slice(0, 7);
                                     setNewStudent({...newStudent, phone: val})
@@ -403,8 +410,8 @@ export default function TeacherCabinet() {
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                            <input placeholder="Məktəb" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.school} onChange={e => setNewStudent({...newStudent, school: e.target.value})} />
-                            <select className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})}>
+                            <input placeholder="Məktəb" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.school} onChange={e => setNewStudent({...newStudent, school: e.target.value})} />
+                            <select className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})}>
                                 <option value="">Sinif</option>
                                 {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
                             </select>
@@ -413,31 +420,31 @@ export default function TeacherCabinet() {
                             <label className="text-xs font-bold text-gray-500 mb-2 block uppercase ml-1">Sektor</label>
                             <div className="flex gap-2">
                                 {SECTORS.map(sec => (
-                                    <button key={sec} type="button" onClick={() => setNewStudent({...newStudent, sector: sec})} className={`flex-1 py-2 rounded-lg text-sm font-bold border transition ${newStudent.sector === sec ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}>{sec}</button>
+                                    <button key={sec} type="button" onClick={() => setNewStudent({...newStudent, sector: sec})} className={`flex-1 py-2 rounded-lg text-sm font-bold border transition ${newStudent.sector === sec ? "bg-blue-600 text-white border-blue-600" : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50"}`}>{sec}</button>
                                 ))}
                             </div>
                         </div>
-                        <input type="date" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.start_date} onChange={e => setNewStudent({...newStudent, start_date: e.target.value})} />
+                        <input type="date" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.start_date} onChange={e => setNewStudent({...newStudent, start_date: e.target.value})} />
                         <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold transition ${editingId ? "bg-orange-500 hover:bg-orange-600" : "bg-blue-600 hover:bg-blue-700"}`}>{editingId ? "Yadda Saxla" : "Əlavə Et"}</button>
                     </form>
                 </div>
-                <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border overflow-hidden">
+                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
                     <h3 className="text-lg font-bold mb-4">Şagirdlərin Siyahısı</h3>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm text-gray-600">
-                            <thead className="bg-gray-50 text-gray-800 font-bold border-b">
+                        <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold border-b dark:border-gray-600">
                                 <tr><th className="p-3">ID</th><th className="p-3">Ad Soyad</th><th className="p-3">Sinif</th><th className="p-3">Sektor</th><th className="p-3 text-right">Əməliyyatlar</th></tr>
                             </thead>
                             <tbody>
                                 {students.map((s) => (
-                                    <tr key={s.id} className={`border-b hover:bg-gray-50 transition ${editingId === s.id ? "bg-blue-50" : ""}`}>
+                                    <tr key={s.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition ${editingId === s.id ? "bg-blue-50 dark:bg-blue-900" : ""}`}>
                                         <td className="p-3 font-mono text-blue-600 font-bold">#{s.student_code}</td>
-                                        <td className="p-3 font-medium text-gray-800">{s.first_name} {s.last_name}</td>
+                                        <td className="p-3 font-medium text-gray-800 dark:text-white">{s.first_name} {s.last_name}</td>
                                         <td className="p-3">{s.grade}</td>
                                         <td className="p-3"><span className={`px-2 py-1 rounded text-xs font-bold ${s.sector === "Ru" ? "bg-red-100 text-red-600" : s.sector === "Eng" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"}`}>{s.sector || "Az"}</span></td>
                                         <td className="p-3 flex justify-end gap-2">
-                                            <button onClick={() => startEdit(s)} className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition"><Pencil size={16}/></button>
-                                            <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-red-100 hover:text-red-600 transition"><Trash2 size={16}/></button>
+                                            <button onClick={() => startEdit(s)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-100 hover:text-blue-600 transition"><Pencil size={16}/></button>
+                                            <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-100 hover:text-red-600 transition"><Trash2 size={16}/></button>
                                         </td>
                                     </tr>
                                 ))}
@@ -452,21 +459,21 @@ export default function TeacherCabinet() {
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                         <h3 className="text-lg font-bold mb-4">Yeni Qrup</h3>
                         <form onSubmit={handleCreateGroup} className="space-y-4">
-                            <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
-                            <div className="bg-gray-50 p-3 rounded-xl border">
+                            <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl border dark:border-gray-600">
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
                                 <div className="flex gap-2 mb-2">
-                                    <select className="p-2 border rounded-lg bg-white text-sm flex-1 outline-none" value={tempDay} onChange={(e) => setTempDay(e.target.value)}>{WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
-                                    <input type="time" className="p-2 border rounded-lg bg-white text-sm outline-none" value={tempTime} onChange={(e) => setTempTime(e.target.value)} />
+                                    <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm flex-1 outline-none" value={tempDay} onChange={(e) => setTempDay(e.target.value)}>{WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
+                                    <input type="time" className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none" value={tempTime} onChange={(e) => setTempTime(e.target.value)} />
                                     <button type="button" onClick={addScheduleSlot} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"><Plus size={18}/></button>
                                 </div>
                                 <div className="space-y-1 mt-2">
                                     {scheduleSlots.map((slot, index) => (
-                                        <div key={index} className="flex justify-between items-center bg-white border p-2 rounded-lg text-sm">
-                                            <span className="font-bold text-gray-700">{slot.day} - {slot.time}</span>
+                                        <div key={index} className="flex justify-between items-center bg-white dark:bg-gray-600 border p-2 rounded-lg text-sm">
+                                            <span className="font-bold text-gray-700 dark:text-gray-200">{slot.day} - {slot.time}</span>
                                             <button type="button" onClick={() => removeSlot(index)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
                                         </div>
                                     ))}
@@ -475,11 +482,11 @@ export default function TeacherCabinet() {
                             <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Yarat</button>
                         </form>
                     </div>
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                         <h3 className="text-lg font-bold mb-4">Qruplarım</h3>
                         <div className="space-y-2">
                             {groups.map((g) => (
-                                <div key={g.id} onClick={() => openGroup(g)} className={`p-4 rounded-xl border cursor-pointer flex justify-between items-center ${selectedGroup?.id === g.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}>
+                                <div key={g.id} onClick={() => openGroup(g)} className={`p-4 rounded-xl border dark:border-gray-600 cursor-pointer flex justify-between items-center ${selectedGroup?.id === g.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                                     <div><h4 className="font-bold">{g.name}</h4><p className="text-xs text-gray-500 mt-1 max-w-[200px] truncate">{g.schedule}</p></div>
                                     <ChevronRight size={18} className="text-gray-400"/>
                                 </div>
@@ -487,13 +494,13 @@ export default function TeacherCabinet() {
                         </div>
                     </div>
                 </div>
-                <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border min-h-[500px]">
+                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border dark:border-gray-700 min-h-[500px]">
                     {selectedGroup ? (
                         <div>
-                            <div className="flex justify-between items-center mb-6 pb-6 border-b">
+                            <div className="flex justify-between items-center mb-6 pb-6 border-b dark:border-gray-600">
                                 <div><h2 className="text-2xl font-bold">{selectedGroup.name}</h2><p className="text-gray-500 text-sm mt-1">{selectedGroup.schedule}</p></div>
                                 <div className="flex gap-2">
-                                    <select className="p-2 border rounded-lg bg-gray-50 text-sm" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}>
+                                    <select className="p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}>
                                         <option value="">Şagird seç...</option>
                                         {students.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
                                     </select>
@@ -502,7 +509,7 @@ export default function TeacherCabinet() {
                             </div>
                             <div className="flex items-center gap-4 mb-4 flex-wrap">
                                 <h3 className="text-lg font-bold">Jurnal</h3>
-                                <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-lg">
+                                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
                                     <Calendar size={18} className="text-gray-500"/>
                                     <input type="date" value={gradingDate} onChange={e => setGradingDate(e.target.value)} className="bg-transparent outline-none text-sm font-medium"/>
                                 </div>
@@ -512,22 +519,36 @@ export default function TeacherCabinet() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm border-collapse">
                                     <thead>
-                                        <tr className="bg-gray-50 text-gray-700 border-b">
-                                            <th className="p-3 border">#</th><th className="p-3 border w-1/3">Şagird</th><th className="p-3 border text-center">İştirak</th><th className="p-3 border text-center">Bal (0-100)</th>
+                                        <tr className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-b dark:border-gray-600">
+                                            <th className="p-3 border dark:border-gray-600">#</th><th className="p-3 border dark:border-gray-600 w-1/3">Şagird</th><th className="p-3 border dark:border-gray-600 text-center">İştirak</th><th className="p-3 border dark:border-gray-600 text-center">Bal (0-10)</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {groupStudents.map((s, index) => (
-                                            <tr key={s.id} className="border-b">
-                                                <td className="p-3 border text-gray-500">{index + 1}</td>
-                                                <td className="p-3 border font-medium">{s.first_name} {s.last_name}</td>
-                                                <td className="p-3 border text-center">
-                                                    <button onClick={() => setAttendance({...attendance, [s.id]: !attendance[s.id] && attendance[s.id] !== undefined ? false : (attendance[s.id] === false ? true : false)})}>
+                                            <tr key={s.id} className="border-b dark:border-gray-600">
+                                                <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
+                                                <td className="p-3 border dark:border-gray-600 font-medium">{s.first_name} {s.last_name}</td>
+                                                <td className="p-3 border dark:border-gray-600 text-center">
+                                                    {/* İştirak Düyməsi (Sadə Toggle) */}
+                                                    <button onClick={() => toggleAttendance(s.id)}>
                                                         {attendance[s.id] !== false ? <CheckCircle className="text-green-500 mx-auto" size={24} /> : <XCircle className="text-red-500 mx-auto" size={24} />}
                                                     </button>
                                                 </td>
-                                                <td className="p-3 border">
-                                                    <input type="number" placeholder="-" className="w-full p-2 bg-blue-50/50 rounded-md outline-none text-center font-bold text-blue-700" value={grades[s.id] || ""} onChange={(e) => setGrades({...grades, [s.id]: e.target.value})} />
+                                                <td className="p-3 border dark:border-gray-600">
+                                                    {/* Bal Girişi (Max 10) */}
+                                                    <input 
+                                                        type="number" 
+                                                        min="0" 
+                                                        max="10" 
+                                                        placeholder="-" 
+                                                        className="w-full p-2 bg-blue-50/50 dark:bg-blue-900 rounded-md outline-none text-center font-bold text-blue-700 dark:text-blue-300" 
+                                                        value={grades[s.id] || ""} 
+                                                        onChange={(e) => {
+                                                            let val = e.target.value;
+                                                            if(Number(val) > 10) val = "10"; // Limit 10
+                                                            setGrades({...grades, [s.id]: val});
+                                                        }} 
+                                                    />
                                                 </td>
                                             </tr>
                                         ))}
