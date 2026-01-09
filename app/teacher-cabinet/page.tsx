@@ -15,6 +15,8 @@ const supabase = createClient(
 
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
 const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
+const PHONE_PREFIXES = ["050", "051", "055", "070", "077", "099", "010", "060"]; // Operatorlar
+const GRADES = Array.from({ length: 11 }, (_, i) => i + 1); // 1-11 Siniflər
 
 export default function TeacherCabinet() {
   const router = useRouter();
@@ -27,15 +29,17 @@ export default function TeacherCabinet() {
   const [groups, setGroups] = useState<any[]>([]);
   
   // FORMS
+  // Phone state-i sadəcə 7 rəqəmi saxlayacaq
+  const [phonePrefix, setPhonePrefix] = useState("050");
   const [newStudent, setNewStudent] = useState({
     first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", start_date: new Date().toISOString().split('T')[0]
   });
   
-  // --- YENİ QRUP STATE-LƏRİ (Fərqli saatlar üçün) ---
+  // --- YENİ QRUP STATE-LƏRİ ---
   const [newGroupName, setNewGroupName] = useState("");
-  const [tempDay, setTempDay] = useState("B.e"); // Seçilən gün
-  const [tempTime, setTempTime] = useState("");   // Seçilən saat
-  const [scheduleSlots, setScheduleSlots] = useState<{day: string, time: string}[]>([]); // Yığılan cədvəl
+  const [tempDay, setTempDay] = useState("B.e"); 
+  const [tempTime, setTempTime] = useState("");   
+  const [scheduleSlots, setScheduleSlots] = useState<{day: string, time: string}[]>([]);
 
   // JURNAL STATE
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
@@ -77,12 +81,23 @@ export default function TeacherCabinet() {
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const nameRegex = /^[a-zA-ZəüöğıçşƏÜÖĞIÇŞ\s]+$/;
+    
+    // Validasiyalar
     if (!nameRegex.test(newStudent.first_name) || !nameRegex.test(newStudent.last_name)) {
       alert("Ad və Soyad yalnız hərflərdən ibarət olmalıdır!"); return;
     }
-    if (!/^\d+$/.test(newStudent.phone) || !/^\d+$/.test(newStudent.grade)) {
-      alert("Telefon və Sinif yalnız rəqəm olmalıdır!"); return;
+    
+    // Nömrə uzunluğunu yoxla (dəqiq 7 rəqəm olmalıdır)
+    if (newStudent.phone.length !== 7) {
+        alert("Zəhmət olmasa nömrəni tam daxil edin (7 rəqəm)."); return;
     }
+
+    if (!newStudent.grade) {
+        alert("Zəhmət olmasa sinif seçin."); return;
+    }
+
+    // Nömrəni formatlayırıq: +994 + 77 + 1234567
+    const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`;
 
     let uniqueId = Math.floor(Math.random() * 10000) + 1;
     while (students.some(s => s.student_code === uniqueId)) {
@@ -90,29 +105,30 @@ export default function TeacherCabinet() {
     }
 
     const { error } = await supabase.from('local_students').insert([{
-      ...newStudent, teacher_id: teacher.id, student_code: uniqueId
+      ...newStudent, 
+      phone: formattedPhone, // Formatlanmış nömrəni göndəririk
+      teacher_id: teacher.id, 
+      student_code: uniqueId
     }]);
 
     if (!error) {
       alert(`Şagird əlavə edildi! ID: ${uniqueId}`);
+      // Formu sıfırla
       setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", start_date: new Date().toISOString().split('T')[0] });
+      setPhonePrefix("050");
       fetchData(teacher.id);
     } else {
       alert("Xəta: " + error.message);
     }
   };
 
-  // --- 2. YENİ QRUP SISTEMİ (Hissə-hissə cədvəl) ---
-  
-  // Cədvələ vaxt əlavə etmək
+  // --- 2. YENİ QRUP SISTEMİ ---
   const addScheduleSlot = () => {
     if (!tempTime) { alert("Saat seçin!"); return; }
-    // Eyni günü təkrar əlavə etməmək üçün yoxlaya bilərik, amma bəlkə günə 2 dəfə dərs var.
     setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]);
-    setTempTime(""); // Saatı sıfırla
+    setTempTime(""); 
   };
 
-  // Cədvəldən silmək
   const removeSlot = (index: number) => {
     const newSlots = [...scheduleSlots];
     newSlots.splice(index, 1);
@@ -122,10 +138,7 @@ export default function TeacherCabinet() {
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (scheduleSlots.length === 0) { alert("Ən azı bir dərs günü əlavə edin!"); return; }
-
-    // Cədvəli stringə çeviririk: "B.e 15:00, Çərş 16:30"
     const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", ");
-
     const { error } = await supabase.from('groups').insert([{ name: newGroupName, schedule: finalSchedule, teacher_id: teacher.id }]);
     if (!error) {
       alert("Qrup yaradıldı!");
@@ -154,7 +167,6 @@ export default function TeacherCabinet() {
     const dateObj = new Date(gradingDate);
     const dayIndex = dateObj.getDay(); 
     const dayString = DAY_MAP[dayIndex];
-    // Stringin içində gün adı varmı yoxlayırıq
     if (selectedGroup.schedule.includes(dayString)) setIsValidDay(true);
     else setIsValidDay(false);
   };
@@ -229,43 +241,27 @@ export default function TeacherCabinet() {
             <button onClick={() => setActiveTab('groups')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'groups' ? 'bg-blue-600 text-white' : 'bg-white text-gray-500'}`}><BookOpen size={20} /> Jurnal</button>
         </div>
 
-        {/* --- DASHBOARD (YENİLƏNİB: DÜYMƏLƏR + AD) --- */}
+        {/* --- DASHBOARD --- */}
         {activeTab === 'dashboard' && (
             <div className="animate-in fade-in">
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg mb-8">
-                    {/* Müəllim adı burada görünür */}
                     <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, {teacher?.full_name || teacher?.username}! 👋</h2>
                     <p className="opacity-90">Bu gün: {new Date().toLocaleDateString('az-AZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 
-                {/* Keçid Kartları */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Şagird Kartı - Düymə kimi işləyir */}
-                    <div 
-                        onClick={() => setActiveTab('students')}
-                        className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition cursor-pointer group"
-                    >
+                    <div onClick={() => setActiveTab('students')} className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition cursor-pointer group">
                         <div className="flex items-center gap-4 mb-4">
                             <div className="p-4 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition"><Users size={32} /></div>
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-800">Şagirdlər</h3>
-                                <p className="text-gray-500 text-sm">Ümumi: {students.length}</p>
-                            </div>
+                            <div><h3 className="text-xl font-bold text-gray-800">Şagirdlər</h3><p className="text-gray-500 text-sm">Ümumi: {students.length}</p></div>
                         </div>
                         <p className="text-sm text-gray-400">Şagird əlavə etmək və siyahıya baxmaq üçün klikləyin.</p>
                     </div>
 
-                    {/* Jurnal Kartı - Düymə kimi işləyir */}
-                    <div 
-                        onClick={() => setActiveTab('groups')}
-                        className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition cursor-pointer group"
-                    >
+                    <div onClick={() => setActiveTab('groups')} className="bg-white p-6 rounded-xl shadow-sm border hover:shadow-md transition cursor-pointer group">
                         <div className="flex items-center gap-4 mb-4">
                             <div className="p-4 bg-green-50 text-green-600 rounded-xl group-hover:bg-green-600 group-hover:text-white transition"><BookOpen size={32} /></div>
-                            <div>
-                                <h3 className="text-xl font-bold text-gray-800">Jurnal & Qruplar</h3>
-                                <p className="text-gray-500 text-sm">Aktiv Qrup: {groups.length}</p>
-                            </div>
+                            <div><h3 className="text-xl font-bold text-gray-800">Jurnal & Qruplar</h3><p className="text-gray-500 text-sm">Aktiv Qrup: {groups.length}</p></div>
                         </div>
                         <p className="text-sm text-gray-400">Qiymət yazmaq və qrupları idarə etmək üçün klikləyin.</p>
                     </div>
@@ -273,21 +269,52 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- ŞAGİRDLƏR --- */}
+        {/* --- ŞAGİRDLƏR (FORM DƏYİŞDİRİLDİ) --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border h-fit">
                     <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><Plus size={18}/> Yeni Şagird</h3>
                     <form onSubmit={handleAddStudent} className="space-y-4">
-                        <input required placeholder="Ad" className="w-full p-3 bg-gray-50 border rounded-xl" value={newStudent.first_name} onChange={e => setNewStudent({...newStudent, first_name: e.target.value})} />
-                        <input required placeholder="Soyad" className="w-full p-3 bg-gray-50 border rounded-xl" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
-                        <input placeholder="Ata adı" className="w-full p-3 bg-gray-50 border rounded-xl" value={newStudent.father_name} onChange={e => setNewStudent({...newStudent, father_name: e.target.value})} />
-                        <input placeholder="Telefon" className="w-full p-3 bg-gray-50 border rounded-xl" value={newStudent.phone} onChange={e => setNewStudent({...newStudent, phone: e.target.value})} />
-                        <div className="grid grid-cols-2 gap-2">
-                            <input placeholder="Məktəb" className="w-full p-3 bg-gray-50 border rounded-xl" value={newStudent.school} onChange={e => setNewStudent({...newStudent, school: e.target.value})} />
-                            <input placeholder="Sinif" className="w-full p-3 bg-gray-50 border rounded-xl" value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})} />
+                        <input required placeholder="Ad" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.first_name} onChange={e => setNewStudent({...newStudent, first_name: e.target.value})} />
+                        <input required placeholder="Soyad" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
+                        <input placeholder="Ata adı" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.father_name} onChange={e => setNewStudent({...newStudent, father_name: e.target.value})} />
+                        
+                        {/* YENİ: TELEFON GİRİŞİ (Prefix + 7 rəqəm) */}
+                        <div className="flex gap-2">
+                            <select 
+                                className="w-1/3 p-3 bg-gray-50 border rounded-xl outline-none text-sm"
+                                value={phonePrefix}
+                                onChange={(e) => setPhonePrefix(e.target.value)}
+                            >
+                                {PHONE_PREFIXES.map(p => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                            <input 
+                                placeholder="880 88 88" 
+                                className="w-2/3 p-3 bg-gray-50 border rounded-xl outline-none" 
+                                value={newStudent.phone} 
+                                onChange={e => {
+                                    // Yalnız rəqəmlər və max 7 simvol
+                                    const val = e.target.value.replace(/\D/g, '').slice(0, 7);
+                                    setNewStudent({...newStudent, phone: val})
+                                }}
+                            />
                         </div>
-                        <input type="date" className="w-full p-3 bg-gray-50 border rounded-xl" value={newStudent.start_date} onChange={e => setNewStudent({...newStudent, start_date: e.target.value})} />
+
+                        <div className="grid grid-cols-2 gap-2">
+                            <input placeholder="Məktəb" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.school} onChange={e => setNewStudent({...newStudent, school: e.target.value})} />
+                            
+                            {/* YENİ: SİNİF SEÇİMİ (1-11) */}
+                            <select 
+                                className="w-full p-3 bg-gray-50 border rounded-xl outline-none" 
+                                value={newStudent.grade} 
+                                onChange={e => setNewStudent({...newStudent, grade: e.target.value})}
+                            >
+                                <option value="">Sinif</option>
+                                {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                        </div>
+                        
+                        <input type="date" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newStudent.start_date} onChange={e => setNewStudent({...newStudent, start_date: e.target.value})} />
                         <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">Əlavə Et</button>
                     </form>
                 </div>
@@ -323,40 +350,22 @@ export default function TeacherCabinet() {
         {/* --- QRUPLAR VƏ JURNAL --- */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
-                {/* YENİ QRUP YARAT (SLOT SİSTEMİ İLƏ) */}
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border">
                         <h3 className="text-lg font-bold mb-4">Yeni Qrup</h3>
                         <form onSubmit={handleCreateGroup} className="space-y-4">
-                            <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 border rounded-xl" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+                            <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 border rounded-xl outline-none" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
                             
-                            {/* Dərs Vaxtları Əlavə Etmə Paneli */}
                             <div className="bg-gray-50 p-3 rounded-xl border">
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
                                 <div className="flex gap-2 mb-2">
-                                    <select 
-                                        className="p-2 border rounded-lg bg-white text-sm flex-1 outline-none"
-                                        value={tempDay}
-                                        onChange={(e) => setTempDay(e.target.value)}
-                                    >
+                                    <select className="p-2 border rounded-lg bg-white text-sm flex-1 outline-none" value={tempDay} onChange={(e) => setTempDay(e.target.value)}>
                                         {WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}
                                     </select>
-                                    <input 
-                                        type="time" 
-                                        className="p-2 border rounded-lg bg-white text-sm outline-none" 
-                                        value={tempTime}
-                                        onChange={(e) => setTempTime(e.target.value)}
-                                    />
-                                    <button 
-                                        type="button" 
-                                        onClick={addScheduleSlot}
-                                        className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"
-                                    >
-                                        <Plus size={18}/>
-                                    </button>
+                                    <input type="time" className="p-2 border rounded-lg bg-white text-sm outline-none" value={tempTime} onChange={(e) => setTempTime(e.target.value)} />
+                                    <button type="button" onClick={addScheduleSlot} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"><Plus size={18}/></button>
                                 </div>
                                 
-                                {/* Seçilmiş Vaxtların Siyahısı */}
                                 <div className="space-y-1 mt-2">
                                     {scheduleSlots.map((slot, index) => (
                                         <div key={index} className="flex justify-between items-center bg-white border p-2 rounded-lg text-sm">
@@ -367,21 +376,16 @@ export default function TeacherCabinet() {
                                     {scheduleSlots.length === 0 && <p className="text-xs text-gray-400 text-center">Hələ vaxt əlavə edilməyib</p>}
                                 </div>
                             </div>
-
                             <button type="submit" className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Yarat</button>
                         </form>
                     </div>
 
-                    {/* QRUPLAR SİYAHISI */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border">
                         <h3 className="text-lg font-bold mb-4">Qruplarım</h3>
                         <div className="space-y-2">
                             {groups.map((g) => (
                                 <div key={g.id} onClick={() => openGroup(g)} className={`p-4 rounded-xl border cursor-pointer flex justify-between items-center ${selectedGroup?.id === g.id ? 'border-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}>
-                                    <div>
-                                        <h4 className="font-bold">{g.name}</h4>
-                                        <p className="text-xs text-gray-500 mt-1 max-w-[200px] truncate">{g.schedule}</p>
-                                    </div>
+                                    <div><h4 className="font-bold">{g.name}</h4><p className="text-xs text-gray-500 mt-1 max-w-[200px] truncate">{g.schedule}</p></div>
                                     <ChevronRight size={18} className="text-gray-400"/>
                                 </div>
                             ))}
@@ -389,7 +393,6 @@ export default function TeacherCabinet() {
                     </div>
                 </div>
 
-                {/* JURNAL */}
                 <div className="lg:col-span-2 bg-white p-8 rounded-2xl shadow-sm border min-h-[500px]">
                     {selectedGroup ? (
                         <div>
@@ -411,13 +414,9 @@ export default function TeacherCabinet() {
                                     <input type="date" value={gradingDate} onChange={e => setGradingDate(e.target.value)} className="bg-transparent outline-none text-sm font-medium"/>
                                 </div>
                                 {!isValidDay && (
-                                    <div className="flex items-center gap-2 text-orange-600 text-sm font-bold bg-orange-50 px-3 py-1 rounded-full border border-orange-200">
-                                        <AlertTriangle size={16}/> Bu gün dərs günü deyil!
-                                    </div>
+                                    <div className="flex items-center gap-2 text-orange-600 text-sm font-bold bg-orange-50 px-3 py-1 rounded-full border border-orange-200"><AlertTriangle size={16}/> Bu gün dərs günü deyil!</div>
                                 )}
-                                <button onClick={saveGrades} className="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition">
-                                    <Save size={18}/> Yadda Saxla
-                                </button>
+                                <button onClick={saveGrades} className="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition"><Save size={18}/> Yadda Saxla</button>
                             </div>
 
                             <div className="overflow-x-auto">
