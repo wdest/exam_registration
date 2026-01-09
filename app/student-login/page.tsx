@@ -56,8 +56,7 @@ export default function StudentCabinet() {
         fetchGroupInfo(sData.id);
         fetchAnalytics(sData.id);
         
-        // Əgər bazada avatar sütunu olsaydı ordan çəkərdik, hələlik local state
-        // localStorage-dən avatarı oxuyaq (yadda qalsın deyə)
+        // Avatarı localStorage-dən oxuyuruq
         if (typeof window !== 'undefined') {
             const savedAvatar = localStorage.getItem(`avatar_${sData.id}`);
             if(savedAvatar) setSelectedAvatar(savedAvatar);
@@ -75,7 +74,7 @@ export default function StudentCabinet() {
       .from('group_members')
       .select('groups (name)')
       .eq('student_id', studentId)
-      .limit(1) // Tutaq ki, əsas 1 qrupu var
+      .limit(1)
       .single();
     
     if (data && data.groups) {
@@ -116,7 +115,6 @@ export default function StudentCabinet() {
     setChartData(chart);
 
     // --- Son Jurnal (Tərsinə çevir - ən yeni üstdə) ---
-    // Massivi kopyalayırıq ki, orijinal sıralama pozulmasın (reverse mutable-dir)
     setRecentGrades([...grades].reverse().slice(0, 5));
   };
 
@@ -127,9 +125,10 @@ export default function StudentCabinet() {
       setIsAvatarMenuOpen(false);
   };
 
+  // ÇIXIŞ (LOGOUT)
   const handleLogout = () => {
     document.cookie = "student_token=; path=/; max-age=0";
-    router.push("/student-login");
+    router.push("/student-login"); // Düzəldildi: student-login səhifəsinə atır
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-indigo-600 font-bold">Kabinet yüklənir...</div>;
