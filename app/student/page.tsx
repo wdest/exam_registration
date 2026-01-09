@@ -7,6 +7,8 @@ import {
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, ShieldCheck, PenTool, Trophy, Medal, Award
 } from "lucide-react";
+// YENİ: Professional Chart kitabxanası
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,10 +30,7 @@ export default function StudentCabinet() {
 
   // DATA STATE
   const [stats, setStats] = useState({ avgScore: "0", attendance: "0" });
-  
-  // YENİ: SIRALAMA STATE-ləri (Backend olmadığı üçün hələlik statik rəqəmlər qoyulur)
   const [rankings, setRankings] = useState({ group: 0, grade: 0, course: 0 });
-
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentGrades, setRecentGrades] = useState<any[]>([]);
    
@@ -51,14 +50,15 @@ export default function StudentCabinet() {
 
       const studentId = tokenRow.split("=")[1];
 
-      const { data: sData } = await supabase.from('local_students').select('*').eq('id', studentId).single();
+      // Tələbəni çəkirik
+      const { data: sData, error } = await supabase.from('local_students').select('*').eq('id', studentId).single();
       
       if (sData) {
         setStudent(sData);
+        // Paralel olaraq digər məlumatları çəkirik
         fetchGroupInfo(sData.id);
         fetchAnalytics(sData.id);
         
-        // --- RANDOM AVATAR MƏNTİQİ ---
         if (typeof window !== 'undefined') {
             const savedAvatar = localStorage.getItem(`avatar_${sData.id}`);
             if (savedAvatar) {
@@ -70,6 +70,8 @@ export default function StudentCabinet() {
                 localStorage.setItem(`avatar_${sData.id}`, newAvatar);
             }
         }
+      } else {
+          console.error("Şagird tapılmadı:", error);
       }
       setLoading(false);
     };
@@ -77,31 +79,51 @@ export default function StudentCabinet() {
     checkAuth();
   }, [router]);
 
+  // --- MÜƏLLİM VƏ QRUP SORĞUSU ---
   const fetchGroupInfo = async (studentId: number) => {
-    const { data } = await supabase
+    console.log("Qrup məlumatı axtarılır, Student ID:", studentId);
+
+    // 1. Öncə Group Members cədvəlinə baxaq
+    const { data: memberData, error: memberError } = await supabase
       .from('group_members')
+      .select('group_id')
+      .eq('student_id', studentId)
+      .single();
+
+    if (memberError || !memberData) {
+        console.log("Şagird heç bir qrupda deyil və ya xəta:", memberError);
+        return;
+    }
+
+    // 2. İndi Qrupu və Müəllimi gətirək
+    // QEYD: 'teachers' cədvəlinin adını dəqiqləşdirin (teachers vs local_teachers)
+    const { data: groupData, error: groupError } = await supabase
+      .from('groups')
       .select(`
-        groups (
-            name,
-            teachers (
-                first_name,
-                last_name
-            )
+        name,
+        teacher_id,
+        teachers (
+            first_name,
+            last_name
         )
       `)
-      .eq('student_id', studentId)
-      .limit(1)
+      .eq('id', memberData.group_id)
       .single();
-    
-    if (data && data.groups) {
+
+    if (groupData) {
+      console.log("Qrup tapıldı:", groupData);
+      setGroupName(groupData.name);
+      
       // @ts-ignore
-      setGroupName(data.groups.name);
-      // @ts-ignore
-      if (data.groups.teachers) {
+      if (groupData.teachers) {
           // @ts-ignore
-          const t = data.groups.teachers;
+          const t = groupData.teachers;
           setTeacherName(`${t.first_name} ${t.last_name}`);
+      } else {
+          console.log("Bu qrupa müəllim təyin edilməyib (teacher_id boş ola bilər)");
       }
+    } else {
+        console.log("Qrup məlumatı gəlmədi:", groupError);
     }
   };
 
@@ -128,22 +150,16 @@ export default function StudentCabinet() {
         attendance: attRate.toFixed(0)
     });
 
-    // MOCK SIRALAMA DATA (Bunu real SQL ilə əvəzləmək lazımdır gələcəkdə)
-    // Hazırda nümunə üçün təsadüfi yerlər göstəririk
-    setRankings({
-        group: 3,   // Qrupda 3-cü
-        grade: 12,  // Sinifdə 12-ci
-        course: 45  // Ümumi kursda 45-ci
-    });
+    // Mock Sıralama
+    setRankings({ group: 3, grade: 12, course: 45 });
 
-    // Chart Data (Son 10 dərs)
+    // Chart Data (Son 10 dərs - Recharts formatı)
     const chart = scoredGrades.slice(-10).map((g: any) => ({
-        date: g.grade_date.slice(5), // MM-DD
-        score: g.score
+        date: g.grade_date.slice(5), // "MM-DD"
+        bal: g.score // Key adını 'bal' qoyduq ki tooltipdə elə görünsün
     }));
     setChartData(chart);
 
-    // Son Jurnal
     setRecentGrades([...grades].reverse().slice(0, 5));
   };
 
@@ -156,20 +172,6 @@ export default function StudentCabinet() {
   const handleLogout = () => {
     document.cookie = "student_token=; path=/; max-age=0";
     router.push("/student-login");
-  };
-
-  // --- SVG CONFIG ---
-  const getY = (score: number) => 100 - (score * 10);
-  
-  const getPolylinePoints = () => {
-    if (chartData.length === 0) return "";
-    if (chartData.length === 1) return `0,${getY(chartData[0].score)} 100,${getY(chartData[0].score)}`; 
-
-    return chartData.map((d, i) => {
-        const x = (i / (chartData.length - 1)) * 100; 
-        const y = getY(d.score); 
-        return `${x},${y}`;
-    }).join(" ");
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-indigo-600 font-bold">Kabinet yüklənir...</div>;
@@ -185,7 +187,9 @@ export default function StudentCabinet() {
         <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
                 <p className="text-sm font-bold text-gray-800">{student?.first_name} {student?.last_name}</p>
-                <p className="text-xs text-gray-500 font-medium">{groupName} | {teacherName}</p>
+                <p className="text-xs text-indigo-600 font-bold bg-indigo-50 px-2 py-1 rounded inline-block mt-1">
+                    {groupName} | {teacherName}
+                </p>
             </div>
             <div className="relative">
                 <button onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)} className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-2xl border-2 border-indigo-200 cursor-pointer hover:scale-105 transition">
@@ -207,7 +211,7 @@ export default function StudentCabinet() {
 
       <main className="p-4 md:p-8 max-w-6xl mx-auto">
         
-        {/* XOŞ GƏLDİNİZ CARD */}
+        {/* XOŞ GƏLDİNİZ */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
                 <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, {student?.first_name}! 👋</h2>
@@ -256,23 +260,20 @@ export default function StudentCabinet() {
                         </div>
                     </div>
 
-                    {/* YENİ: SIRALAMA KARTLARI (RANKING) */}
+                    {/* YENİ: SIRALAMA KARTLARI */}
                     <div className="bg-white p-5 rounded-2xl shadow-sm border">
                         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Trophy className="text-yellow-500" size={18}/> Sıralama Göstəriciləri</h3>
                         <div className="grid grid-cols-3 gap-4">
-                             {/* Qrup Üzrə */}
                              <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                                 <div className="flex justify-center mb-1"><Medal size={20} className="text-indigo-500"/></div>
                                 <p className="text-xs text-gray-500 uppercase font-bold">Qrup</p>
                                 <p className="text-xl font-bold text-gray-800">#{rankings.group}</p>
                              </div>
-                             {/* Sinif Üzrə */}
                              <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                                 <div className="flex justify-center mb-1"><Award size={20} className="text-purple-500"/></div>
                                 <p className="text-xs text-gray-500 uppercase font-bold">Sinif</p>
                                 <p className="text-xl font-bold text-gray-800">#{rankings.grade}</p>
                              </div>
-                             {/* Kurs Üzrə */}
                              <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                                 <div className="flex justify-center mb-1"><Trophy size={20} className="text-yellow-500"/></div>
                                 <p className="text-xs text-gray-500 uppercase font-bold">Ümumi</p>
@@ -281,63 +282,53 @@ export default function StudentCabinet() {
                         </div>
                     </div>
 
-                    {/* CHART (Light Mode + Blue Lines + Grid) */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border relative overflow-hidden">
+                    {/* YENİ CHART: RECHARTS ILƏ "ADİ LINE CHART" */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border h-[350px]">
                         <h3 className="font-bold text-gray-700 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-500"/> İnkişaf Trendi</h3>
                         
                         {chartData.length > 0 ? (
-                            <div className="w-full h-64 relative border border-gray-200 bg-white p-2">
-                                <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <ResponsiveContainer width="100%" height="80%">
+                                <LineChart data={chartData}>
+                                    {/* Arxa tor xətləri (Grid) */}
+                                    <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#e5e7eb" />
                                     
-                                    {/* Grid Xətləri (Horizontal) */}
-                                    {[0, 20, 40, 60, 80, 100].map(y => (
-                                         <line key={`h-${y}`} x1="0" y1={y} x2="100" y2={y} stroke="#e5e7eb" strokeWidth="0.5" />
-                                    ))}
-
-                                    {/* Grid Xətləri (Vertical) */}
-                                    {[0, 20, 40, 60, 80, 100].map(x => (
-                                         <line key={`v-${x}`} x1={x} y1="0" x2={x} y2="100" stroke="#e5e7eb" strokeWidth="0.5" />
-                                    ))}
-
-                                    {/* Line Chart */}
-                                    <polyline 
-                                        fill="none" 
-                                        stroke="#2563eb"  // Blue Line
-                                        strokeWidth="2" 
-                                        points={getPolylinePoints()} 
-                                        vectorEffect="non-scaling-stroke"
+                                    {/* X oxu (Tarixlər) */}
+                                    <XAxis 
+                                        dataKey="date" 
+                                        tick={{fill: '#6b7280', fontSize: 12}} 
+                                        tickLine={false} 
+                                        axisLine={{stroke: '#e5e7eb'}}
+                                        dy={10}
                                     />
-
-                                    {/* Points (Dots) */}
-                                    {chartData.map((d, i) => {
-                                        const x = (i / (chartData.length - 1)) * 100;
-                                        const y = getY(d.score);
-                                        return (
-                                            <g key={i}>
-                                                <circle 
-                                                    cx={x} 
-                                                    cy={y} 
-                                                    r="2" 
-                                                    fill="#2563eb" // Blue Fill
-                                                    stroke="white" 
-                                                    strokeWidth="1" 
-                                                    vectorEffect="non-scaling-stroke"
-                                                />
-                                                {/* Tooltip text */}
-                                                <text x={x} y={y - 6} fontSize="5" textAnchor="middle" fill="#2563eb" fontWeight="bold">{d.score}</text>
-                                            </g>
-                                        );
-                                    })}
-                                </svg>
-
-                                <div className="flex justify-between mt-4 text-[10px] text-gray-500 font-mono">
-                                    {chartData.map((d, i) => (
-                                        <span key={i}>{d.date}</span>
-                                    ))}
-                                </div>
-                            </div>
+                                    
+                                    {/* Y oxu (0-dan 10-a qədər) */}
+                                    <YAxis 
+                                        domain={[0, 10]} 
+                                        tick={{fill: '#6b7280', fontSize: 12}} 
+                                        tickLine={false}
+                                        axisLine={false}
+                                        tickCount={6}
+                                    />
+                                    
+                                    {/* Üstünə gələndə çıxan məlumat qutusu */}
+                                    <Tooltip 
+                                        contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
+                                        itemStyle={{color: '#4f46e5', fontWeight: 'bold'}}
+                                    />
+                                    
+                                    {/* Xəttin özü (Göy rəngdə, qalın) */}
+                                    <Line 
+                                        type="monotone" // Xətti yumşaldır
+                                        dataKey="bal" 
+                                        stroke="#4f46e5" 
+                                        strokeWidth={3}
+                                        dot={{ r: 4, fill: "#4f46e5", stroke: "#fff", strokeWidth: 2 }} // Nöqtələr
+                                        activeDot={{ r: 6 }} 
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
                         ) : (
-                            <div className="h-40 flex items-center justify-center text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed">
+                            <div className="h-full flex items-center justify-center text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed">
                                 Məlumat yoxdur
                             </div>
                         )}
