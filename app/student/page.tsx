@@ -13,7 +13,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Hazır avatarlar (Karikatura əvəzi)
+// Hazır avatarlar
 const AVATARS = [
   "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️"
 ];
@@ -37,18 +37,16 @@ export default function StudentCabinet() {
   // 1. Giriş Yoxlanışı və Data Çəkmək
   useEffect(() => {
     const checkAuth = async () => {
-      // Login-dən gələn tokeni (ID-ni) oxuyuruq
       const cookies = document.cookie.split("; ");
       const tokenRow = cookies.find((row) => row.trim().startsWith("student_token="));
       
       if (!tokenRow) {
-        router.push("/student-login"); // Loginə at
+        router.push("/student-login");
         return;
       }
 
       const studentId = tokenRow.split("=")[1];
 
-      // Şagird məlumatlarını gətir
       const { data: sData } = await supabase.from('local_students').select('*').eq('id', studentId).single();
       
       if (sData) {
@@ -56,8 +54,6 @@ export default function StudentCabinet() {
         fetchGroupInfo(sData.id);
         fetchAnalytics(sData.id);
         
-        // Əgər bazada avatar sütunu olsaydı ordan çəkərdik, hələlik local state
-        // localStorage-dən avatarı oxuyaq (yadda qalsın deyə)
         if (typeof window !== 'undefined') {
             const savedAvatar = localStorage.getItem(`avatar_${sData.id}`);
             if(savedAvatar) setSelectedAvatar(savedAvatar);
@@ -69,13 +65,13 @@ export default function StudentCabinet() {
     checkAuth();
   }, [router]);
 
-  // 2. Qrup Məlumatını Tapmaq
+  // 2. Qrup Məlumatı
   const fetchGroupInfo = async (studentId: number) => {
     const { data } = await supabase
       .from('group_members')
       .select('groups (name)')
       .eq('student_id', studentId)
-      .limit(1) // Tutaq ki, əsas 1 qrupu var
+      .limit(1)
       .single();
     
     if (data && data.groups) {
@@ -109,18 +105,17 @@ export default function StudentCabinet() {
     });
 
     // --- Chart Data (Son 10 dərs) ---
+    // Qrafik üçün datanı hazırlayırıq
     const chart = scoredGrades.slice(-10).map((g: any) => ({
         date: g.grade_date.slice(5), // MM-DD
         score: g.score
     }));
     setChartData(chart);
 
-    // --- Son Jurnal (Tərsinə çevir - ən yeni üstdə) ---
-    // Massivi kopyalayırıq ki, orijinal sıralama pozulmasın (reverse mutable-dir)
+    // --- Son Jurnal ---
     setRecentGrades([...grades].reverse().slice(0, 5));
   };
 
-  // Avatar Dəyişmək
   const handleAvatarChange = (avatar: string) => {
       setSelectedAvatar(avatar);
       if(student && typeof window !== 'undefined') localStorage.setItem(`avatar_${student.id}`, avatar);
@@ -130,6 +125,21 @@ export default function StudentCabinet() {
   const handleLogout = () => {
     document.cookie = "student_token=; path=/; max-age=0";
     router.push("/student-login");
+  };
+
+  // --- SVG LINE CHART GENERATOR ---
+  // Bu funksiya dataları SVG koordinatlarına çevirir
+  const getPolylinePoints = () => {
+    if (chartData.length === 0) return "";
+    
+    // Əgər 1 dənə data varsa, onu orta nöqtə kimi göstər
+    if (chartData.length === 1) return "0,50 100,50"; 
+
+    return chartData.map((d, i) => {
+        const x = (i / (chartData.length - 1)) * 100; // X oxu (0-100%)
+        const y = 100 - (d.score * 10); // Y oxu (10 bal = 0%, 0 bal = 100%) - Tərsinə
+        return `${x},${y}`;
+    }).join(" ");
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-indigo-600 font-bold">Kabinet yüklənir...</div>;
@@ -151,7 +161,6 @@ export default function StudentCabinet() {
                 <button onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)} className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-2xl border-2 border-indigo-200 cursor-pointer hover:scale-105 transition">
                     {selectedAvatar}
                 </button>
-                {/* Avatar Menu */}
                 {isAvatarMenuOpen && (
                     <div className="absolute right-0 top-12 bg-white p-3 rounded-xl shadow-xl border w-48 grid grid-cols-4 gap-2 z-50">
                         {AVATARS.map(av => (
@@ -168,7 +177,7 @@ export default function StudentCabinet() {
 
       <main className="p-4 md:p-8 max-w-6xl mx-auto">
         
-        {/* XOŞ GƏLDİNİZ KARTI */}
+        {/* XOŞ GƏLDİNİZ */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
                 <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, {student?.first_name}! 👋</h2>
@@ -180,7 +189,7 @@ export default function StudentCabinet() {
             </div>
         </div>
 
-        {/* TAB MENYU */}
+        {/* TABLAR */}
         <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
             <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><BarChart3 size={20} /> Analiz</button>
             <button onClick={() => setActiveTab('profile')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><User size={20} /> Profil</button>
@@ -191,7 +200,7 @@ export default function StudentCabinet() {
         {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 
-                {/* SOL: Statistikalar */}
+                {/* SOL: Statistikalar və Line Chart */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* KARTLAR */}
                     <div className="grid grid-cols-2 gap-4">
@@ -211,21 +220,78 @@ export default function StudentCabinet() {
                         </div>
                     </div>
 
-                    {/* CHART */}
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border">
+                    {/* SVG LINE CHART (YENİ) */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border relative overflow-hidden">
                         <h3 className="font-bold text-gray-700 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-500"/> İnkişaf Trendi (Son Dərslər)</h3>
+                        
                         {chartData.length > 0 ? (
-                            <div className="h-48 flex items-end justify-between gap-2">
-                                {chartData.map((d, i) => (
-                                    <div key={i} className="flex flex-col items-center flex-1 group relative">
-                                        <div className="absolute -top-8 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition mb-2">{d.score} Bal</div>
-                                        <div className={`w-full max-w-[30px] rounded-t-lg transition-all ${d.score >= 9 ? 'bg-green-500' : d.score >= 6 ? 'bg-indigo-500' : 'bg-orange-400'}`} style={{ height: `${d.score * 10}%` }}></div>
-                                        <span className="text-[10px] text-gray-400 mt-2 font-medium">{d.date}</span>
-                                    </div>
-                                ))}
+                            <div className="w-full h-64 relative">
+                                {/* SVG Konteyner */}
+                                <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                    
+                                    {/* Qradient Tərifi */}
+                                    <defs>
+                                        <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
+                                            <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.3" />
+                                            <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
+                                        </linearGradient>
+                                    </defs>
+
+                                    {/* Grid Xətləri (Arxa fon) */}
+                                    <line x1="0" y1="0" x2="100" y2="0" stroke="#f3f4f6" strokeWidth="0.5" />
+                                    <line x1="0" y1="25" x2="100" y2="25" stroke="#f3f4f6" strokeWidth="0.5" />
+                                    <line x1="0" y1="50" x2="100" y2="50" stroke="#f3f4f6" strokeWidth="0.5" />
+                                    <line x1="0" y1="75" x2="100" y2="75" stroke="#f3f4f6" strokeWidth="0.5" />
+                                    <line x1="0" y1="100" x2="100" y2="100" stroke="#f3f4f6" strokeWidth="0.5" />
+
+                                    {/* Area (Doldurma - əgər istəsən) */}
+                                    <polygon 
+                                        points={`0,100 ${getPolylinePoints()} 100,100`} 
+                                        fill="url(#gradient)" 
+                                    />
+
+                                    {/* Line (Xətt) */}
+                                    <polyline 
+                                        fill="none" 
+                                        stroke="#4f46e5" 
+                                        strokeWidth="2" 
+                                        points={getPolylinePoints()} 
+                                        vectorEffect="non-scaling-stroke"
+                                    />
+
+                                    {/* Circles (Nöqtələr) */}
+                                    {chartData.map((d, i) => {
+                                        const x = (i / (chartData.length - 1)) * 100;
+                                        const y = 100 - (d.score * 10);
+                                        return (
+                                            <g key={i}>
+                                                <circle 
+                                                    cx={x} 
+                                                    cy={y} 
+                                                    r="1.5" 
+                                                    fill="white" 
+                                                    stroke="#4f46e5" 
+                                                    strokeWidth="0.5" 
+                                                    vectorEffect="non-scaling-stroke"
+                                                />
+                                                {/* Tooltip Text (Bal) */}
+                                                <text x={x} y={y - 5} fontSize="4" textAnchor="middle" fill="#4f46e5" fontWeight="bold">{d.score}</text>
+                                            </g>
+                                        );
+                                    })}
+                                </svg>
+
+                                {/* Tarixlər (X-Axis Labels) */}
+                                <div className="flex justify-between mt-2 text-[10px] text-gray-400">
+                                    {chartData.map((d, i) => (
+                                        <span key={i}>{d.date}</span>
+                                    ))}
+                                </div>
                             </div>
                         ) : (
-                            <div className="h-40 flex items-center justify-center text-gray-400 text-sm">Məlumat yoxdur</div>
+                            <div className="h-40 flex items-center justify-center text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed">
+                                Hələ ki, kifayət qədər məlumat yoxdur
+                            </div>
                         )}
                     </div>
                 </div>
@@ -253,7 +319,7 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 2. PROFİL (READ ONLY) --- */}
+        {/* --- 2. PROFİL --- */}
         {activeTab === 'profile' && (
             <div className="bg-white p-8 rounded-2xl shadow-sm border max-w-2xl mx-auto animate-in fade-in">
                 <div className="flex items-center gap-6 mb-8 border-b pb-6">
