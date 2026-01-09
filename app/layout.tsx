@@ -1,10 +1,7 @@
 import "./globals.css";
-
-// KÖHNƏ (Xəta verən):
-// import Navbar from "@/components/Navbar"; 
-
-// YENİ (Bunu yaz):
-import Navbar from "../components/Navbar"; 
+import Navbar from "../components/Navbar";
+import { ThemeProvider } from "../components/ThemeProvider"; // Yeni import
+import ThemeToggle from "../components/ThemeToggle";       // Yeni import
 
 export default function RootLayout({
   children,
@@ -12,15 +9,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="antialiased bg-gray-50">
+    // suppressHydrationWarning - bu vacibdir, yoxsa konsolda xəta verir
+    <html lang="en" suppressHydrationWarning>
+      <body className="antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300">
         
-        <Navbar />
+        <ThemeProvider>
+          {/* Düyməni bura qoydum ki, hər yerdə görünsün */}
+          <ThemeToggle />
 
-        <main className="min-h-[calc(100vh-64px)]">
-           {children}
-        </main>
-        
+          <Navbar />
+
+          <main className="min-h-[calc(100vh-64px)]">
+            {children}
+          </main>
+        </ThemeProvider>
+
       </body>
     </html>
   );
