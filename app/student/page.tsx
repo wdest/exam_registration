@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
-  TrendingUp, Activity, PieChart, ShieldCheck, PenTool
+  TrendingUp, Activity, PieChart, ShieldCheck, PenTool, BookOpen
 } from "lucide-react";
 
 const supabase = createClient(
@@ -15,21 +15,25 @@ const supabase = createClient(
 
 // Hazır avatarlar
 const AVATARS = [
-  "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️"
+  "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"
 ];
 
 export default function StudentCabinet() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState<any>(null);
+  
+  // YENİ: Müəllim və Qrup state-ləri
   const [groupName, setGroupName] = useState("Qrup yoxdur");
+  const [teacherName, setTeacherName] = useState("Təyin edilməyib");
+
   const [activeTab, setActiveTab] = useState("dashboard");
 
   // DATA STATE
   const [stats, setStats] = useState({ avgScore: "0", attendance: "0" });
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentGrades, setRecentGrades] = useState<any[]>([]);
-  
+   
   // AVATAR STATE
   const [selectedAvatar, setSelectedAvatar] = useState("👨‍🎓");
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
@@ -54,9 +58,20 @@ export default function StudentCabinet() {
         fetchGroupInfo(sData.id);
         fetchAnalytics(sData.id);
         
+        // --- RANDOM AVATAR MƏNTİQİ ---
         if (typeof window !== 'undefined') {
             const savedAvatar = localStorage.getItem(`avatar_${sData.id}`);
-            if(savedAvatar) setSelectedAvatar(savedAvatar);
+            
+            if (savedAvatar) {
+                // Əgər yaddaşda varsa, onu götür
+                setSelectedAvatar(savedAvatar);
+            } else {
+                // Əgər yoxdursa, RANDOM seç və yaddaşa yaz
+                const randomInd = Math.floor(Math.random() * AVATARS.length);
+                const newAvatar = AVATARS[randomInd];
+                setSelectedAvatar(newAvatar);
+                localStorage.setItem(`avatar_${sData.id}`, newAvatar);
+            }
         }
       }
       setLoading(false);
@@ -65,11 +80,20 @@ export default function StudentCabinet() {
     checkAuth();
   }, [router]);
 
-  // 2. Qrup Məlumatı
+  // 2. Qrup və Müəllim Məlumatı (DƏYİŞDİRİLDİ)
   const fetchGroupInfo = async (studentId: number) => {
+    // Qeyd: Supabase-də 'groups' cədvəlinin 'local_teachers' ilə əlaqəsi (Foreign Key) olmalıdır.
     const { data } = await supabase
       .from('group_members')
-      .select('groups (name)')
+      .select(`
+        groups (
+            name,
+            local_teachers (
+                first_name,
+                last_name
+            )
+        )
+      `)
       .eq('student_id', studentId)
       .limit(1)
       .single();
@@ -77,6 +101,13 @@ export default function StudentCabinet() {
     if (data && data.groups) {
       // @ts-ignore
       setGroupName(data.groups.name);
+
+      // @ts-ignore - Müəllim adını təyin edirik
+      if (data.groups.local_teachers) {
+          // @ts-ignore
+          const t = data.groups.local_teachers;
+          setTeacherName(`${t.first_name} ${t.last_name}`);
+      }
     }
   };
 
@@ -105,9 +136,8 @@ export default function StudentCabinet() {
     });
 
     // --- Chart Data (Son 10 dərs) ---
-    // Qrafik üçün datanı hazırlayırıq
     const chart = scoredGrades.slice(-10).map((g: any) => ({
-        date: g.grade_date.slice(5), // MM-DD
+        date: g.grade_date.slice(5), 
         score: g.score
     }));
     setChartData(chart);
@@ -128,16 +158,13 @@ export default function StudentCabinet() {
   };
 
   // --- SVG LINE CHART GENERATOR ---
-  // Bu funksiya dataları SVG koordinatlarına çevirir
   const getPolylinePoints = () => {
     if (chartData.length === 0) return "";
-    
-    // Əgər 1 dənə data varsa, onu orta nöqtə kimi göstər
     if (chartData.length === 1) return "0,50 100,50"; 
 
     return chartData.map((d, i) => {
-        const x = (i / (chartData.length - 1)) * 100; // X oxu (0-100%)
-        const y = 100 - (d.score * 10); // Y oxu (10 bal = 0%, 0 bal = 100%) - Tərsinə
+        const x = (i / (chartData.length - 1)) * 100; 
+        const y = 100 - (d.score * 10); 
         return `${x},${y}`;
     }).join(" ");
   };
@@ -155,7 +182,8 @@ export default function StudentCabinet() {
         <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
                 <p className="text-sm font-bold text-gray-800">{student?.first_name} {student?.last_name}</p>
-                <p className="text-xs text-indigo-500 font-medium">{groupName}</p>
+                {/* Müəllim adı burada da görünür */}
+                <p className="text-xs text-gray-500 font-medium">{groupName} | {teacherName}</p>
             </div>
             <div className="relative">
                 <button onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)} className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-2xl border-2 border-indigo-200 cursor-pointer hover:scale-105 transition">
@@ -177,11 +205,18 @@ export default function StudentCabinet() {
 
       <main className="p-4 md:p-8 max-w-6xl mx-auto">
         
-        {/* XOŞ GƏLDİNİZ */}
+        {/* XOŞ GƏLDİNİZ və MÜƏLLİM MƏLUMATI */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
                 <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, {student?.first_name}! 👋</h2>
-                <p className="opacity-90">Sənin uğur yolun burdan başlayır. Hazırda <b>{groupName}</b> qrupundasan.</p>
+                <div className="opacity-90 flex flex-col gap-1">
+                    <span>Sənin uğur yolun burdan başlayır.</span>
+                    <div className="flex items-center gap-4 mt-2 text-sm bg-white/10 w-fit px-3 py-1 rounded-lg">
+                        <span>📚 Qrup: <b>{groupName}</b></span>
+                        <span className="w-px h-4 bg-white/40"></span>
+                        <span>👨‍🏫 Müəllim: <b>{teacherName}</b></span>
+                    </div>
+                </div>
             </div>
             <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm text-center min-w-[120px]">
                 <p className="text-xs opacity-80 uppercase font-bold">Ortalama</p>
@@ -220,16 +255,13 @@ export default function StudentCabinet() {
                         </div>
                     </div>
 
-                    {/* SVG LINE CHART (YENİ) */}
+                    {/* SVG LINE CHART */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border relative overflow-hidden">
                         <h3 className="font-bold text-gray-700 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-500"/> İnkişaf Trendi (Son Dərslər)</h3>
                         
                         {chartData.length > 0 ? (
                             <div className="w-full h-64 relative">
-                                {/* SVG Konteyner */}
                                 <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                    
-                                    {/* Qradient Tərifi */}
                                     <defs>
                                         <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
                                             <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.3" />
@@ -237,20 +269,17 @@ export default function StudentCabinet() {
                                         </linearGradient>
                                     </defs>
 
-                                    {/* Grid Xətləri (Arxa fon) */}
                                     <line x1="0" y1="0" x2="100" y2="0" stroke="#f3f4f6" strokeWidth="0.5" />
                                     <line x1="0" y1="25" x2="100" y2="25" stroke="#f3f4f6" strokeWidth="0.5" />
                                     <line x1="0" y1="50" x2="100" y2="50" stroke="#f3f4f6" strokeWidth="0.5" />
                                     <line x1="0" y1="75" x2="100" y2="75" stroke="#f3f4f6" strokeWidth="0.5" />
                                     <line x1="0" y1="100" x2="100" y2="100" stroke="#f3f4f6" strokeWidth="0.5" />
 
-                                    {/* Area (Doldurma - əgər istəsən) */}
                                     <polygon 
                                         points={`0,100 ${getPolylinePoints()} 100,100`} 
                                         fill="url(#gradient)" 
                                     />
 
-                                    {/* Line (Xətt) */}
                                     <polyline 
                                         fill="none" 
                                         stroke="#4f46e5" 
@@ -259,7 +288,6 @@ export default function StudentCabinet() {
                                         vectorEffect="non-scaling-stroke"
                                     />
 
-                                    {/* Circles (Nöqtələr) */}
                                     {chartData.map((d, i) => {
                                         const x = (i / (chartData.length - 1)) * 100;
                                         const y = 100 - (d.score * 10);
@@ -274,14 +302,12 @@ export default function StudentCabinet() {
                                                     strokeWidth="0.5" 
                                                     vectorEffect="non-scaling-stroke"
                                                 />
-                                                {/* Tooltip Text (Bal) */}
                                                 <text x={x} y={y - 5} fontSize="4" textAnchor="middle" fill="#4f46e5" fontWeight="bold">{d.score}</text>
                                             </g>
                                         );
                                     })}
                                 </svg>
 
-                                {/* Tarixlər (X-Axis Labels) */}
                                 <div className="flex justify-between mt-2 text-[10px] text-gray-400">
                                     {chartData.map((d, i) => (
                                         <span key={i}>{d.date}</span>
@@ -349,6 +375,19 @@ export default function StudentCabinet() {
                         <label className="text-xs font-bold text-gray-400 uppercase">Telefon</label>
                         <input disabled value={student.phone} className="w-full p-3 bg-gray-100 border-none rounded-xl text-gray-600 font-medium cursor-not-allowed"/>
                     </div>
+                    
+                    {/* Qrup və Müəllim İnfo */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                             <label className="text-xs font-bold text-gray-400 uppercase">Qrup</label>
+                             <input disabled value={groupName} className="w-full p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-bold cursor-not-allowed"/>
+                        </div>
+                         <div>
+                             <label className="text-xs font-bold text-gray-400 uppercase">Müəllim</label>
+                             <input disabled value={teacherName} className="w-full p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-bold cursor-not-allowed"/>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <label className="text-xs font-bold text-gray-400 uppercase">Məktəb</label>
