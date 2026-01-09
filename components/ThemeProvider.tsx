@@ -13,10 +13,9 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [theme, setTheme] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
-
+  
+  // Mounted state-i burda yoxlamırıq ki, Provider həmişə mövcud olsun
   useEffect(() => {
-    // Brauzer yüklənəndə yaddaşı yoxla
     const storedTheme = localStorage.getItem("theme") as Theme | null;
     if (storedTheme) {
       setTheme(storedTheme);
@@ -25,24 +24,20 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       setTheme("dark");
       document.documentElement.classList.add("dark");
     }
-    setMounted(true);
   }, []);
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light";
     setTheme(newTheme);
     
-    // HTML class-nı dəyiş
     document.documentElement.classList.remove("light", "dark");
     document.documentElement.classList.add(newTheme);
     
-    // Yaddaşa yaz
     localStorage.setItem("theme", newTheme);
   };
 
-  if (!mounted) {
-    return <>{children}</>;
-  }
+  // DİQQƏT: if (!mounted) return... hissəsini sildim.
+  // Artıq build vaxtı da Provider mövcud olacaq.
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
