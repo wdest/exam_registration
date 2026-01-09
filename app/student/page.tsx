@@ -7,7 +7,6 @@ import {
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, ShieldCheck, PenTool, Trophy, Medal, Award
 } from "lucide-react";
-// YENİ: Professional Chart kitabxanası
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const supabase = createClient(
@@ -50,12 +49,10 @@ export default function StudentCabinet() {
 
       const studentId = tokenRow.split("=")[1];
 
-      // Tələbəni çəkirik
       const { data: sData, error } = await supabase.from('local_students').select('*').eq('id', studentId).single();
       
       if (sData) {
         setStudent(sData);
-        // Paralel olaraq digər məlumatları çəkirik
         fetchGroupInfo(sData.id);
         fetchAnalytics(sData.id);
         
@@ -79,11 +76,10 @@ export default function StudentCabinet() {
     checkAuth();
   }, [router]);
 
-  // --- MÜƏLLİM VƏ QRUP SORĞUSU ---
+  // --- DÜZƏLDİLMİŞ MÜƏLLİM SORĞUSU ---
   const fetchGroupInfo = async (studentId: number) => {
     console.log("Qrup məlumatı axtarılır, Student ID:", studentId);
 
-    // 1. Öncə Group Members cədvəlinə baxaq
     const { data: memberData, error: memberError } = await supabase
       .from('group_members')
       .select('group_id')
@@ -91,12 +87,10 @@ export default function StudentCabinet() {
       .single();
 
     if (memberError || !memberData) {
-        console.log("Şagird heç bir qrupda deyil və ya xəta:", memberError);
+        console.log("Şagird heç bir qrupda deyil:", memberError);
         return;
     }
 
-    // 2. İndi Qrupu və Müəllimi gətirək
-    // QEYD: 'teachers' cədvəlinin adını dəqiqləşdirin (teachers vs local_teachers)
     const { data: groupData, error: groupError } = await supabase
       .from('groups')
       .select(`
@@ -111,19 +105,29 @@ export default function StudentCabinet() {
       .single();
 
     if (groupData) {
-      console.log("Qrup tapıldı:", groupData);
       setGroupName(groupData.name);
       
-      // @ts-ignore
+      // *** XƏTANIN HƏLLİ BURADADIR ***
       if (groupData.teachers) {
-          // @ts-ignore
           const t = groupData.teachers;
-          setTeacherName(`${t.first_name} ${t.last_name}`);
+          
+          // TypeScript xətasını düzəltmək üçün yoxlayırıq:
+          // Əgər 'teachers' massiv (siyahı) kimi gəlirsə, birincini götürürük
+          if (Array.isArray(t)) {
+              if (t.length > 0) {
+                  setTeacherName(`${t[0].first_name} ${t[0].last_name}`);
+              }
+          } 
+          // Əgər tək obyekt kimi gəlirsə (bəzən Supabase belə edir)
+          else {
+              // @ts-ignore
+              setTeacherName(`${t.first_name} ${t.last_name}`);
+          }
       } else {
-          console.log("Bu qrupa müəllim təyin edilməyib (teacher_id boş ola bilər)");
+          console.log("Müəllim tapılmadı");
       }
     } else {
-        console.log("Qrup məlumatı gəlmədi:", groupError);
+        console.log("Qrup tapılmadı:", groupError);
     }
   };
 
@@ -150,13 +154,11 @@ export default function StudentCabinet() {
         attendance: attRate.toFixed(0)
     });
 
-    // Mock Sıralama
     setRankings({ group: 3, grade: 12, course: 45 });
 
-    // Chart Data (Son 10 dərs - Recharts formatı)
     const chart = scoredGrades.slice(-10).map((g: any) => ({
-        date: g.grade_date.slice(5), // "MM-DD"
-        bal: g.score // Key adını 'bal' qoyduq ki tooltipdə elə görünsün
+        date: g.grade_date.slice(5), 
+        bal: g.score 
     }));
     setChartData(chart);
 
@@ -260,7 +262,7 @@ export default function StudentCabinet() {
                         </div>
                     </div>
 
-                    {/* YENİ: SIRALAMA KARTLARI */}
+                    {/* SIRALAMA KARTLARI */}
                     <div className="bg-white p-5 rounded-2xl shadow-sm border">
                         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Trophy className="text-yellow-500" size={18}/> Sıralama Göstəriciləri</h3>
                         <div className="grid grid-cols-3 gap-4">
@@ -282,17 +284,14 @@ export default function StudentCabinet() {
                         </div>
                     </div>
 
-                    {/* YENİ CHART: RECHARTS ILƏ "ADİ LINE CHART" */}
+                    {/* CHART */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border h-[350px]">
                         <h3 className="font-bold text-gray-700 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-500"/> İnkişaf Trendi</h3>
                         
                         {chartData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="80%">
                                 <LineChart data={chartData}>
-                                    {/* Arxa tor xətləri (Grid) */}
                                     <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#e5e7eb" />
-                                    
-                                    {/* X oxu (Tarixlər) */}
                                     <XAxis 
                                         dataKey="date" 
                                         tick={{fill: '#6b7280', fontSize: 12}} 
@@ -300,8 +299,6 @@ export default function StudentCabinet() {
                                         axisLine={{stroke: '#e5e7eb'}}
                                         dy={10}
                                     />
-                                    
-                                    {/* Y oxu (0-dan 10-a qədər) */}
                                     <YAxis 
                                         domain={[0, 10]} 
                                         tick={{fill: '#6b7280', fontSize: 12}} 
@@ -309,20 +306,16 @@ export default function StudentCabinet() {
                                         axisLine={false}
                                         tickCount={6}
                                     />
-                                    
-                                    {/* Üstünə gələndə çıxan məlumat qutusu */}
                                     <Tooltip 
                                         contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                                         itemStyle={{color: '#4f46e5', fontWeight: 'bold'}}
                                     />
-                                    
-                                    {/* Xəttin özü (Göy rəngdə, qalın) */}
                                     <Line 
-                                        type="monotone" // Xətti yumşaldır
+                                        type="monotone" 
                                         dataKey="bal" 
                                         stroke="#4f46e5" 
                                         strokeWidth={3}
-                                        dot={{ r: 4, fill: "#4f46e5", stroke: "#fff", strokeWidth: 2 }} // Nöqtələr
+                                        dot={{ r: 4, fill: "#4f46e5", stroke: "#fff", strokeWidth: 2 }} 
                                         activeDot={{ r: 6 }} 
                                     />
                                 </LineChart>
