@@ -252,7 +252,7 @@ export default function TeacherCabinet() {
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; const { error } = await supabase.from('group_members').insert({ group_id: selectedGroup.id, student_id: studentToAdd }); if (!error) { alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); } else alert("Var!"); };
   const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; await supabase.from('daily_grades').delete().eq('group_id', selectedGroup.id).eq('grade_date', gradingDate); const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); await supabase.from('daily_grades').insert(updates); alert("Saxlanıldı!"); };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
-  const handleLogout = () => { document.cookie = "teacher_token=; path=/; max-age=0"; router.push("/login?type=teacher"); };
+  const handleLogout = () => { document.cookie = "teacher_token=; path=/; max-age=0"; router.push("/student-login?type=teacher"); };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600">Yüklənir...</div>;
 
