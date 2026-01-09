@@ -14,7 +14,8 @@ import {
   EyeOff, 
   GraduationCap, 
   FileText, 
-  Presentation // Müəllim üçün yeni ikon
+  Presentation,
+  KeyRound // Kod üçün yeni ikon
 } from "lucide-react";
 
 const supabase = createClient(
@@ -26,12 +27,11 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // URL-dən tipi götürürük (student, exam, teacher)
   const initialType = searchParams.get("type") || "student";
 
   const [activeTab, setActiveTab] = useState(initialType);
-  const [identifier, setIdentifier] = useState(""); 
-  const [password, setPassword] = useState("");
+  const [identifier, setIdentifier] = useState(""); // Ad və ya ID
+  const [password, setPassword] = useState("");     // Kod və ya Şifrə
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -47,18 +47,28 @@ function LoginContent() {
     setLoading(true);
 
     try {
-      // --- 1. MÜƏLLİM GİRİŞİ (Əvvəlki Admin) ---
+      // --- 1. MÜƏLLİM GİRİŞİ (Ad və Kod ilə) ---
       if (activeTab === "teacher") {
-        // Müəllim üçün yoxlama (Demo: user=muellim, pass=moc123)
-        if (identifier.toLowerCase() === "muellim" && password === "moc123") { 
-           // Uğurlu giriş -> Admin panelinə yönləndir (və ya teacher dashboard)
-           document.cookie = "admin_token=true; path=/; max-age=86400"; 
-           router.push("/admin");
-        } else {
-           throw new Error("Yanlış müəllim məlumatları");
+        
+        const { data: teacher, error: teacherError } = await supabase
+          .from("teachers")
+          .select("*")
+          .ilike("username", identifier.trim()) // Adı yoxlayırıq (böyük-kiçik hərf fərqi olmadan)
+          .eq("password", password)          // Kodu yoxlayırıq
+          .single();
+
+        if (teacherError || !teacher) {
+          throw new Error("Ad və ya Kod yanlışdır.");
         }
+
+        // Uğurlu giriş
+        document.cookie = "teacher_token=true; path=/; max-age=86400"; 
+        
+        alert(`Xoş gəldiniz, ${teacher.full_name || teacher.username}!`);
+        router.push("/teacher-cabinet");
       } 
-      // --- 2. ŞAGİRD VƏ YA İMTAHAN GİRİŞİ ---
+      
+      // --- 2. ŞAGİRD GİRİŞİ ---
       else {
         const { data, error: dbError } = await supabase
           .from("students")
@@ -71,7 +81,7 @@ function LoginContent() {
         }
 
         alert(`Xoş gəldin, ${data.first_name} ${data.last_name}!`);
-        // router.push("/cabinet"); // Gələcəkdə şagird kabineti linki
+        // router.push("/cabinet"); 
       }
 
     } catch (err: any) {
@@ -81,18 +91,16 @@ function LoginContent() {
     }
   }
 
-  // Tabların Məlumatları (Admin -> Müəllim ilə əvəz olundu)
   const tabs = [
     { id: "student", label: "Şagird", icon: GraduationCap, color: "text-amber-600 bg-amber-50" },
     { id: "exam", label: "İmtahan", icon: FileText, color: "text-orange-600 bg-orange-50" },
-    { id: "teacher", label: "Müəllim", icon: Presentation, color: "text-blue-600 bg-blue-50" }, // Yeni Müəllim Tabı
+    { id: "teacher", label: "Müəllim", icon: Presentation, color: "text-blue-600 bg-blue-50" },
   ];
 
   return (
-    // Tam ekran (Navbar-ı gizlətmək üçün fixed)
     <div className="fixed inset-0 z-[100] flex bg-white font-sans overflow-auto">
       
-      {/* --- SOL TƏRƏF (Bəzəkli Şəkil) --- */}
+      {/* SOL TƏRƏF */}
       <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-amber-500 to-orange-600 relative items-center justify-center overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-orange-700/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
@@ -108,10 +116,9 @@ function LoginContent() {
         </div>
       </div>
 
-      {/* --- SAĞ TƏRƏF (Form) --- */}
+      {/* SAĞ TƏRƏF (Form) */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 md:p-12 relative bg-gray-50/30">
         
-        {/* NAVIGATOR: Geri Qayıt Düyməsi */}
         <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-gray-500 hover:text-amber-600 transition font-medium z-10">
             <ArrowLeft size={20} /> Ana Səhifə
         </Link>
@@ -149,7 +156,8 @@ function LoginContent() {
             <form onSubmit={handleLogin} className="space-y-5">
                 <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">
-                        {activeTab === "teacher" ? "İstifadəçi Adı" : "Şagird ID"}
+                        {/* Dəyişiklik 1: Label Müəllim üçün dəyişdi */}
+                        {activeTab === "teacher" ? "Ad və Soyad" : "Şagird ID"}
                     </label>
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-amber-500 transition">
@@ -160,26 +168,31 @@ function LoginContent() {
                             value={identifier}
                             onChange={(e) => setIdentifier(e.target.value)}
                             className="w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-gray-100 text-gray-900 rounded-xl focus:ring-0 focus:border-amber-500 outline-none transition font-medium placeholder-gray-300"
-                            placeholder={activeTab === "teacher" ? "muellim" : "Məs: 19576598"}
+                            // Dəyişiklik 2: Placeholder Müəllim üçün dəyişdi
+                            placeholder={activeTab === "teacher" ? "Məs: Əli Vəliyev" : "Məs: 19576598"}
                             required
                         />
                     </div>
                 </div>
 
-                {/* Şifrə Input (Yalnız Müəllim üçün) */}
+                {/* Şifrə/Kod Input (Yalnız Müəllim üçün) */}
                 {activeTab === "teacher" && (
                     <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Şifrə</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">
+                             {/* Dəyişiklik 3: Label Kod oldu */}
+                            Müəllim Kodu
+                        </label>
                         <div className="relative group">
                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 group-focus-within:text-amber-500 transition">
-                                <Lock size={20} />
+                                {/* Dəyişiklik 4: İkon KeyRound (Açar) oldu */}
+                                <KeyRound size={20} />
                             </div>
                             <input
                                 type={showPassword ? "text" : "password"}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="w-full pl-11 pr-12 py-4 bg-gray-50 border-2 border-gray-100 text-gray-900 rounded-xl focus:ring-0 focus:border-amber-500 outline-none transition font-medium placeholder-gray-300"
-                                placeholder="••••••"
+                                placeholder="•••••"
                                 required
                             />
                             <button
@@ -216,7 +229,7 @@ function LoginContent() {
             <div className="mt-8 text-center">
                 <p className="text-gray-400 text-xs">
                     {activeTab === 'teacher' 
-                        ? "Müəllim girişi yalnız səlahiyyətli şəxslər üçündür."
+                        ? "Kodunuzu unutmusunuzsa, rəhbərliyə müraciət edin."
                         : "ID nömrənizi unutmusunuzsa, bizimlə əlaqə saxlayın."
                     }
                 </p>
