@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
-  TrendingUp, Activity, PieChart, ShieldCheck, PenTool
+  TrendingUp, Activity, PieChart, ShieldCheck, PenTool, Trophy, Medal, Award
 } from "lucide-react";
 
 const supabase = createClient(
@@ -28,6 +28,10 @@ export default function StudentCabinet() {
 
   // DATA STATE
   const [stats, setStats] = useState({ avgScore: "0", attendance: "0" });
+  
+  // YENİ: SIRALAMA STATE-ləri (Backend olmadığı üçün hələlik statik rəqəmlər qoyulur)
+  const [rankings, setRankings] = useState({ group: 0, grade: 0, course: 0 });
+
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentGrades, setRecentGrades] = useState<any[]>([]);
    
@@ -54,6 +58,7 @@ export default function StudentCabinet() {
         fetchGroupInfo(sData.id);
         fetchAnalytics(sData.id);
         
+        // --- RANDOM AVATAR MƏNTİQİ ---
         if (typeof window !== 'undefined') {
             const savedAvatar = localStorage.getItem(`avatar_${sData.id}`);
             if (savedAvatar) {
@@ -123,6 +128,14 @@ export default function StudentCabinet() {
         attendance: attRate.toFixed(0)
     });
 
+    // MOCK SIRALAMA DATA (Bunu real SQL ilə əvəzləmək lazımdır gələcəkdə)
+    // Hazırda nümunə üçün təsadüfi yerlər göstəririk
+    setRankings({
+        group: 3,   // Qrupda 3-cü
+        grade: 12,  // Sinifdə 12-ci
+        course: 45  // Ümumi kursda 45-ci
+    });
+
     // Chart Data (Son 10 dərs)
     const chart = scoredGrades.slice(-10).map((g: any) => ({
         date: g.grade_date.slice(5), // MM-DD
@@ -146,7 +159,6 @@ export default function StudentCabinet() {
   };
 
   // --- SVG CONFIG ---
-  // 10 ballıq sistem üçün Y koordinatını hesablayır
   const getY = (score: number) => 100 - (score * 10);
   
   const getPolylinePoints = () => {
@@ -163,26 +175,26 @@ export default function StudentCabinet() {
   if (loading) return <div className="min-h-screen flex items-center justify-center text-indigo-600 font-bold">Kabinet yüklənir...</div>;
 
   return (
-    <div className="min-h-screen bg-[#111827] font-sans text-gray-100">
+    <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
       
       {/* NAVBAR */}
-      <nav className="bg-[#1F2937] px-6 py-4 border-b border-gray-700 sticky top-0 z-50 flex justify-between items-center">
-        <h1 className="text-xl font-bold text-indigo-400 flex items-center gap-2">
+      <nav className="bg-white px-6 py-4 shadow-sm border-b sticky top-0 z-50 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-indigo-700 flex items-center gap-2">
             <GraduationCap /> Şagird Paneli
         </h1>
         <div className="flex items-center gap-4">
             <div className="text-right hidden md:block">
-                <p className="text-sm font-bold text-gray-200">{student?.first_name} {student?.last_name}</p>
-                <p className="text-xs text-gray-400 font-medium">{groupName} | {teacherName}</p>
+                <p className="text-sm font-bold text-gray-800">{student?.first_name} {student?.last_name}</p>
+                <p className="text-xs text-gray-500 font-medium">{groupName} | {teacherName}</p>
             </div>
             <div className="relative">
-                <button onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)} className="w-10 h-10 bg-indigo-900/50 rounded-full flex items-center justify-center text-2xl border-2 border-indigo-500 cursor-pointer hover:scale-105 transition">
+                <button onClick={() => setIsAvatarMenuOpen(!isAvatarMenuOpen)} className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-2xl border-2 border-indigo-200 cursor-pointer hover:scale-105 transition">
                     {selectedAvatar}
                 </button>
                 {isAvatarMenuOpen && (
-                    <div className="absolute right-0 top-12 bg-[#1F2937] p-3 rounded-xl shadow-xl border border-gray-700 w-48 grid grid-cols-4 gap-2 z-50">
+                    <div className="absolute right-0 top-12 bg-white p-3 rounded-xl shadow-xl border w-48 grid grid-cols-4 gap-2 z-50">
                         {AVATARS.map(av => (
-                            <button key={av} onClick={() => handleAvatarChange(av)} className="text-2xl hover:bg-gray-700 p-1 rounded transition">{av}</button>
+                            <button key={av} onClick={() => handleAvatarChange(av)} className="text-2xl hover:bg-gray-100 p-1 rounded transition">{av}</button>
                         ))}
                     </div>
                 )}
@@ -195,7 +207,7 @@ export default function StudentCabinet() {
 
       <main className="p-4 md:p-8 max-w-6xl mx-auto">
         
-        {/* XOŞ GƏLDİNİZ */}
+        {/* XOŞ GƏLDİNİZ CARD */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
                 <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, {student?.first_name}! 👋</h2>
@@ -216,9 +228,9 @@ export default function StudentCabinet() {
 
         {/* TABLAR */}
         <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
-            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-[#1F2937] text-gray-400 hover:bg-gray-700'}`}><BarChart3 size={20} /> Analiz</button>
-            <button onClick={() => setActiveTab('profile')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'profile' ? 'bg-indigo-600 text-white' : 'bg-[#1F2937] text-gray-400 hover:bg-gray-700'}`}><User size={20} /> Profil</button>
-            <button onClick={() => setActiveTab('exams')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'exams' ? 'bg-indigo-600 text-white' : 'bg-[#1F2937] text-gray-400 hover:bg-gray-700'}`}><PenTool size={20} /> İmtahanlar</button>
+            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><BarChart3 size={20} /> Analiz</button>
+            <button onClick={() => setActiveTab('profile')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><User size={20} /> Profil</button>
+            <button onClick={() => setActiveTab('exams')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'exams' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><PenTool size={20} /> İmtahanlar</button>
         </div>
 
         {/* --- 1. DASHBOARD (ANALİZ) --- */}
@@ -228,54 +240,75 @@ export default function StudentCabinet() {
                 <div className="lg:col-span-2 space-y-6">
                     {/* STAT KARTLAR */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-[#1F2937] p-5 rounded-2xl border border-gray-700 flex items-center justify-between">
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
                             <div>
-                                <p className="text-gray-400 text-xs font-bold uppercase">Ümumi Bal</p>
-                                <h3 className="text-3xl font-bold text-indigo-400">{stats.avgScore}/10</h3>
+                                <p className="text-gray-500 text-xs font-bold uppercase">Ümumi Bal</p>
+                                <h3 className={`text-3xl font-bold ${Number(stats.avgScore) > 8 ? 'text-green-600' : 'text-indigo-600'}`}>{stats.avgScore}/10</h3>
                             </div>
-                            <div className="p-3 bg-gray-700 text-indigo-400 rounded-full"><TrendingUp /></div>
+                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full"><TrendingUp /></div>
                         </div>
-                        <div className="bg-[#1F2937] p-5 rounded-2xl border border-gray-700 flex items-center justify-between">
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
                             <div>
-                                <p className="text-gray-400 text-xs font-bold uppercase">Davamiyyət</p>
-                                <h3 className="text-3xl font-bold text-orange-400">{stats.attendance}%</h3>
+                                <p className="text-gray-500 text-xs font-bold uppercase">Davamiyyət</p>
+                                <h3 className="text-3xl font-bold text-orange-600">{stats.attendance}%</h3>
                             </div>
-                            <div className="p-3 bg-gray-700 text-orange-400 rounded-full"><PieChart /></div>
+                            <div className="p-3 bg-orange-50 text-orange-600 rounded-full"><PieChart /></div>
                         </div>
                     </div>
 
-                    {/* QARA DİZAYNLI CHART */}
-                    <div className="bg-[#1F2937] p-6 rounded-2xl border border-gray-700 relative overflow-hidden">
-                        <h3 className="font-bold text-gray-200 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-400"/> İnkişaf Trendi (Son Dərslər)</h3>
+                    {/* YENİ: SIRALAMA KARTLARI (RANKING) */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border">
+                        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Trophy className="text-yellow-500" size={18}/> Sıralama Göstəriciləri</h3>
+                        <div className="grid grid-cols-3 gap-4">
+                             {/* Qrup Üzrə */}
+                             <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="flex justify-center mb-1"><Medal size={20} className="text-indigo-500"/></div>
+                                <p className="text-xs text-gray-500 uppercase font-bold">Qrup</p>
+                                <p className="text-xl font-bold text-gray-800">#{rankings.group}</p>
+                             </div>
+                             {/* Sinif Üzrə */}
+                             <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="flex justify-center mb-1"><Award size={20} className="text-purple-500"/></div>
+                                <p className="text-xs text-gray-500 uppercase font-bold">Sinif</p>
+                                <p className="text-xl font-bold text-gray-800">#{rankings.grade}</p>
+                             </div>
+                             {/* Kurs Üzrə */}
+                             <div className="text-center p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="flex justify-center mb-1"><Trophy size={20} className="text-yellow-500"/></div>
+                                <p className="text-xs text-gray-500 uppercase font-bold">Ümumi</p>
+                                <p className="text-xl font-bold text-gray-800">#{rankings.course}</p>
+                             </div>
+                        </div>
+                    </div>
+
+                    {/* CHART (Light Mode + Blue Lines + Grid) */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border relative overflow-hidden">
+                        <h3 className="font-bold text-gray-700 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-500"/> İnkişaf Trendi</h3>
                         
                         {chartData.length > 0 ? (
-                            <div className="w-full h-64 relative">
+                            <div className="w-full h-64 relative border border-gray-200 bg-white p-2">
                                 <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                    <defs>
-                                        <linearGradient id="gradient" x1="0" x2="0" y1="0" y2="1">
-                                            <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
-                                            <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-                                        </linearGradient>
-                                    </defs>
-
-                                    {/* Grid Xətləri (Sol tərəfdə rəqəmlər yoxdur, sadəcə xətlər) */}
-                                    {[0, 25, 50, 75, 100].map(y => (
-                                         <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#374151" strokeWidth="0.5" />
+                                    
+                                    {/* Grid Xətləri (Horizontal) */}
+                                    {[0, 20, 40, 60, 80, 100].map(y => (
+                                         <line key={`h-${y}`} x1="0" y1={y} x2="100" y2={y} stroke="#e5e7eb" strokeWidth="0.5" />
                                     ))}
 
-                                    <polygon 
-                                        points={`0,100 ${getPolylinePoints()} 100,100`} 
-                                        fill="url(#gradient)" 
-                                    />
+                                    {/* Grid Xətləri (Vertical) */}
+                                    {[0, 20, 40, 60, 80, 100].map(x => (
+                                         <line key={`v-${x}`} x1={x} y1="0" x2={x} y2="100" stroke="#e5e7eb" strokeWidth="0.5" />
+                                    ))}
 
+                                    {/* Line Chart */}
                                     <polyline 
                                         fill="none" 
-                                        stroke="#6366f1" 
+                                        stroke="#2563eb"  // Blue Line
                                         strokeWidth="2" 
                                         points={getPolylinePoints()} 
                                         vectorEffect="non-scaling-stroke"
                                     />
 
+                                    {/* Points (Dots) */}
                                     {chartData.map((d, i) => {
                                         const x = (i / (chartData.length - 1)) * 100;
                                         const y = getY(d.score);
@@ -285,26 +318,26 @@ export default function StudentCabinet() {
                                                     cx={x} 
                                                     cy={y} 
                                                     r="2" 
-                                                    fill="#1F2937" 
-                                                    stroke="#818cf8" 
+                                                    fill="#2563eb" // Blue Fill
+                                                    stroke="white" 
                                                     strokeWidth="1" 
                                                     vectorEffect="non-scaling-stroke"
                                                 />
-                                                {/* Bal dəyəri nöqtənin üstündə yazılır */}
-                                                <text x={x} y={y - 6} fontSize="5" textAnchor="middle" fill="white" fontWeight="bold">{d.score}</text>
+                                                {/* Tooltip text */}
+                                                <text x={x} y={y - 6} fontSize="5" textAnchor="middle" fill="#2563eb" fontWeight="bold">{d.score}</text>
                                             </g>
                                         );
                                     })}
                                 </svg>
 
-                                <div className="flex justify-between mt-4 text-[10px] text-gray-400 font-mono">
+                                <div className="flex justify-between mt-4 text-[10px] text-gray-500 font-mono">
                                     {chartData.map((d, i) => (
                                         <span key={i}>{d.date}</span>
                                     ))}
                                 </div>
                             </div>
                         ) : (
-                            <div className="h-40 flex items-center justify-center text-gray-500 text-sm bg-gray-800/50 rounded-xl border border-gray-700 border-dashed">
+                            <div className="h-40 flex items-center justify-center text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed">
                                 Məlumat yoxdur
                             </div>
                         )}
@@ -312,23 +345,23 @@ export default function StudentCabinet() {
                 </div>
 
                 {/* SAĞ: Son Qiymətlər */}
-                <div className="lg:col-span-1 bg-[#1F2937] p-6 rounded-2xl border border-gray-700 h-fit">
-                    <h3 className="font-bold text-gray-200 mb-4 flex items-center gap-2"><Calendar size={18}/> Son Nəticələr</h3>
+                <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border h-fit">
+                    <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Calendar size={18}/> Son Nəticələr</h3>
                     <div className="space-y-3">
                         {recentGrades.map((g, i) => (
-                            <div key={i} className="flex justify-between items-center p-3 bg-gray-800 rounded-xl border border-gray-700">
+                            <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
                                 <div>
                                     <p className="text-xs text-gray-400">{g.grade_date}</p>
-                                    <p className={`text-sm font-bold ${g.attendance ? 'text-gray-200' : 'text-red-400'}`}>{g.attendance ? "Dərsdə iştirak" : "Qayıb"}</p>
+                                    <p className={`text-sm font-bold ${g.attendance ? 'text-gray-700' : 'text-red-500'}`}>{g.attendance ? "Dərsdə iştirak" : "Qayıb"}</p>
                                 </div>
                                 {g.attendance && (
-                                    <span className={`text-lg font-bold ${g.score >= 9 ? 'text-green-400' : 'text-indigo-400'}`}>
+                                    <span className={`text-lg font-bold ${g.score >= 9 ? 'text-green-600' : 'text-indigo-600'}`}>
                                         {g.score !== null ? g.score : "-"}
                                     </span>
                                 )}
                             </div>
                         ))}
-                        {recentGrades.length === 0 && <p className="text-center text-gray-500 text-sm py-4">Hələ dərs olmayıb.</p>}
+                        {recentGrades.length === 0 && <p className="text-center text-gray-400 text-sm py-4">Hələ dərs olmayıb.</p>}
                     </div>
                 </div>
             </div>
@@ -336,34 +369,34 @@ export default function StudentCabinet() {
 
         {/* --- 2. PROFİL --- */}
         {activeTab === 'profile' && (
-            <div className="bg-[#1F2937] p-8 rounded-2xl border border-gray-700 max-w-2xl mx-auto animate-in fade-in">
-                <div className="flex items-center gap-6 mb-8 border-b border-gray-700 pb-6">
-                    <div className="text-6xl bg-indigo-900/30 p-4 rounded-full border-2 border-indigo-500/30">{selectedAvatar}</div>
+            <div className="bg-white p-8 rounded-2xl shadow-sm border max-w-2xl mx-auto animate-in fade-in">
+                <div className="flex items-center gap-6 mb-8 border-b pb-6">
+                    <div className="text-6xl bg-indigo-50 p-4 rounded-full border-2 border-indigo-100">{selectedAvatar}</div>
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-100">{student.first_name} {student.last_name}</h2>
-                        <p className="text-indigo-400 font-medium">ID: #{student.student_code}</p>
+                        <h2 className="text-2xl font-bold text-gray-800">{student.first_name} {student.last_name}</h2>
+                        <p className="text-indigo-600 font-medium">ID: #{student.student_code}</p>
                     </div>
                 </div>
 
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase">Ad</label>
-                            <input disabled value={student.first_name} className="w-full p-3 bg-gray-800 border-none rounded-xl text-gray-300 font-medium cursor-not-allowed"/>
+                            <label className="text-xs font-bold text-gray-400 uppercase">Ad</label>
+                            <input disabled value={student.first_name} className="w-full p-3 bg-gray-100 border-none rounded-xl text-gray-600 font-medium cursor-not-allowed"/>
                         </div>
                         <div>
-                            <label className="text-xs font-bold text-gray-500 uppercase">Soyad</label>
-                            <input disabled value={student.last_name} className="w-full p-3 bg-gray-800 border-none rounded-xl text-gray-300 font-medium cursor-not-allowed"/>
+                            <label className="text-xs font-bold text-gray-400 uppercase">Soyad</label>
+                            <input disabled value={student.last_name} className="w-full p-3 bg-gray-100 border-none rounded-xl text-gray-600 font-medium cursor-not-allowed"/>
                         </div>
                     </div>
                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                             <label className="text-xs font-bold text-gray-500 uppercase">Qrup</label>
-                             <input disabled value={groupName} className="w-full p-3 bg-indigo-900/20 border border-indigo-500/30 rounded-xl text-indigo-400 font-bold cursor-not-allowed"/>
+                             <label className="text-xs font-bold text-gray-400 uppercase">Qrup</label>
+                             <input disabled value={groupName} className="w-full p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-bold cursor-not-allowed"/>
                         </div>
                          <div>
-                             <label className="text-xs font-bold text-gray-500 uppercase">Müəllim</label>
-                             <input disabled value={teacherName} className="w-full p-3 bg-indigo-900/20 border border-indigo-500/30 rounded-xl text-indigo-400 font-bold cursor-not-allowed"/>
+                             <label className="text-xs font-bold text-gray-400 uppercase">Müəllim</label>
+                             <input disabled value={teacherName} className="w-full p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-700 font-bold cursor-not-allowed"/>
                         </div>
                     </div>
                 </div>
@@ -372,12 +405,12 @@ export default function StudentCabinet() {
 
         {/* --- 3. İMTAHANLAR --- */}
         {activeTab === 'exams' && (
-            <div className="flex flex-col items-center justify-center min-h-[400px] bg-[#1F2937] rounded-2xl border border-dashed border-gray-700 animate-in fade-in">
-                <div className="bg-indigo-900/30 p-6 rounded-full mb-4">
+            <div className="flex flex-col items-center justify-center min-h-[400px] bg-white rounded-2xl shadow-sm border border-dashed border-gray-300 animate-in fade-in">
+                <div className="bg-indigo-50 p-6 rounded-full mb-4">
                     <PenTool size={48} className="text-indigo-400"/>
                 </div>
-                <h3 className="text-xl font-bold text-gray-200">İmtahan Girişi Aktiv Deyil</h3>
-                <p className="text-gray-500 mt-2 text-center max-w-md">Hal-hazırda aktiv imtahan yoxdur.</p>
+                <h3 className="text-xl font-bold text-gray-700">İmtahan Girişi Aktiv Deyil</h3>
+                <p className="text-gray-400 mt-2 text-center max-w-md">Hal-hazırda aktiv imtahan yoxdur.</p>
             </div>
         )}
 
