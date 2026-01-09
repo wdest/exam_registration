@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
-  TrendingUp, Activity, PieChart, ShieldCheck, PenTool, Image as ImageIcon
+  TrendingUp, Activity, PieChart, ShieldCheck, PenTool
 } from "lucide-react";
 
 const supabase = createClient(
@@ -39,7 +39,7 @@ export default function StudentCabinet() {
     const checkAuth = async () => {
       // Login-dən gələn tokeni (ID-ni) oxuyuruq
       const cookies = document.cookie.split("; ");
-      const tokenRow = cookies.find((row) => row.startsWith("student_token="));
+      const tokenRow = cookies.find((row) => row.trim().startsWith("student_token="));
       
       if (!tokenRow) {
         router.push("/student-login"); // Loginə at
@@ -58,8 +58,10 @@ export default function StudentCabinet() {
         
         // Əgər bazada avatar sütunu olsaydı ordan çəkərdik, hələlik local state
         // localStorage-dən avatarı oxuyaq (yadda qalsın deyə)
-        const savedAvatar = localStorage.getItem(`avatar_${sData.id}`);
-        if(savedAvatar) setSelectedAvatar(savedAvatar);
+        if (typeof window !== 'undefined') {
+            const savedAvatar = localStorage.getItem(`avatar_${sData.id}`);
+            if(savedAvatar) setSelectedAvatar(savedAvatar);
+        }
       }
       setLoading(false);
     };
@@ -114,13 +116,14 @@ export default function StudentCabinet() {
     setChartData(chart);
 
     // --- Son Jurnal (Tərsinə çevir - ən yeni üstdə) ---
-    setRecentGrades(grades.reverse().slice(0, 5));
+    // Massivi kopyalayırıq ki, orijinal sıralama pozulmasın (reverse mutable-dir)
+    setRecentGrades([...grades].reverse().slice(0, 5));
   };
 
   // Avatar Dəyişmək
   const handleAvatarChange = (avatar: string) => {
       setSelectedAvatar(avatar);
-      if(student) localStorage.setItem(`avatar_${student.id}`, avatar);
+      if(student && typeof window !== 'undefined') localStorage.setItem(`avatar_${student.id}`, avatar);
       setIsAvatarMenuOpen(false);
   };
 
