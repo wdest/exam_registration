@@ -11,6 +11,7 @@
     "xlsx": "^0.18.5",
     "@google/generative-ai": "^0.21.0",
     "lucide-react": "^0.469.0",
+    "recharts": "^2.13.0",   <--- BU SƏTRİ ƏLAVƏ EDİRSƏN
     "next": "latest",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
