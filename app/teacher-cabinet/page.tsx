@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, Trash2, Pencil, RefreshCcw,
-  BarChart3, TrendingUp, Activity, PieChart
+  BarChart3, TrendingUp, Activity, PieChart, Filter
 } from "lucide-react";
 
 const supabase = createClient(
@@ -59,8 +59,15 @@ export default function TeacherCabinet() {
   // --- ANALİZ STATE ---
   const [analyticsGroupId, setAnalyticsGroupId] = useState<string>("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState({ avgScore: 0, avgAttendance: 0 });
+  
+  // YENİ: Chart Tənzimləmələri
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [analysisMode, setAnalysisMode] = useState<'group' | 'individual'>('group'); // Qrup yoxsa Fərdi
+  const [selectedStudentForChart, setSelectedStudentForChart] = useState<string>(""); // Hansı uşaq
+  const [chartInterval, setChartInterval] = useState<'week' | 'month' | 'all'>('week'); // İnterval
+  const [analyticsStudentsList, setAnalyticsStudentsList] = useState<any[]>([]); // Dropdown üçün uşaqlar
+  const [rawGradesForChart, setRawGradesForChart] = useState<any[]>([]); // Chart üçün xam data
 
   // AUTH
   useEffect(() => {
@@ -87,18 +94,23 @@ export default function TeacherCabinet() {
     if (gData) setGroups(gData);
   };
 
-  // --- ANALİZ HESABLAMALARI (DÜZƏLİŞ EDİLDİ: 1-10 SİSTEMİ) ---
+  // --- ANALİZ HESABLAMALARI (YENİLƏNİB) ---
   const calculateAnalytics = async (groupId: string) => {
     if (!groupId) return;
     setAnalyticsGroupId(groupId);
 
+    // 1. Qrup üzvləri
     const { data: members } = await supabase.from('group_members').select(`student_id, local_students ( * )`).eq('group_id', groupId);
     if (!members) return;
     const studentsInGroup = members.map((m: any) => m.local_students);
+    setAnalyticsStudentsList(studentsInGroup); // Dropdown üçün saxla
 
+    // 2. Qiymətlər
     const { data: allGrades } = await supabase.from('daily_grades').select('*').eq('group_id', groupId).order('grade_date', { ascending: true });
     if (!allGrades) return;
+    setRawGradesForChart(allGrades); // Xam datanı saxla ki, filterləyə bilək
 
+    // --- CƏDVƏL HESABLAMASI (Həmişə qrup üzrə qalır) ---
     let totalGroupScore = 0;
     let totalGroupAttendance = 0;
     let scoreCount = 0;
@@ -106,7 +118,6 @@ export default function TeacherCabinet() {
 
     const stats = studentsInGroup.map((student: any) => {
         const studentGrades = allGrades.filter((g: any) => g.student_id === student.id);
-        
         const scoredDays = studentGrades.filter((g: any) => g.score !== null);
         const avgScore = scoredDays.length > 0 
             ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length 
@@ -121,13 +132,12 @@ export default function TeacherCabinet() {
 
         return {
             ...student,
-            avgScore: avgScore.toFixed(1), // Məs: 8.5
+            avgScore: avgScore.toFixed(1),
             attendanceRate: attendanceRate.toFixed(0),
             totalClasses: totalDays
         };
     });
 
-    // Sıralama
     stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
     setAnalyticsData(stats);
     setGroupStats({
@@ -135,33 +145,65 @@ export default function TeacherCabinet() {
         avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0
     });
 
-    // Chart Data Hazırlığı (10 bal = 100%)
-    const gradesByDate: {[key: string]: number[]} = {};
-    allGrades.forEach((g: any) => {
-        if (g.score !== null) {
-            if (!gradesByDate[g.grade_date]) gradesByDate[g.grade_date] = [];
-            gradesByDate[g.grade_date].push(g.score);
-        }
-    });
-
-    const chart = Object.keys(gradesByDate).map(date => {
-        const scores = gradesByDate[date];
-        const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-        return { date, avg: parseFloat(avg.toFixed(1)) };
-    });
-    setChartData(chart.slice(-10)); 
+    // İlk yüklənəndə Chart-ı yenilə
+    updateChart(allGrades, 'group', null, 'week');
   };
 
-  // --- CRUD ---
+  // --- CHART GENERATOR (SƏNİN İSTƏDİYİN HİSSƏ) ---
+  const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: 'week' | 'month' | 'all') => {
+      let filteredData = [...data];
+
+      // 1. Filtr: Fərdi yoxsa Qrup?
+      if (mode === 'individual' && studentId) {
+          filteredData = filteredData.filter(g => g.student_id.toString() === studentId.toString());
+      }
+
+      // 2. Qruplaşdırma (Tarixə görə)
+      const gradesByDate: {[key: string]: number[]} = {};
+      filteredData.forEach((g: any) => {
+          if (g.score !== null) {
+              if (!gradesByDate[g.grade_date]) gradesByDate[g.grade_date] = [];
+              gradesByDate[g.grade_date].push(g.score);
+          }
+      });
+
+      // 3. Ortalamaları hesabla
+      let chart = Object.keys(gradesByDate).map(date => {
+          const scores = gradesByDate[date];
+          const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+          return { date, avg: parseFloat(avg.toFixed(1)) };
+      });
+
+      // Tarixə görə sırala
+      chart.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      // 4. Interval (Slice)
+      if (interval === 'week') {
+          chart = chart.slice(-7); // Son 7 dərs
+      } else if (interval === 'month') {
+          chart = chart.slice(-30); // Təxmini son 1 ay (30 dərs günü)
+      }
+      // 'all' olanda hamısını göstər
+
+      setChartData(chart);
+  };
+
+  // UI-dan dəyişiklik gələndə Chart-ı yeniləyən funksiya
+  useEffect(() => {
+      if (rawGradesForChart.length > 0) {
+          updateChart(rawGradesForChart, analysisMode, selectedStudentForChart, chartInterval);
+      }
+  }, [analysisMode, selectedStudentForChart, chartInterval, rawGradesForChart]);
+
+
+  // --- CRUD (Old) ---
   const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const nameRegex = /^[a-zA-ZəüöğıçşƏÜÖĞIÇŞ\s]+$/;
     if (!nameRegex.test(newStudent.first_name) || !nameRegex.test(newStudent.last_name)) { alert("Ad/Soyad hərf olmalıdır!"); return; }
     if (newStudent.phone.length !== 7) { alert("Nömrə natamamdır (7 rəqəm)."); return; }
     if (!newStudent.grade) { alert("Sinif seçin."); return; }
-
     const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`;
-
     if (editingId) {
         const { error } = await supabase.from('local_students').update({ ...newStudent, phone: formattedPhone }).eq('id', editingId);
         if (!error) { alert("Yeniləndi!"); resetForm(); fetchData(teacher.id); }
@@ -172,27 +214,13 @@ export default function TeacherCabinet() {
         if (!error) { alert(`Əlavə edildi! ID: ${uniqueId}`); resetForm(); fetchData(teacher.id); }
     }
   };
-
-  const resetForm = () => {
-      setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] });
-      setPhonePrefix("050"); setEditingId(null);
-  };
-
+  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
   const startEdit = (student: any) => {
-      const rawPhone = student.phone || "";
-      let pPrefix = "050"; let pNumber = "";
+      const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = "";
       if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); }
-      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date });
-      setPhonePrefix(pPrefix); setEditingId(student.id);
+      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
   };
-
-  const deleteStudent = async (id: number) => {
-      if (confirm("Silmək istədiyinizə əminsiniz?")) {
-          const { error } = await supabase.from('local_students').delete().eq('id', id);
-          if (!error) { fetchData(teacher.id); if (editingId === id) resetForm(); }
-      }
-  };
-
+  const deleteStudent = async (id: number) => { if (confirm("Silmək istədiyinizə əminsiniz?")) { const { error } = await supabase.from('local_students').delete().eq('id', id); if (!error) { fetchData(teacher.id); if (editingId === id) resetForm(); } } };
   const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); setTempTime(""); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
   const handleCreateGroup = async (e: React.FormEvent) => {
@@ -201,51 +229,19 @@ export default function TeacherCabinet() {
     const { error } = await supabase.from('groups').insert([{ name: newGroupName, schedule: finalSchedule, teacher_id: teacher.id }]);
     if (!error) { alert("Qrup yaradıldı!"); setNewGroupName(""); setScheduleSlots([]); fetchData(teacher.id); }
   };
-
   const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
   const checkScheduleValidity = () => { if (!selectedGroup) return; setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[new Date(gradingDate).getDay()])); };
-  
-  const fetchGradesForDate = async () => {
-    if (!selectedGroup) return; setGrades({}); setAttendance({});
-    const { data } = await supabase.from('daily_grades').select('*').eq('group_id', selectedGroup.id).eq('grade_date', gradingDate);
-    if (data) { 
-        const nG: any = {}, nA: any = {}; 
-        data.forEach((r: any) => { 
-            if (r.score !== null) nG[r.student_id] = r.score; 
-            nA[r.student_id] = r.attendance; 
-        }); 
-        setGrades(nG); 
-        setAttendance(nA); 
-    }
-  };
-
+  const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); const { data } = await supabase.from('daily_grades').select('*').eq('group_id', selectedGroup.id).eq('grade_date', gradingDate); if (data) { const nG: any = {}, nA: any = {}; data.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } };
   const fetchGroupMembers = async (groupId: number) => { const { data } = await supabase.from('group_members').select(`student_id, local_students ( * )`).eq('group_id', groupId); if (data) setGroupStudents(data.map((item: any) => item.local_students)); };
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; const { error } = await supabase.from('group_members').insert({ group_id: selectedGroup.id, student_id: studentToAdd }); if (!error) { alert("Əlavə olundu!"); setStudentToAdd(""); fetchGroupMembers(selectedGroup.id); } else alert("Artıq qrupdadır."); };
-  
-  // --- SAVE (ATTENDANCE FIX) ---
   const saveGrades = async () => {
     if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return;
     await supabase.from('daily_grades').delete().eq('group_id', selectedGroup.id).eq('grade_date', gradingDate);
-    
-    const updates = groupStudents.map(student => ({ 
-        group_id: selectedGroup.id, 
-        student_id: student.id, 
-        grade_date: gradingDate, 
-        score: grades[student.id] ? parseInt(grades[student.id]) : null, 
-        attendance: attendance[student.id] !== false 
-    }));
-    
-    await supabase.from('daily_grades').insert(updates); 
-    alert("Yadda saxlanıldı!");
+    const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false }));
+    await supabase.from('daily_grades').insert(updates); alert("Yadda saxlanıldı!");
   };
-
-  // --- ATTENDANCE TOGGLE ---
-  const toggleAttendance = (studentId: string) => {
-      const currentStatus = attendance[studentId] !== false;
-      setAttendance({ ...attendance, [studentId]: !currentStatus });
-  };
-
+  const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
   const handleLogout = () => { document.cookie = "teacher_token=; path=/; max-age=0"; router.push("/login?type=teacher"); };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600">Yüklənir...</div>;
@@ -291,85 +287,118 @@ export default function TeacherCabinet() {
             </div>
         )}
 
+        {/* --- ANALİZ TABI (YENİ FUNKSİONALLIQ) --- */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in">
-                <div className="mb-8">
-                    <h2 className="text-2xl font-bold mb-4">Qrup Statistikası</h2>
-                    <select 
-                        className="p-3 border rounded-xl bg-white dark:bg-gray-800 w-full md:w-1/3 shadow-sm outline-none cursor-pointer"
-                        onChange={(e) => calculateAnalytics(e.target.value)}
-                        value={analyticsGroupId}
-                    >
-                        <option value="">Analiz üçün qrup seçin...</option>
-                        {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                    </select>
+                <div className="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                    <div className="w-full md:w-1/3">
+                        <h2 className="text-2xl font-bold mb-2">Statistika</h2>
+                        <select 
+                            className="p-3 border rounded-xl bg-white dark:bg-gray-800 w-full shadow-sm outline-none cursor-pointer"
+                            onChange={(e) => calculateAnalytics(e.target.value)}
+                            value={analyticsGroupId}
+                        >
+                            <option value="">Analiz üçün qrup seçin...</option>
+                            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
+                    
+                    {/* FİLTRLƏR */}
+                    {analyticsGroupId && (
+                        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                            {/* Rejim Seçimi */}
+                            <div className="bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-700 flex">
+                                <button onClick={() => setAnalysisMode('group')} className={`px-4 py-2 rounded-md text-sm font-bold transition ${analysisMode === 'group' ? 'bg-blue-100 text-blue-600' : 'text-gray-500'}`}>Qrup</button>
+                                <button onClick={() => setAnalysisMode('individual')} className={`px-4 py-2 rounded-md text-sm font-bold transition ${analysisMode === 'individual' ? 'bg-blue-100 text-blue-600' : 'text-gray-500'}`}>Fərdi</button>
+                            </div>
+
+                            {/* Şagird Seçimi (Fərdi Modda) */}
+                            {analysisMode === 'individual' && (
+                                <select 
+                                    className="p-2 border rounded-lg bg-white dark:bg-gray-800 text-sm w-40"
+                                    value={selectedStudentForChart}
+                                    onChange={(e) => setSelectedStudentForChart(e.target.value)}
+                                >
+                                    <option value="">Şagird seç...</option>
+                                    {analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                                </select>
+                            )}
+
+                            {/* İnterval Seçimi */}
+                            <div className="bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-700 flex">
+                                <button onClick={() => setChartInterval('week')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'week' ? 'bg-gray-200 text-gray-800' : 'text-gray-400'}`}>Son 7 Dərs</button>
+                                <button onClick={() => setChartInterval('month')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'month' ? 'bg-gray-200 text-gray-800' : 'text-gray-400'}`}>Bu Ay</button>
+                                <button onClick={() => setChartInterval('all')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'all' ? 'bg-gray-200 text-gray-800' : 'text-gray-400'}`}>İllik</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {analyticsGroupId && (
                     <div className="space-y-8">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div><p className="text-gray-500 text-sm font-bold">Ortalama Bal</p><h3 className="text-4xl font-bold text-blue-600">{groupStats.avgScore}</h3></div>
-                                <div className="p-4 bg-blue-50 rounded-full text-blue-600"><TrendingUp size={32}/></div>
-                            </div>
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div><p className="text-gray-500 text-sm font-bold">Davamiyyət Faizi</p><h3 className="text-4xl font-bold text-green-600">{groupStats.avgAttendance}%</h3></div>
-                                <div className="p-4 bg-green-50 rounded-full text-green-600"><PieChart size={32}/></div>
-                            </div>
-                        </div>
-
-                        {chartData.length > 0 && (
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
-                                <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Activity size={20} className="text-purple-600"/> Trend (Son Dərslər)</h3>
-                                <div className="h-64 flex items-end justify-between gap-2 px-2">
+                        {/* CHART (QRAFİK) - FIX EDİLDİ */}
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
+                            <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                                <Activity size={20} className="text-purple-600"/> 
+                                {analysisMode === 'group' ? 'Qrup Üzrə Trend' : 'Fərdi İnkişaf Trendi'}
+                            </h3>
+                            
+                            {chartData.length > 0 ? (
+                                <div className="h-64 flex items-end justify-between gap-4 px-2 border-b dark:border-gray-700 pb-2">
                                     {chartData.map((d, i) => (
-                                        <div key={i} className="flex flex-col items-center flex-1 group relative">
-                                            <div className="absolute -top-8 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition mb-2">
-                                                {d.avg} Bal
+                                        <div key={i} className="flex flex-col items-center flex-1 group relative h-full justify-end">
+                                            {/* Tooltip */}
+                                            <div className="absolute -top-10 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition z-10 whitespace-nowrap">
+                                                {d.date}: <strong>{d.avg}</strong> Bal
                                             </div>
-                                            {/* Bar hündürlüyü: 10 bal = 100%. (avg * 10) */}
+                                            {/* Bar - Hündürlük minimum 5% olsun ki görünsün */}
                                             <div 
-                                                className="w-full bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all relative"
-                                                style={{ height: `${Math.min(d.avg * 10, 100)}%` }} // Max 100%
+                                                className={`w-full max-w-[40px] rounded-t-md transition-all relative ${d.avg >= 9 ? 'bg-green-500' : d.avg >= 6 ? 'bg-blue-500' : 'bg-orange-500'} hover:opacity-80`}
+                                                style={{ height: `${Math.max(d.avg * 10, 2)}%` }} 
                                             ></div>
-                                            <span className="text-[10px] text-gray-400 mt-2 font-medium -rotate-45 origin-left translate-y-2">{d.date.slice(5)}</span>
+                                            {/* Date */}
+                                            <span className="text-[10px] text-gray-400 mt-3 font-medium -rotate-45 origin-left truncate w-full text-center">{d.date.slice(5)}</span>
                                         </div>
                                     ))}
                                 </div>
+                            ) : (
+                                <div className="h-40 flex items-center justify-center text-gray-400 text-sm">Bu intervalda məlumat yoxdur</div>
+                            )}
+                        </div>
+
+                        {/* ŞAGİRD REYTİNQ CƏDVƏLİ (Yalnız Qrup rejimində görünür) */}
+                        {analysisMode === 'group' && (
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
+                                <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold border-b dark:border-gray-600">
+                                        <tr><th className="p-3">#</th><th className="p-3">Şagird</th><th className="p-3">Ortalama</th><th className="p-3">Davamiyyət</th><th className="p-3">Status</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {analyticsData.map((s, index) => (
+                                            <tr key={s.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                <td className="p-3 font-bold text-gray-400">{index + 1}</td>
+                                                <td className="p-3 font-medium">{s.first_name} {s.last_name}</td>
+                                                <td className="p-3 font-bold text-blue-600 text-lg">{s.avgScore}</td>
+                                                <td className="p-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                            <div className={`h-full ${parseFloat(s.attendanceRate) > 80 ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${s.attendanceRate}%` }}></div>
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">{s.attendanceRate}%</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-3">
+                                                    {parseFloat(s.avgScore) >= 9 ? <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Əlaçı</span> :
+                                                     parseFloat(s.avgScore) >= 7 ? <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
+                                                     <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
-
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
-                            <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
-                            <table className="w-full text-left text-sm">
-                                <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold border-b dark:border-gray-600">
-                                    <tr><th className="p-3">#</th><th className="p-3">Şagird</th><th className="p-3">Ortalama (10)</th><th className="p-3">Davamiyyət</th><th className="p-3">Status</th></tr>
-                                </thead>
-                                <tbody>
-                                    {analyticsData.map((s, index) => (
-                                        <tr key={s.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                                            <td className="p-3 font-bold text-gray-400">{index + 1}</td>
-                                            <td className="p-3 font-medium">{s.first_name} {s.last_name}</td>
-                                            <td className="p-3 font-bold text-blue-600 text-lg">{s.avgScore}</td>
-                                            <td className="p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                        <div className={`h-full ${parseFloat(s.attendanceRate) > 80 ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${s.attendanceRate}%` }}></div>
-                                                    </div>
-                                                    <span className="text-xs text-gray-500">{s.attendanceRate}%</span>
-                                                </div>
-                                            </td>
-                                            <td className="p-3">
-                                                {/* STATUS MƏNTİQİ: 9-dan yuxarı Əlaçı */}
-                                                {parseFloat(s.avgScore) >= 9 ? <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Əlaçı</span> :
-                                                 parseFloat(s.avgScore) >= 7 ? <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
-                                                 <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 )}
                 
@@ -529,13 +558,11 @@ export default function TeacherCabinet() {
                                                 <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
                                                 <td className="p-3 border dark:border-gray-600 font-medium">{s.first_name} {s.last_name}</td>
                                                 <td className="p-3 border dark:border-gray-600 text-center">
-                                                    {/* İştirak Düyməsi (Sadə Toggle) */}
                                                     <button onClick={() => toggleAttendance(s.id)}>
                                                         {attendance[s.id] !== false ? <CheckCircle className="text-green-500 mx-auto" size={24} /> : <XCircle className="text-red-500 mx-auto" size={24} />}
                                                     </button>
                                                 </td>
                                                 <td className="p-3 border dark:border-gray-600">
-                                                    {/* Bal Girişi (Max 10) */}
                                                     <input 
                                                         type="number" 
                                                         min="0" 
@@ -545,7 +572,7 @@ export default function TeacherCabinet() {
                                                         value={grades[s.id] || ""} 
                                                         onChange={(e) => {
                                                             let val = e.target.value;
-                                                            if(Number(val) > 10) val = "10"; // Limit 10
+                                                            if(Number(val) > 10) val = "10"; 
                                                             setGrades({...grades, [s.id]: val});
                                                         }} 
                                                     />
