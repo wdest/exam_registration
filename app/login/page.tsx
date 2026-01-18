@@ -8,18 +8,16 @@ import {
   User, ArrowLeft, Loader2, Eye, EyeOff, 
   GraduationCap, Presentation, KeyRound, ShieldCheck 
 } from "lucide-react";
+// Animasiya kitabxanasını əlavə edirik
+import { motion } from "framer-motion"; 
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  // 🔒 GİZLİ MƏNTİQ BURADADIR
-  // Uşaqlar URL-də "?type=admin" yazsa belə admin açılmayacaq.
-  // Yalnız "?key=moc_gizli_giris" yazsan admin görünəcək.
   const secretKey = searchParams.get("key");
   const isAdminUnlocked = secretKey === "moc_gizli_giris"; 
 
-  // URL-dən tipi oxuyuruq, amma admin olmağa icazə varsa
   const urlType = searchParams.get("type");
   const initialType = (urlType === "admin" && isAdminUnlocked) ? "admin" : (urlType || "student");
 
@@ -31,7 +29,6 @@ function LoginContent() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Əgər kimsə əllə url-i dəyişib admin etmək istəsə və açarı yoxdursa, student-ə at
     if (urlType === "admin" && !isAdminUnlocked) {
         setActiveTab("student");
     } else if (urlType) {
@@ -51,7 +48,6 @@ function LoginContent() {
         body: JSON.stringify({
           type: activeTab,
           identifier,
-          // Şagirdin şifrəsi yoxdur
           password: activeTab === 'student' ? null : password
         }),
       });
@@ -68,17 +64,20 @@ function LoginContent() {
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      // Uğurlu olsa belə loading qalsın ki, keçid zamanı ağ ekran görünməsin
+      if (!error) {
+         // setLoading(false) - bunu bilərəkdən bağlamırıq ki, səhifə dəyişənə qədər fırlansın
+      } else {
+         setLoading(false);
+      }
     }
   }
 
-  // --- TABLAR ---
   const defaultTabs = [
     { id: "student", label: "Şagird", icon: GraduationCap },
     { id: "teacher", label: "Müəllim", icon: Presentation },
   ];
 
-  // Admin tabını yalnız "Secret Key" varsa siyahıya əlavə edirik
   const tabs = isAdminUnlocked 
     ? [...defaultTabs, { id: "admin", label: "Admin", icon: ShieldCheck }]
     : defaultTabs;
@@ -86,23 +85,50 @@ function LoginContent() {
   return (
     <div className="fixed inset-0 z-[100] flex bg-white font-sans overflow-auto">
       
-      {/* SOL DEKOR (Narıncı Dizayn) */}
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-amber-500 to-orange-600 relative items-center justify-center overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"></div>
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-orange-700/20 rounded-full blur-3xl -ml-20 -mb-20"></div>
+      {/* SOL DEKOR - Animasiyalı */}
+      <motion.div 
+        initial={{ x: -100, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="hidden lg:flex w-1/2 bg-gradient-to-br from-amber-500 to-orange-600 relative items-center justify-center overflow-hidden"
+      >
+        <motion.div 
+           animate={{ scale: [1, 1.1, 1] }} 
+           transition={{ repeat: Infinity, duration: 10 }}
+           className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"
+        ></motion.div>
+        <motion.div 
+           animate={{ scale: [1, 1.2, 1] }} 
+           transition={{ repeat: Infinity, duration: 8, delay: 1 }}
+           className="absolute bottom-0 left-0 w-80 h-80 bg-orange-700/20 rounded-full blur-3xl -ml-20 -mb-20"
+        ></motion.div>
+        
         <div className="text-center text-white z-10 p-10">
-            <h2 className="text-4xl font-black mb-4 tracking-tight">Main Olympic Center</h2>
+            <h2 className="text-4xl font-black mb-4 tracking-tight drop-shadow-md">Main Olympic Center</h2>
             <p className="text-orange-100 text-lg max-w-md mx-auto">Təhsilin zirvəsinə doğru.</p>
         </div>
-      </div>
+      </motion.div>
 
-      {/* SAĞ FORM */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 bg-gray-50/30 relative">
+      {/* SAĞ FORM - Animasiyalı */}
+      <motion.div 
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 bg-gray-50/30 relative"
+      >
         <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-gray-500 hover:text-amber-600 transition font-medium z-10">
             <ArrowLeft size={20} /> Ana Səhifə
         </Link>
 
-        <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+        <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100 relative overflow-hidden">
+            {/* Yüklənmə zamanı üstə gələn overlay */}
+            {loading && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center animate-in fade-in">
+                    <Loader2 size={48} className="text-amber-500 animate-spin mb-2" />
+                    <p className="text-gray-500 font-bold animate-pulse">Giriş edilir...</p>
+                </div>
+            )}
+
             <div className="text-center mb-8">
                 <h3 className="text-2xl font-black text-gray-800">
                     {activeTab === 'admin' ? "Gizli Admin Paneli 🛡️" : "Giriş Paneli 🎓"}
@@ -116,7 +142,7 @@ function LoginContent() {
                         key={tab.id}
                         onClick={() => { setActiveTab(tab.id); setError(""); setIdentifier(""); setPassword(""); }}
                         className={`flex flex-col items-center justify-center py-3 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === tab.id ? "bg-white shadow text-gray-800" : "text-gray-400 hover:bg-gray-200/50"
+                            activeTab === tab.id ? "bg-white shadow text-gray-800 scale-105" : "text-gray-400 hover:bg-gray-200/50"
                         }`}
                     >
                         <tab.icon size={20} className={`mb-1 ${activeTab === tab.id ? "text-amber-500" : ""}`} />
@@ -126,7 +152,7 @@ function LoginContent() {
             </div>
 
             <form onSubmit={handleLogin} className="space-y-5">
-                <div>
+                <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">
                         {activeTab === "teacher" || activeTab === "admin" ? "İstifadəçi Adı" : "Şagird ID"}
                     </label>
@@ -143,11 +169,10 @@ function LoginContent() {
                             required
                         />
                     </div>
-                </div>
+                </motion.div>
 
-                {/* Şifrə Input (Student xaric hamı üçün) */}
                 {activeTab !== "student" && (
-                    <div>
+                    <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4 }}>
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Şifrə</label>
                         <div className="relative group">
                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
@@ -164,17 +189,27 @@ function LoginContent() {
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
                         </div>
-                    </div>
+                    </motion.div>
                 )}
 
-                {error && <div className="p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center gap-2">⚠️ {error}</div>}
+                {error && (
+                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center gap-2">
+                        ⚠️ {error}
+                    </motion.div>
+                )}
 
-                <button type="submit" disabled={loading} className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:to-orange-700 shadow-lg transition-all flex justify-center items-center">
-                    {loading ? <Loader2 className="animate-spin" /> : "Daxil Ol"}
-                </button>
+                <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit" 
+                    disabled={loading} 
+                    className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:to-orange-700 shadow-lg transition-all flex justify-center items-center"
+                >
+                    {loading ? "Yoxlanılır..." : "Daxil Ol"}
+                </motion.button>
             </form>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
