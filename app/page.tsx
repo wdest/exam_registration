@@ -92,7 +92,7 @@ export default function LandingPage() {
               </Link>
 
               <Link 
-                href="/student-login" 
+                href="/login" 
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 hover:bg-amber-50 text-gray-700 hover:text-amber-600 transition font-bold border border-gray-100"
               >
                   <UserCircle size={20} />
