@@ -9,6 +9,7 @@ import {
   BarChart3, TrendingUp, Activity, PieChart, Filter
 } from "lucide-react";
 
+// Supabase client-side (sadəcə real-time və ya əlavə sorğular üçün qala bilər)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -61,7 +62,7 @@ export default function TeacherCabinet() {
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState({ avgScore: 0, avgAttendance: 0 });
   
-  // CHART CONFIG (YENİ)
+  // CHART CONFIG
   const [chartData, setChartData] = useState<any[]>([]);
   const [analysisMode, setAnalysisMode] = useState<'group' | 'individual'>('group'); 
   const [selectedStudentForChart, setSelectedStudentForChart] = useState<string>(""); 
@@ -69,18 +70,34 @@ export default function TeacherCabinet() {
   const [analyticsStudentsList, setAnalyticsStudentsList] = useState<any[]>([]); 
   const [rawGradesForChart, setRawGradesForChart] = useState<any[]>([]); 
 
-  // AUTH
+  // --- YENİLƏNMİŞ AUTHENTICATION (Login Problemini Həll Edir) ---
   useEffect(() => {
-    const checkAuth = async () => {
-      const cookies = document.cookie.split("; ");
-      const hasToken = cookies.find((row) => row.startsWith("teacher_token="));
-      if (!hasToken) { router.push("/login?type=teacher"); return; }
+    const initData = async () => {
+        try {
+            // Birbaşa Server API-dən soruşuruq: "Mən kiməm?"
+            const res = await fetch("/api/teacher/dashboard");
+            
+            if (res.status === 401 || res.status === 403) {
+                // Giriş yoxdursa -> Loginə at
+                router.push("/login");
+                return;
+            }
 
-      const { data } = await supabase.from('teachers').select('*').limit(1).single();
-      if (data) { setTeacher(data); fetchData(data.id); }
-      setLoading(false);
+            const data = await res.json();
+            if (data.teacher) {
+                setTeacher(data.teacher);
+                // Müəllim tapıldısa, dataları yüklə
+                fetchData(data.teacher.id);
+            }
+        } catch (error) {
+            console.error("Auth error:", error);
+            router.push("/login");
+        } finally {
+            setLoading(false);
+        }
     };
-    checkAuth();
+
+    initData();
   }, [router]);
 
   const fetchData = async (teacherId: number) => {
@@ -185,8 +202,6 @@ export default function TeacherCabinet() {
       });
 
       // 4. İnterval Limitləri
-      // Əgər həftəlik/aylıqdırsa label-a görə düzmək çətindir (stringdir), ona görə sadə saxlayırıq
-      // Günlük üçün tarixə görə sort edirik
       if (interval === 'lessons4') {
           chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
           chartResult = chartResult.slice(-4);
@@ -206,7 +221,7 @@ export default function TeacherCabinet() {
   }, [analysisMode, selectedStudentForChart, chartInterval, rawGradesForChart]);
 
 
-  // --- CRUD (FULL FUNCTIONS RESTORED) ---
+  // --- CRUD ---
   const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const nameRegex = /^[a-zA-ZəüöğıçşƏÜÖĞIÇŞ\s]+$/;
@@ -238,7 +253,6 @@ export default function TeacherCabinet() {
   
   const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
   
-  // Date Fix (Dərs Günü Yoxlanışı)
   const checkScheduleValidity = () => {
     if (!selectedGroup || !gradingDate) return;
     const parts = gradingDate.split('-'); 
@@ -252,9 +266,25 @@ export default function TeacherCabinet() {
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; const { error } = await supabase.from('group_members').insert({ group_id: selectedGroup.id, student_id: studentToAdd }); if (!error) { alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); } else alert("Var!"); };
   const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; await supabase.from('daily_grades').delete().eq('group_id', selectedGroup.id).eq('grade_date', gradingDate); const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); await supabase.from('daily_grades').insert(updates); alert("Saxlanıldı!"); };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
-  const handleLogout = () => { document.cookie = "teacher_token=; path=/; max-age=0"; router.push("/student-login?type=teacher"); };
+  
+  // YENİLƏNMİŞ ÇIXIŞ
+  const handleLogout = async () => { 
+      try {
+          await fetch("/api/logout", { method: "POST" });
+          router.push("/login");
+          router.refresh();
+      } catch (error) {
+          console.error(error);
+          router.push("/login");
+      }
+  };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-blue-600">Yüklənir...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-blue-600 font-bold text-lg animate-pulse">Kabinet Yüklənir...</p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans">
@@ -267,19 +297,20 @@ export default function TeacherCabinet() {
       </nav>
 
       <main className="p-4 md:p-8 max-w-7xl mx-auto">
-        <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
-            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Users size={20} /> Dashboard</button>
-            <button onClick={() => setActiveTab('students')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'students' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><GraduationCap size={20} /> Şagird</button>
-            <button onClick={() => setActiveTab('groups')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'groups' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BookOpen size={20} /> Jurnal</button>
-            <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 ${activeTab === 'analytics' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
+        <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
+            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Users size={20} /> Dashboard</button>
+            <button onClick={() => setActiveTab('students')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'students' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><GraduationCap size={20} /> Şagird</button>
+            <button onClick={() => setActiveTab('groups')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'groups' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BookOpen size={20} /> Jurnal</button>
+            <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
         </div>
 
-        {/* --- DASHBOARD UI (RESTORED) --- */}
+        {/* --- DASHBOARD UI --- */}
         {activeTab === 'dashboard' && (
-            <div className="animate-in fade-in">
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg mb-8">
-                    <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, {teacher?.full_name || teacher?.username}! 👋</h2>
-                    <p className="opacity-90">Bu gün: {new Date().toLocaleDateString('az-AZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+            <div className="animate-in fade-in duration-500">
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg mb-8 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+                    <h2 className="text-3xl font-bold mb-2 relative z-10">Xoş Gəldiniz, {teacher?.full_name || teacher?.username}! 👋</h2>
+                    <p className="opacity-90 relative z-10">Bu gün: {new Date().toLocaleDateString('az-AZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div onClick={() => setActiveTab('students')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4">
@@ -298,7 +329,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- STUDENTS UI (RESTORED) --- */}
+        {/* --- STUDENTS UI --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-fit sticky top-24">
@@ -352,7 +383,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- GROUPS UI (RESTORED) --- */}
+        {/* --- GROUPS UI --- */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 <div className="lg:col-span-1 space-y-6">
@@ -451,7 +482,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- ANALYTICS UI (UPDATED) --- */}
+        {/* --- ANALYTICS UI --- */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in">
                 <div className="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
@@ -533,7 +564,7 @@ export default function TeacherCabinet() {
                             </div>
                         )}
 
-                        {/* REYTİNQ (Only Group Mode) */}
+                        {/* REYTİNQ */}
                         {analysisMode === 'group' && (
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
                                 <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
