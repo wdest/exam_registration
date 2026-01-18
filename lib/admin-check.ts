@@ -1,9 +1,9 @@
 import { cookies } from "next/headers";
 
-export function checkAdminAuth() {
-  const cookieStore = cookies();
+// DİQQƏT: Funksiya 'async' olmalıdır
+export async function checkAdminAuth() {
+  const cookieStore = await cookies(); // <-- await əlavə olundu
   const adminCookie = cookieStore.get("super_admin_access"); 
 
-  // Əgər kuki yoxdursa və ya dəyəri 'true' deyilsə -> YALAN
   return adminCookie?.value === "true";
 }
