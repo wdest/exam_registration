@@ -8,16 +8,16 @@ import { Home, PenTool, ClipboardList, Zap } from "lucide-react";
 export default function Navbar() {
   const pathname = usePathname();
 
-  // BU HİSSƏNİ DƏYİŞDİK: 
-  // Artıq student və teacher səhifələrində Navbar görünməyəcək
+  // --- GİZLƏTMƏ MƏNTİQİ ---
   if (
-    pathname === "/" || 
-    pathname === "/student-login" || 
-    pathname === "/redirect" || 
-    pathname.startsWith("/student") ||        // Şagird panelində gizlət
-    pathname.startsWith("/teacher-cabinet")   // Müəllim panelində gizlət
+    pathname === "/" ||                   // 1. Ana Səhifədə gizlət
+    pathname === "/login" ||              // 2. Yeni Login səhifəsində gizlət
+    pathname === "/student-login" ||      // (Köhnə login varsa, orada da gizlət)
+    pathname === "/redirect" ||           // Redirect səhifəsində gizlət
+    pathname.startsWith("/student") ||    // 3. Şagird kabinetinin içində hər yerdə gizlət
+    pathname.startsWith("/teacher-cabinet") // 4. Müəllim kabinetinin içində hər yerdə gizlət
   ) {
-    return null;
+    return null; // Bu şərtlər ödənərsə, Navbar render olunmur
   }
 
   const isActive = (path: string) => pathname === path;
@@ -44,16 +44,14 @@ export default function Navbar() {
           {/* SAĞ TƏRƏF - MENYU LİNKLƏRİ */}
           <div className="flex items-center gap-2 md:gap-4">
             
-            {/* Ana Səhifə */}
-            {!isActive("/") && (
-              <Link 
+            {/* Ana Səhifəyə qayıtmaq üçün link */}
+            <Link 
                 href="/" 
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition"
-              >
+            >
                 <Home size={18} />
                 <span className="hidden md:inline">Ana Səhifə</span>
-              </Link>
-            )}
+            </Link>
 
             {/* Qeydiyyat */}
             {!isActive("/exam") && (
@@ -80,7 +78,7 @@ export default function Navbar() {
             {/* İmtahana Başla */}
             {!isActive("/redirect") && (
               <Link 
-                href="/redirect" 
+                href="/login" 
                 className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 transition border border-amber-200"
               >
                 <Zap size={18} className="text-amber-500" />
