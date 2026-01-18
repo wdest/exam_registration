@@ -8,7 +8,7 @@ import {
   Users, Settings, Image as ImageIcon, LogOut, Search, Download, 
   Save, Upload, Trash2, RefreshCw, Edit, X, Link as LinkIcon, 
   PlusCircle, ExternalLink, FileText, CheckCircle, AlertCircle, 
-  Loader2, Filter, FileImage 
+  Loader2, Filter, FileImage, DollarSign 
 } from "lucide-react";
 
 const supabase = createClient(
@@ -42,13 +42,16 @@ interface GalleryItem {
   image_url: string;
 }
 
+// YENİLƏNDİ: Qiymət və Ödəniş statusu əlavə olundu
 interface Exam {
   id: number;
   name: string;
   url: string;
   class_grade: string;
   created_at?: string;
-  certificate_url?: string; // Yeni sütun
+  certificate_url?: string; 
+  is_paid: boolean; // YENİ
+  price: number;    // YENİ
 }
 
 export default function AdminDashboard() {
@@ -70,6 +73,10 @@ export default function AdminDashboard() {
   const [newExamName, setNewExamName] = useState("");
   const [newExamUrl, setNewExamUrl] = useState("");
   const [newExamClass, setNewExamClass] = useState("1");
+  
+  // YENİ: Ödəniş State-ləri
+  const [isPaid, setIsPaid] = useState(false);
+  const [examPrice, setExamPrice] = useState("0");
 
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
@@ -107,7 +114,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- İMTAHAN ƏMƏLİYYATLARI ---
+  // --- İMTAHAN ƏMƏLİYYATLARI (YENİLƏNDİ) ---
   async function addExam(e: React.FormEvent) {
     e.preventDefault();
     if (!newExamName || !newExamUrl || !newExamClass) return alert("Zəhmət olmasa bütün xanaları doldurun.");
@@ -115,7 +122,9 @@ export default function AdminDashboard() {
     const { error } = await supabase.from("exams").insert({
         name: newExamName,
         url: newExamUrl,
-        class_grade: newExamClass 
+        class_grade: newExamClass,
+        is_paid: isPaid,                          // YENİ
+        price: isPaid ? parseFloat(examPrice) : 0 // YENİ
     });
 
     if (error) {
@@ -124,6 +133,8 @@ export default function AdminDashboard() {
         alert("İmtahan linki əlavə olundu! ✅");
         setNewExamName("");
         setNewExamUrl("");
+        setIsPaid(false); // Reset
+        setExamPrice("0"); // Reset
         fetchAllData();
     }
   }
@@ -245,7 +256,7 @@ export default function AdminDashboard() {
     reader.readAsBinaryString(file);
   }
 
-  // --- SERTİFİKAT ŞABLONU YÜKLƏMƏ (YENİ) ---
+  // --- SERTİFİKAT ŞABLONU YÜKLƏMƏ ---
   async function handleCertificateUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files || e.target.files.length === 0) return;
     
@@ -262,7 +273,7 @@ export default function AdminDashboard() {
       const file = e.target.files[0];
       const fileExt = file.name.split('.').pop();
       const fileName = `cert_${Date.now()}.${fileExt}`;
-      const filePath = `certificates/${fileName}`; // certificates qovluğuna yükləyirik
+      const filePath = `certificates/${fileName}`; 
 
       const { error: uploadError } = await supabase.storage
         .from("images")
@@ -355,8 +366,10 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
+  // --- LOGOUT (MIDDLEWARE İLƏ UYĞUNLAŞDIRILDI) ---
   function logout() {
-    document.cookie = "admin_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    // Sənin middleware 'auth_token' axtarır. Çıxış edəndə onu silirik.
+    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
     router.push("/login");
   }
 
@@ -515,14 +528,16 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: EXAMS */}
+          {/* TAB: EXAMS (YENİLƏNDİ - ÖDƏNİŞ SİSTEMİ İLƏ) */}
           {activeTab === "exams" && (
             <div className="max-w-4xl mx-auto space-y-8">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                         <PlusCircle className="text-amber-500" /> Yeni İmtahan Linki Yarat
                     </h2>
-                    <form onSubmit={addExam} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                    <form onSubmit={addExam} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        {/* Sinif */}
                         <div className="col-span-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">Sinif</label>
                             <select 
@@ -544,7 +559,9 @@ export default function AdminDashboard() {
                                 <option value="Müəllimlər">Müəllimlər</option>
                             </select>
                         </div>
-                        <div className="col-span-1 md:col-span-1">
+                        
+                        {/* İmtahan Adı */}
+                        <div className="col-span-1">
                             <label className="block text-sm font-bold text-gray-700 mb-1">İmtahan Adı</label>
                             <input 
                                 placeholder="Məs: Blok İmtahanı"
@@ -553,7 +570,9 @@ export default function AdminDashboard() {
                                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                             />
                         </div>
-                        <div className="col-span-1 md:col-span-1">
+
+                        {/* URL */}
+                        <div className="col-span-2">
                             <label className="block text-sm font-bold text-gray-700 mb-1">Link (URL)</label>
                             <input 
                                 placeholder="https://..."
@@ -562,7 +581,34 @@ export default function AdminDashboard() {
                                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                             />
                         </div>
-                        <div className="col-span-1">
+
+                        {/* ÖDƏNİŞ SİSTEMİ (YENİ) */}
+                        <div className="col-span-2 flex items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                             <label className="flex items-center gap-2 cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={isPaid} 
+                                    onChange={(e) => setIsPaid(e.target.checked)}
+                                    className="w-5 h-5 text-amber-500 rounded focus:ring-amber-500"
+                                />
+                                <span className="font-bold text-gray-700">Ödənişli İmtahan</span>
+                             </label>
+
+                             {isPaid && (
+                                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                                    <label className="text-sm font-bold text-gray-600">Qiymət (AZN):</label>
+                                    <input 
+                                        type="number"
+                                        value={examPrice}
+                                        onChange={(e) => setExamPrice(e.target.value)}
+                                        className="w-24 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+                                        min="0"
+                                    />
+                                </div>
+                             )}
+                        </div>
+
+                        <div className="col-span-2">
                             <button type="submit" className="w-full bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-lg font-bold transition flex justify-center items-center gap-2">
                                 <Save size={18} /> Əlavə et
                             </button>
@@ -582,6 +628,16 @@ export default function AdminDashboard() {
                                         <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded-md border border-blue-200">
                                             {exam.class_grade}-ci sinif
                                         </span>
+                                        {/* YENİ: Qiymət Etiketi */}
+                                        {exam.is_paid ? (
+                                            <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-md border border-green-200 flex items-center gap-1">
+                                                <DollarSign size={12} /> {exam.price} AZN
+                                            </span>
+                                        ) : (
+                                            <span className="bg-gray-200 text-gray-600 text-xs font-bold px-2 py-1 rounded-md border border-gray-300">
+                                                Ödənişsiz
+                                            </span>
+                                        )}
                                         <h3 className="font-bold text-gray-800">{exam.name}</h3>
                                     </div>
                                     <a href={exam.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 text-sm hover:underline flex items-center gap-1 break-all">
@@ -603,7 +659,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: RESULTS (YENİLƏNDİ - SERTİFİKAT YÜKLƏMƏ İLƏ) */}
+          {/* TAB: RESULTS */}
           {activeTab === "results" && (
              <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
                 
@@ -722,7 +778,7 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* TAB: SETTINGS (QAYTARILDI) */}
+          {/* TAB: SETTINGS */}
           {activeTab === "settings" && (
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-200 max-w-4xl mx-auto">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -730,7 +786,6 @@ export default function AdminDashboard() {
               </h2>
               <div className="space-y-6">
                 {settings
-                  // FİLTR: "Sinif" sözü olanları gizlət
                   .filter(item => !item.label.includes("Sinif"))
                   .map((item) => (
                   <div key={item.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
@@ -757,14 +812,14 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB: GALLERY (QAYTARILDI) */}
+          {/* TAB: GALLERY */}
           {activeTab === "gallery" && (
              <div className="space-y-8 max-w-6xl mx-auto">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border flex justify-between items-center">
                   <h2 className="text-lg font-bold flex items-center gap-2"><ImageIcon size={22} className="text-amber-500" /> Qalereya</h2>
                   <label className={`cursor-pointer flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg ${uploading ? 'opacity-70' : ''}`}>
                     {uploading ? <RefreshCw className="animate-spin" /> : <Upload size={20} />}
-                    {uploading ? "Yüklənir..." : "Yeni Şəkil"}
+                    {uploading ? "Yüklənir..." : "Yeni Şəkil"}<br/>
                     <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
                   </label>
                 </div>
