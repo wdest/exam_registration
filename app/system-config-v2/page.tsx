@@ -14,7 +14,7 @@ export default function SecretEntry() {
 
     // --- GİZLİ ŞİFRƏ (PIN) ---
     // Bunu özün təyin et. Məsələn: 'moc2026'
-    if (pin === "moc2026") {
+    if (pin === "zpOb0PT2RMTIK4WC") {
       
       // Brauzerə xüsusi "Möhür" (Cookie) vururuq.
       // Bu möhür olmadan Admin panel açılmayacaq.
