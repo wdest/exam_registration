@@ -13,19 +13,16 @@ export default function SecretEntry() {
     e.preventDefault();
 
     // --- GİZLİ ŞİFRƏ (PIN) ---
-    // Bunu özün təyin et. Məsələn: 'moc2026'
     if (pin === "zpOb0PT2RMTIK4WC") {
       
       // Brauzerə xüsusi "Möhür" (Cookie) vururuq.
       // Bu möhür olmadan Admin panel açılmayacaq.
-      // max-age=86400 (1 gün aktiv qalır)
       document.cookie = "super_admin_access=true; path=/; max-age=86400; SameSite=Lax";
       
       router.push("/admin");
     } else {
       setError(true);
       setPin("");
-      // Səhv olanda qırmızı yanır
       setTimeout(() => setError(false), 1000);
     }
   };
