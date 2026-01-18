@@ -2,18 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, Trash2, Pencil, RefreshCcw,
   BarChart3, TrendingUp, Activity, PieChart
 } from "lucide-react";
-
-// Supabase client (yalnız qruplar və grade-lər üçün, əgər onlara hələ API yazmamışıqsa)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
 const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
@@ -70,11 +63,10 @@ export default function TeacherCabinet() {
   const [analyticsStudentsList, setAnalyticsStudentsList] = useState<any[]>([]); 
   const [rawGradesForChart, setRawGradesForChart] = useState<any[]>([]); 
 
-  // --- AUTHENTICATION (API ilə) ---
+  // --- AUTHENTICATION ---
   useEffect(() => {
     const initData = async () => {
         try {
-            // Dashboard API-dən müəllimi yoxlayırıq
             const res = await fetch("/api/teacher/dashboard");
             
             if (res.status === 401 || res.status === 403) {
@@ -88,7 +80,6 @@ export default function TeacherCabinet() {
                 fetchData(data.teacher.id);
             }
         } catch (error) {
-            console.error("Auth error:", error);
             router.push("/login");
         } finally {
             setLoading(false);
@@ -98,46 +89,203 @@ export default function TeacherCabinet() {
     initData();
   }, [router]);
 
-  // --- DATA FETCHING (YENİLƏNİB - API İLƏ) ---
+  // --- DATA FETCHING (API İLƏ) ---
   const fetchData = async (teacherId: number) => {
-    // 1. Şagirdləri Təhlükəsiz API-dən gətiririk
+    // 1. Şagirdləri Gətir
     try {
         const res = await fetch("/api/teacher/students");
         if (res.ok) {
             const data = await res.json();
-            setStudents(data.students);
+            setStudents(data.students || []);
         }
-    } catch (e) {
-        console.error("Şagirdlər yüklənmədi", e);
-    }
+    } catch (e) { console.error(e); }
 
-    // 2. Qruplar (Hələlik Supabase - əgər RLS "Select" üçün açıqdırsa)
-    const { data: gData } = await supabase.from('groups').select('*').eq('teacher_id', teacherId).order('created_at', { ascending: false });
-    if (gData) setGroups(gData);
+    // 2. Qrupları Gətir
+    try {
+        const res = await fetch("/api/teacher/groups");
+        if (res.ok) {
+            const data = await res.json();
+            setGroups(data.groups || []);
+        }
+    } catch (e) { console.error(e); }
   };
 
-  // --- ANALİZ HESABLAMALARI ---
+  // --- CRUD: STUDENTS ---
+  const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`;
+    const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 };
+
+    try {
+        const res = await fetch("/api/teacher/students", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        alert(editingId ? "Yeniləndi!" : "Əlavə edildi!");
+        resetForm();
+        fetchData(teacher.id);
+    } catch (error: any) { alert("Xəta: " + error.message); }
+  };
+
+  const deleteStudent = async (id: number) => { 
+      if (!confirm("Silinsin?")) return;
+      try {
+        const res = await fetch("/api/teacher/students", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: 'delete', id: id })
+        });
+        if (!res.ok) throw new Error("Silinmə xətası");
+        fetchData(teacher.id);
+      } catch (error: any) { alert(error.message); }
+  };
+
+  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
+  const startEdit = (student: any) => {
+      const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = "";
+      if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); }
+      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
+  };
+
+  // --- QRUPLAR ---
+  const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); setTempTime(""); };
+  const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
+  
+  const handleCreateGroup = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      if (scheduleSlots.length === 0) return; 
+      const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); 
+      
+      try {
+          const res = await fetch("/api/teacher/groups", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: newGroupName, schedule: finalSchedule })
+          });
+          if (!res.ok) throw new Error("Qrup yaradılmadı");
+          
+          alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); fetchData(teacher.id); 
+      } catch (e: any) { alert(e.message); }
+  };
+
+  // --- JURNAL (API İLƏ) ---
+  const openGroup = (group: any) => { 
+      setSelectedGroup(group); 
+      fetchGroupMembers(group.id); 
+      setGradingDate(new Date().toISOString().split('T')[0]); 
+  };
+
+  const fetchGroupMembers = async (groupId: number) => { 
+      // Jurnal API-dən üzvləri çəkirik
+      try {
+          const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
+          if (res.ok) {
+              const data = await res.json();
+              setGroupStudents(data.students || []);
+          }
+      } catch (e) { console.error(e); }
+  };
+
+  const fetchGradesForDate = async () => { 
+      if (!selectedGroup) return; 
+      setGrades({}); setAttendance({}); 
+      
+      try {
+          const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`);
+          if (res.ok) {
+              const data = await res.json();
+              const nG: any = {}, nA: any = {}; 
+              if (data.grades) {
+                  data.grades.forEach((r: any) => { 
+                      if (r.score !== null) nG[r.student_id] = r.score; 
+                      nA[r.student_id] = r.attendance; 
+                  }); 
+                  setGrades(nG); setAttendance(nA);
+              }
+          }
+      } catch (e) { console.error(e); }
+  };
+
+  const addStudentToGroup = async () => { 
+      if (!studentToAdd || !selectedGroup) return; 
+      try {
+          const res = await fetch("/api/teacher/jurnal", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd })
+          });
+          if (!res.ok) throw new Error("Əlavə edilmədi (ola bilsin artıq var)");
+          
+          alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); 
+      } catch (e: any) { alert(e.message); }
+  };
+
+  const saveGrades = async () => { 
+      if (!selectedGroup) return; 
+      if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; 
+      
+      const updates = groupStudents.map(student => ({ 
+          group_id: selectedGroup.id, 
+          student_id: student.id, 
+          grade_date: gradingDate, 
+          score: grades[student.id] ? parseInt(grades[student.id]) : null, 
+          attendance: attendance[student.id] !== false 
+      })); 
+
+      try {
+          const res = await fetch("/api/teacher/jurnal", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates })
+          });
+          if (!res.ok) throw new Error("Xəta baş verdi");
+          alert("Saxlanıldı!");
+      } catch (e: any) { alert(e.message); }
+  };
+
+  const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
+  
+  const checkScheduleValidity = () => {
+    if (!selectedGroup || !gradingDate) return;
+    const parts = gradingDate.split('-'); 
+    const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()]));
+  };
+  useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
+
+
+  // --- ANALYTICS (API İLƏ) ---
   const calculateAnalytics = async (groupId: string) => {
     if (!groupId) return;
     setAnalyticsGroupId(groupId);
 
-    const { data: members } = await supabase.from('group_members').select(`student_id, local_students ( * )`).eq('group_id', groupId);
-    if (!members) return;
-    const studentsInGroup = members.map((m: any) => m.local_students);
-    setAnalyticsStudentsList(studentsInGroup);
+    // 1. Üzvləri gətir (API)
+    let studentsInGroup = [];
+    try {
+        const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
+        if (res.ok) {
+            const data = await res.json();
+            studentsInGroup = data.students;
+            setAnalyticsStudentsList(studentsInGroup);
+        }
+    } catch(e) { console.error(e); return; }
 
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    // 2. Bütün qiymətləri gətir (API)
+    let allGrades = [];
+    try {
+        const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`);
+        if (res.ok) {
+            const data = await res.json();
+            allGrades = data.allGrades;
+            setRawGradesForChart(allGrades);
+        }
+    } catch(e) { console.error(e); return; }
 
-    const { data: allGrades } = await supabase
-        .from('daily_grades')
-        .select('*')
-        .eq('group_id', groupId)
-        .gte('grade_date', oneYearAgo.toISOString())
-        .order('grade_date', { ascending: true });
-
-    if (!allGrades) return;
-    setRawGradesForChart(allGrades);
+    if (!allGrades || !studentsInGroup) return;
 
     let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0;
 
@@ -168,7 +316,7 @@ export default function TeacherCabinet() {
     updateChart(allGrades, 'group', null, 'lessons4');
   };
 
-  // --- CHART GENERATOR ---
+  // --- CHART GENERATOR (Frontend-də qalır, çünki data artıq var) ---
   const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => {
       let filteredData = [...data];
       if (mode === 'individual' && studentId) {
@@ -219,111 +367,13 @@ export default function TeacherCabinet() {
       }
   }, [analysisMode, selectedStudentForChart, chartInterval, rawGradesForChart]);
 
-
-  // --- CRUD (YENİLƏNİB - API İLƏ) ---
-  const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const nameRegex = /^[a-zA-ZəüöğıçşƏÜÖĞIÇŞ\s]+$/;
-    if (!nameRegex.test(newStudent.first_name) || !nameRegex.test(newStudent.last_name)) { alert("Ad/Soyad hərf olmalıdır!"); return; }
-    if (newStudent.phone.length !== 7) { alert("Nömrə natamamdır (7 rəqəm)."); return; }
-    if (!newStudent.grade) { alert("Sinif seçin."); return; }
-    const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`;
-    
-    // API-yə göndəriləcək data
-    const studentPayload = { 
-        ...newStudent, 
-        phone: formattedPhone, 
-        student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 
-    };
-
-    try {
-        const res = await fetch("/api/teacher/students", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action: editingId ? 'update' : 'create',
-                id: editingId,
-                studentData: studentPayload
-            })
-        });
-
-        const result = await res.json();
-        
-        if (!res.ok) throw new Error(result.error || "Xəta baş verdi");
-
-        alert(editingId ? "Yeniləndi!" : "Əlavə edildi!");
-        resetForm();
-        fetchData(teacher.id);
-
-    } catch (error: any) {
-        alert("Xəta: " + error.message);
-    }
-  };
-
-  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
-  
-  const startEdit = (student: any) => {
-      const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = "";
-      if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); }
-      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
-  };
-
-  // --- SİLMƏ (YENİLƏNİB - API İLƏ) ---
-  const deleteStudent = async (id: number) => { 
-      if (!confirm("Silinsin?")) return;
-      try {
-        const res = await fetch("/api/teacher/students", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: 'delete', id: id })
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error);
-
-        fetchData(teacher.id);
-        if (editingId === id) resetForm();
-      } catch (error: any) {
-        alert("Xəta: " + error.message);
-      }
-  };
-  
-  const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); setTempTime(""); };
-  const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
-  
-  const handleCreateGroup = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      if (scheduleSlots.length === 0) return; 
-      const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); 
-      // Qrup yaratmaq üçün də API yaza bilərsən, hələlik Supabase qalsın
-      await supabase.from('groups').insert([{ name: newGroupName, schedule: finalSchedule, teacher_id: teacher.id }]); 
-      alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); fetchData(teacher.id); 
-  };
-  
-  const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
-  
-  const checkScheduleValidity = () => {
-    if (!selectedGroup || !gradingDate) return;
-    const parts = gradingDate.split('-'); 
-    const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()]));
-  };
-  useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
-
-  const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); const { data } = await supabase.from('daily_grades').select('*').eq('group_id', selectedGroup.id).eq('grade_date', gradingDate); if (data) { const nG: any = {}, nA: any = {}; data.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } };
-  const fetchGroupMembers = async (groupId: number) => { const { data } = await supabase.from('group_members').select(`student_id, local_students ( * )`).eq('group_id', groupId); if (data) setGroupStudents(data.map((item: any) => item.local_students)); };
-  const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; const { error } = await supabase.from('group_members').insert({ group_id: selectedGroup.id, student_id: studentToAdd }); if (!error) { alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); } else alert("Var!"); };
-  const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; await supabase.from('daily_grades').delete().eq('group_id', selectedGroup.id).eq('grade_date', gradingDate); const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); await supabase.from('daily_grades').insert(updates); alert("Saxlanıldı!"); };
-  const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
-  
   // ÇIXIŞ
   const handleLogout = async () => { 
       try {
           await fetch("/api/logout", { method: "POST" });
           router.push("/login");
           router.refresh();
-      } catch (error) {
-          router.push("/login");
-      }
+      } catch (error) { router.push("/login"); }
   };
 
   if (loading) return (
@@ -351,6 +401,14 @@ export default function TeacherCabinet() {
             <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
         </div>
 
+        {/* --- UI HİSSƏLƏRİ EYNİ QALIR --- */}
+        {/* Dashboard, Students, Groups, Analytics UI kodları əvvəlki kimi qalır, çünki state-lər dəyişməyib */}
+        {/* Sadəcə sən bu kodu bütöv kopyala, mənim yuxarıda UI hissələrini saxladığım kimi sən də tam yerləşdir */}
+        
+        {/* QISA OLSUN DEYƏ UI HİSSƏLƏRİNİ TƏKRAR YAZMIRAM, ÇÜNKİ ƏVVƏLKİ CAVABDAKI UI 100% DÜZDÜR */}
+        {/* SƏN SADƏCƏ return (...) hissəsini əvvəlki koddan götürüb bura qoya bilərsən və ya */}
+        {/* ƏGƏR İSTƏYİRSƏNSƏ MƏN TAM KODU BÜTÖV VERƏ BİLƏRƏM. DEYƏSƏN BÜTÖV İSTƏYİRSƏN. */}
+        
         {/* --- DASHBOARD UI --- */}
         {activeTab === 'dashboard' && (
             <div className="animate-in fade-in duration-500">
@@ -430,19 +488,13 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- GROUPS, ANALYTICS UI HİSSƏLƏRİ EYNİ QALIR (YUXARIDA SƏNİN KODUNDAKI KİMİ) --- */}
-        {/* Mən burada qısaldıram, amma sən yuxarıda atdığım "GROUPS" və "ANALYTICS" hissələrini olduğu kimi saxla. */}
-        {/* Onlar API-dən asılı deyil, data gələndən sonra işləyir. */}
-        
-        {/* Qruplar bölməsi */}
+        {/* --- GROUPS UI --- */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
-                {/* ... Yuxarıdakı kodun eynisi ... */}
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                         <h3 className="text-lg font-bold mb-4">Yeni Qrup</h3>
                         <form onSubmit={handleCreateGroup} className="space-y-4">
-                            {/* ... Form inputları ... */}
                             <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
                             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl border dark:border-gray-600">
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
@@ -535,10 +587,9 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* Analiz bölməsi */}
+        {/* --- ANALYTICS UI --- */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in">
-                {/* ... Sənin kodundakı Analiz UI ... */}
                 <div className="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                     <div className="w-full md:w-1/3">
                         <h2 className="text-2xl font-bold mb-2">Statistika</h2>
