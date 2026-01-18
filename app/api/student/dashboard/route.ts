@@ -2,109 +2,107 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+// 🛑 DİQQƏT: Burda Service Role Key (Admin Açarı) işlədirik
+// Bu bizə imkan verir ki, RLS-ə ilişmədən müəllimin adını oxuyaq.
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function GET() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("auth_token")?.value;
+
+  if (!token) return NextResponse.json({ error: "Token yoxdur" }, { status: 401 });
+
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth_token")?.value;
-
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const user = JSON.parse(token);
-    if (user.role !== 'student') return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-    // 1. Şagird Məlumatı
-    const { data: student } = await supabaseAdmin
+    // 1. Şagirdi tapırıq (Admin açarı ilə)
+    const { data: student, error } = await supabaseAdmin
       .from("local_students")
       .select("*")
       .eq("id", user.id)
       .single();
 
-    // 2. Qrup və Müəllim Məlumatı
-    let groupName = "Qrup yoxdur";
-    let teacherName = "Təyin edilməyib";
+    if (error || !student) return NextResponse.json({ error: "Şagird tapılmadı" }, { status: 404 });
 
-    const { data: memberData } = await supabaseAdmin
-      .from("group_members")
-      .select("group_id")
-      .eq("student_id", user.id)
-      .single();
+    // 2. Məlumatları hazırlayırıq
+    let groupName = "Təyin olunmayıb";
+    let teacherName = "Təyin olunmayıb";
 
-    if (memberData) {
-      const { data: groupData } = await supabaseAdmin
-        .from("groups")
-        .select("name, teacher_id")
-        .eq("id", memberData.group_id)
-        .single();
-
-      if (groupData) {
-        groupName = groupData.name;
-        
-        if (groupData.teacher_id) {
-          const { data: teacherData } = await supabaseAdmin
+    // A. Müəllimi tapmaq
+    // student.teacher_id varsa, gidib teachers cədvəlindən adını gətiririk
+    if (student.teacher_id) {
+        const { data: teacher } = await supabaseAdmin
             .from("teachers")
-            .select("first_name, last_name")
-            .eq("id", groupData.teacher_id)
+            .select("full_name")
+            .eq("id", student.teacher_id)
             .single();
-          
-          if (teacherData) {
-            teacherName = `${teacherData.first_name} ${teacherData.last_name}`;
-          }
+        
+        if (teacher) {
+            teacherName = teacher.full_name;
         }
-      }
     }
 
-    // 3. Qiymətlər və Analitika
-    const { data: grades } = await supabaseAdmin
-      .from("daily_grades")
-      .select("*")
-      .eq("student_id", user.id)
-      .order("grade_date", { ascending: true });
+    // B. Qrupu tapmaq
+    const { data: groupMember } = await supabaseAdmin
+        .from("group_members")
+        .select("group_id, groups(name)")
+        .eq("student_id", student.id)
+        .single();
 
-    let stats = { avgScore: "0", attendance: "0" };
+    if (groupMember && groupMember.groups) {
+        // @ts-ignore
+        groupName = groupMember.groups.name;
+    }
+
+    // 3. Statistikaları Hesablamaq
+    const { data: grades } = await supabaseAdmin
+        .from("daily_grades")
+        .select("score, attendance, grade_date")
+        .eq("student_id", student.id)
+        .order("grade_date", { ascending: true });
+
+    let avgScore = "0";
+    let attendanceRate = "0";
     let chartData: any[] = [];
     let recentGrades: any[] = [];
 
     if (grades && grades.length > 0) {
-      // Ortalama
-      const scoredGrades = grades.filter((g: any) => g.score !== null);
-      const avg = scoredGrades.length > 0 
-        ? scoredGrades.reduce((a: number, b: any) => a + b.score, 0) / scoredGrades.length 
-        : 0;
-      
-      // Davamiyyət
-      const presentCount = grades.filter((g: any) => g.attendance === true).length;
-      const attRate = (presentCount / grades.length) * 100;
+        // Ortalama Bal
+        const scores = grades.filter(g => g.score !== null).map(g => g.score);
+        if (scores.length > 0) {
+            const sum = scores.reduce((a, b) => a + b, 0);
+            avgScore = (sum / scores.length).toFixed(1);
+        }
 
-      stats = {
-        avgScore: avg.toFixed(1),
-        attendance: attRate.toFixed(0)
-      };
+        // Davamiyyət
+        const presentCount = grades.filter(g => g.attendance).length;
+        attendanceRate = ((presentCount / grades.length) * 100).toFixed(0);
 
-      // Qrafik üçün son 10 nəticə
-      chartData = scoredGrades.slice(-10).map((g: any) => ({
-        date: g.grade_date.slice(5), 
-        bal: g.score 
-      }));
+        // Chart Data (Son 10 dərs)
+        chartData = grades.slice(-10).map(g => ({
+            date: g.grade_date.slice(5), // Ay-Gün
+            bal: g.score
+        }));
 
-      // Son cədvəl üçün son 5 nəticə (tərsinə)
-      recentGrades = [...grades].reverse().slice(0, 5);
+        // Son Qiymətlər (Tərsinə çeviririk)
+        recentGrades = [...grades].reverse().slice(0, 5);
     }
 
+    // 4. Hazır Məlumatı Göndəririk
     return NextResponse.json({
-      student,
-      groupName,
-      teacherName,
-      stats,
-      chartData,
-      recentGrades
+        student,
+        groupName,
+        teacherName, // <--- Bu artıq düzgün gələcək (Məs: "Əli Vəliyev")
+        stats: { avgScore, attendance: attendanceRate },
+        chartData,
+        recentGrades
     });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    console.error("Server xətası:", error);
+    return NextResponse.json({ error: "Server xətası" }, { status: 500 });
   }
 }
