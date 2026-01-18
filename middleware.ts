@@ -6,7 +6,7 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value
   const { pathname } = request.nextUrl
 
-  // 2. User məlumatını yoxla
+  // 2. User məlumatını yoxla (JSON formatında olduğunu fərz edirik)
   let user = null
   if (token) {
     try {
@@ -16,7 +16,7 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // URL yaratmaq üçün təmiz funksiya (Bu `?type=` zibilini təmizləyir)
+  // URL yaratmaq üçün köməkçi funksiya
   const cleanUrl = (path: string) => new URL(path, request.nextUrl.origin)
 
   // ===========================================================
@@ -37,7 +37,6 @@ export function middleware(request: NextRequest) {
   // 2. MÜƏLLİM KABİNETİ QORUMASI
   // ===========================================================
   if (pathname.startsWith('/teacher-cabinet')) {
-    // User yoxdursa VƏ YA rolu müəllim deyilsə -> TƏMİZ LOGINƏ AT
     if (!user || user.role !== 'teacher') {
       return NextResponse.redirect(cleanUrl('/login'))
     }
@@ -47,7 +46,6 @@ export function middleware(request: NextRequest) {
   // 3. ŞAGİRD KABİNETİ QORUMASI
   // ===========================================================
   if (pathname.startsWith('/student') && pathname !== '/login') {
-    // User yoxdursa VƏ YA rolu şagird deyilsə -> TƏMİZ LOGINƏ AT
     if (!user || user.role !== 'student') {
       return NextResponse.redirect(cleanUrl('/login'))
     }
@@ -57,8 +55,8 @@ export function middleware(request: NextRequest) {
   // 4. ADMIN PANELİ (GİZLİ QALMALIDIR) 🕵️‍♂️
   // ===========================================================
   if (pathname.startsWith('/admin')) {
-    // Admin deyilsə -> Ana Səhifəyə at (Gizlilik üçün)
     if (!user || user.role !== 'admin') {
+      // Admin deyilsə, onu ümumiyyətlə saytın ana səhifəsinə at (Loginə yox)
       return NextResponse.redirect(cleanUrl('/'))
     }
   }
