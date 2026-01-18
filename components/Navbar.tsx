@@ -8,8 +8,15 @@ import { Home, PenTool, ClipboardList, Zap } from "lucide-react";
 export default function Navbar() {
   const pathname = usePathname();
 
-  // Ana səhifədə, Login səhifəsində və Redirect səhifəsində Navbar gizlədilsin
-  if (pathname === "/" || pathname === "/student-login" || pathname === "/redirect") {
+  // BU HİSSƏNİ DƏYİŞDİK: 
+  // Artıq student və teacher səhifələrində Navbar görünməyəcək
+  if (
+    pathname === "/" || 
+    pathname === "/student-login" || 
+    pathname === "/redirect" || 
+    pathname.startsWith("/student") ||        // Şagird panelində gizlət
+    pathname.startsWith("/teacher-cabinet")   // Müəllim panelində gizlət
+  ) {
     return null;
   }
 
@@ -37,7 +44,7 @@ export default function Navbar() {
           {/* SAĞ TƏRƏF - MENYU LİNKLƏRİ */}
           <div className="flex items-center gap-2 md:gap-4">
             
-            {/* Ana Səhifə Linki */}
+            {/* Ana Səhifə */}
             {!isActive("/") && (
               <Link 
                 href="/" 
@@ -48,7 +55,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* Qeydiyyat Linki */}
+            {/* Qeydiyyat */}
             {!isActive("/exam") && (
               <Link 
                 href="/exam" 
@@ -59,7 +66,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* NƏTİCƏLƏR LİNKİ */}
+            {/* Nəticələr */}
             {!isActive("/netice") && (
               <Link 
                 href="/netice" 
@@ -70,8 +77,7 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* --- YENİ: İMTAHANA BAŞLA (Redirect) --- */}
-            {/* Admin linki silindi, yerinə bu gəldi */}
+            {/* İmtahana Başla */}
             {!isActive("/redirect") && (
               <Link 
                 href="/redirect" 
