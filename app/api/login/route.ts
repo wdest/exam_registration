@@ -12,14 +12,16 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { type, identifier, password } = body;
     
-    // DƏYİŞİKLİK BURADADIR: cookies() artıq await tələb edir
+    // Next.js 15 üçün await
     const cookieStore = await cookies();
 
     let user = null;
     let role = "";
     let redirectUrl = "";
 
-    // --- MÜƏLLİM ---
+    // ------------------------------------------
+    // 1. MÜƏLLİM GİRİŞİ (TEACHER)
+    // ------------------------------------------
     if (type === "teacher") {
       const { data, error } = await supabaseAdmin
         .from("teachers")
@@ -31,12 +33,17 @@ export async function POST(request: Request) {
       if (error || !data) {
         return NextResponse.json({ error: "İstifadəçi adı və ya şifrə yanlışdır" }, { status: 401 });
       }
+      
       user = data;
       role = "teacher";
-      redirectUrl = "/teacher-cabinet";
+      
+      // DİQQƏT: Buranı yoxla! Müəllim mütləq bura getməlidir:
+      redirectUrl = "/teacher-cabinet"; 
     }
 
-    // --- ŞAGİRD ---
+    // ------------------------------------------
+    // 2. ŞAGİRD GİRİŞİ (STUDENT)
+    // ------------------------------------------
     else if (type === "student") {
       const { data, error } = await supabaseAdmin
         .from("local_students")
@@ -47,12 +54,16 @@ export async function POST(request: Request) {
       if (error || !data) {
         return NextResponse.json({ error: "Bu ID ilə şagird tapılmadı" }, { status: 401 });
       }
+      
       user = data;
       role = "student";
       redirectUrl = "/student";
     }
 
-    // --- ADMIN ---
+    // ------------------------------------------
+    // 3. ADMIN GİRİŞİ (ADMIN)
+    // ------------------------------------------
+    // Admin yalnız xüsusi type gələrsə işləsin (frontend-də admin tabı yoxdursa bura girməyəcək)
     else if (type === "admin") {
       if (password === process.env.ADMIN_PASSWORD) {
          role = "admin";
@@ -67,14 +78,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Yanlış giriş növü" }, { status: 400 });
     }
 
-    // --- KUKİ YAZILMASI ---
+    // ------------------------------------------
+    // KUKİ YAZILMASI
+    // ------------------------------------------
+    // Köhnə kukiləri silirik ki, qarışıqlıq olmasın
+    cookieStore.delete("auth_token");
+
     const tokenData = JSON.stringify({ 
       role, 
       id: user.id, 
       name: user.full_name || user.first_name 
     });
 
-    // await etdiyimiz üçün artıq .set() funksiyası işləyəcək
     cookieStore.set("auth_token", tokenData, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
