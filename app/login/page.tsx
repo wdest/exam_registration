@@ -1,223 +1,184 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Eye, EyeOff, Loader2, LogIn, ShieldCheck } from "lucide-react";
 import Image from "next/image";
-import Link from "next/link";
-import { 
-  User, ArrowLeft, Loader2, Eye, EyeOff, 
-  GraduationCap, Presentation, KeyRound, ShieldCheck 
-} from "lucide-react";
-// Animasiya kitabxanasını əlavə edirik
-import { motion } from "framer-motion"; 
 
-function LoginContent() {
+export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const supabase = createClientComponentClient();
   
-  const secretKey = searchParams.get("key");
-  const isAdminUnlocked = secretKey === "moc_gizli_giris"; 
-
-  const urlType = searchParams.get("type");
-  const initialType = (urlType === "admin" && isAdminUnlocked) ? "admin" : (urlType || "student");
-
-  const [activeTab, setActiveTab] = useState(initialType);
-  const [identifier, setIdentifier] = useState(""); 
-  const [password, setPassword] = useState("");      
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (urlType === "admin" && !isAdminUnlocked) {
-        setActiveTab("student");
-    } else if (urlType) {
-        setActiveTab(urlType);
-    }
-  }, [urlType, isAdminUnlocked]);
-
-  async function handleLogin(e: React.FormEvent) {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
     setLoading(true);
+    setError("");
 
     try {
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: activeTab,
-          identifier,
-          password: activeTab === 'student' ? null : password
-        }),
+      // ======================================================
+      // 1. ADMIN GİRİŞİ (Hardcoded - Ən sadə və təhlükəsiz yol)
+      // ======================================================
+      // Sən admin panelə bu email və parol ilə girəcəksən:
+      if (email === "admin@moc.com" && password === "moc12345") {
+        
+        // Admin üçün xüsusi "auth_token" yaradırıq
+        const adminData = JSON.stringify({ 
+            role: "admin", 
+            name: "Baş Admin",
+            email: "admin@moc.com" 
+        });
+
+        // Kukini brauzerə yazırıq (1 gün müddətinə)
+        document.cookie = `auth_token=${adminData}; path=/; max-age=86400; SameSite=Lax`;
+        
+        // Admin panelə yönləndiririk
+        router.push("/admin");
+        return;
+      }
+
+      // ======================================================
+      // 2. ŞAGİRD / MÜƏLLİM GİRİŞİ (Supabase User Table)
+      // ======================================================
+      
+      // Supabase-dən yoxlayırıq
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Giriş zamanı xəta baş verdi");
+      if (authError) {
+        throw new Error("Email və ya şifrə yanlışdır.");
       }
 
-      router.push(data.redirect);
-      router.refresh(); 
+      if (data.user) {
+         // İstifadəçinin rolunu təyin edirik.
+         // (Gələcəkdə 'profiles' cədvəlindən də oxuya bilərik)
+         // Hələlik metadata-dan oxuyuruq, yoxdursa 'student' sayırıq.
+         const role = data.user.user_metadata?.role || "student"; 
+         
+         const userData = JSON.stringify({ 
+             role: role, 
+             id: data.user.id, 
+             email: data.user.email 
+         });
+         
+         // Middleware üçün token yaradırıq
+         document.cookie = `auth_token=${userData}; path=/; max-age=86400; SameSite=Lax`;
+
+         // Roluna uyğun səhifəyə atırıq
+         if (role === "teacher") {
+             router.push("/teacher-cabinet");
+         } else {
+             router.push("/student");
+         }
+      }
 
     } catch (err: any) {
-      setError(err.message);
+      console.error(err);
+      setError(err.message || "Giriş zamanı xəta baş verdi.");
     } finally {
-      // Uğurlu olsa belə loading qalsın ki, keçid zamanı ağ ekran görünməsin
-      if (!error) {
-         // setLoading(false) - bunu bilərəkdən bağlamırıq ki, səhifə dəyişənə qədər fırlansın
-      } else {
-         setLoading(false);
-      }
+      setLoading(false);
     }
-  }
-
-  const defaultTabs = [
-    { id: "student", label: "Şagird", icon: GraduationCap },
-    { id: "teacher", label: "Müəllim", icon: Presentation },
-  ];
-
-  const tabs = isAdminUnlocked 
-    ? [...defaultTabs, { id: "admin", label: "Admin", icon: ShieldCheck }]
-    : defaultTabs;
+  };
 
   return (
-    <div className="fixed inset-0 z-[100] flex bg-white font-sans overflow-auto">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 relative overflow-hidden">
       
-      {/* SOL DEKOR - Animasiyalı */}
-      <motion.div 
-        initial={{ x: -100, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="hidden lg:flex w-1/2 bg-gradient-to-br from-amber-500 to-orange-600 relative items-center justify-center overflow-hidden"
-      >
-        <motion.div 
-           animate={{ scale: [1, 1.1, 1] }} 
-           transition={{ repeat: Infinity, duration: 10 }}
-           className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20"
-        ></motion.div>
-        <motion.div 
-           animate={{ scale: [1, 1.2, 1] }} 
-           transition={{ repeat: Infinity, duration: 8, delay: 1 }}
-           className="absolute bottom-0 left-0 w-80 h-80 bg-orange-700/20 rounded-full blur-3xl -ml-20 -mb-20"
-        ></motion.div>
+      {/* Arxa fon bəzəkləri */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+          <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-purple-200 rounded-full blur-3xl opacity-30"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-200 rounded-full blur-3xl opacity-30"></div>
+      </div>
+
+      <div className="bg-white p-8 md:p-10 rounded-3xl shadow-2xl w-full max-w-md border border-gray-100 relative z-10 animate-in fade-in zoom-in duration-500">
         
-        <div className="text-center text-white z-10 p-10">
-            <h2 className="text-4xl font-black mb-4 tracking-tight drop-shadow-md">Main Olympic Center</h2>
-            <p className="text-orange-100 text-lg max-w-md mx-auto">Təhsilin zirvəsinə doğru.</p>
+        <div className="flex flex-col items-center mb-8">
+            {/* Logo yeri (əgər varsa) */}
+            <div className="w-16 h-16 bg-gradient-to-tr from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg mb-4">
+                <ShieldCheck size={32} />
+            </div>
+            <h1 className="text-3xl font-black text-gray-800">Xoş Gəldiniz</h1>
+            <p className="text-gray-400 mt-2 font-medium">Kabinetə daxil olmaq üçün məlumatları yazın</p>
         </div>
-      </motion.div>
 
-      {/* SAĞ FORM - Animasiyalı */}
-      <motion.div 
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 bg-gray-50/30 relative"
-      >
-        <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-gray-500 hover:text-amber-600 transition font-medium z-10">
-            <ArrowLeft size={20} /> Ana Səhifə
-        </Link>
-
-        <div className="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100 relative overflow-hidden">
-            {/* Yüklənmə zamanı üstə gələn overlay */}
-            {loading && (
-                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center animate-in fade-in">
-                    <Loader2 size={48} className="text-amber-500 animate-spin mb-2" />
-                    <p className="text-gray-500 font-bold animate-pulse">Giriş edilir...</p>
-                </div>
-            )}
-
-            <div className="text-center mb-8">
-                <h3 className="text-2xl font-black text-gray-800">
-                    {activeTab === 'admin' ? "Gizli Admin Paneli 🛡️" : "Giriş Paneli 🎓"}
-                </h3>
+        <form onSubmit={handleLogin} className="space-y-5">
+          
+          {error && (
+            <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-100 animate-pulse">
+                <AlertCircle size={20} />
+                {error}
             </div>
+          )}
 
-            {/* TABLAR */}
-            <div className={`grid gap-2 mb-8 p-1 bg-gray-100/50 rounded-xl ${tabs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                {tabs.map((tab) => (
-                    <button
-                        key={tab.id}
-                        onClick={() => { setActiveTab(tab.id); setError(""); setIdentifier(""); setPassword(""); }}
-                        className={`flex flex-col items-center justify-center py-3 rounded-lg text-xs font-bold transition-all ${
-                            activeTab === tab.id ? "bg-white shadow text-gray-800 scale-105" : "text-gray-400 hover:bg-gray-200/50"
-                        }`}
-                    >
-                        <tab.icon size={20} className={`mb-1 ${activeTab === tab.id ? "text-amber-500" : ""}`} />
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Email Ünvanı</label>
+            <input 
+              type="email" 
+              required
+              placeholder="nümunə@gmail.com" 
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-medium text-gray-800"
+            />
+          </div>
 
-            <form onSubmit={handleLogin} className="space-y-5">
-                <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.3 }}>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">
-                        {activeTab === "teacher" || activeTab === "admin" ? "İstifadəçi Adı" : "Şagird ID"}
-                    </label>
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-                            <User size={20} />
-                        </div>
-                        <input
-                            type={activeTab === "student" ? "number" : "text"}
-                            value={identifier}
-                            onChange={(e) => setIdentifier(e.target.value)}
-                            className="w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-amber-500 outline-none transition"
-                            placeholder={activeTab === "student" ? "Məs: 1001" : ""}
-                            required
-                        />
-                    </div>
-                </motion.div>
-
-                {activeTab !== "student" && (
-                    <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4 }}>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 ml-1">Şifrə</label>
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-                                <KeyRound size={20} />
-                            </div>
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full pl-11 pr-12 py-4 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-amber-500 outline-none transition"
-                                required
-                            />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400">
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-
-                {error && (
-                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="p-4 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center gap-2">
-                        ⚠️ {error}
-                    </motion.div>
-                )}
-
-                <motion.button 
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    type="submit" 
-                    disabled={loading} 
-                    className="w-full py-4 rounded-xl text-white font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:to-orange-700 shadow-lg transition-all flex justify-center items-center"
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Şifrə</label>
+            <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  required
+                  placeholder="••••••••" 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition font-medium text-gray-800 pr-12"
+                />
+                <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
-                    {loading ? "Yoxlanılır..." : "Daxil Ol"}
-                </motion.button>
-            </form>
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+            </div>
+          </div>
+
+          <button 
+            disabled={loading} 
+            className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95 transition disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="animate-spin" /> : <LogIn size={20} />}
+            {loading ? "Giriş edilir..." : "Daxil Ol"}
+          </button>
+        </form>
+
+        <div className="mt-8 text-center">
+            <p className="text-gray-400 text-sm">
+                Şifrəni unutmusunuz? <span className="text-blue-600 font-bold cursor-pointer hover:underline">Adminlə əlaqə saxlayın</span>
+            </p>
         </div>
-      </motion.div>
+
+      </div>
+
+      {/* Footer Info */}
+      <div className="absolute bottom-6 text-center text-gray-400 text-xs">
+          &copy; 2024 Main Olympic Center. All rights reserved.
+      </div>
+
     </div>
   );
 }
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <LoginContent />
-    </Suspense>
-  );
+// İkon üçün əlavə
+function AlertCircle({ size }: { size: number }) {
+    return (
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+    )
 }
