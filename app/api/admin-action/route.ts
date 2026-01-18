@@ -1,16 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { checkAdminAuth } from "../../../lib/admin-check"; // <-- Tək dırnaq olmalıdır
+// Əgər "../../../" xəta versə, "@/" ilə yoxla. Amma sən dedin relative işləyir.
+import { checkAdminAuth } from "../../../lib/admin-check"; 
 
-// Server tərəfdə işləyən Supabase Client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export async function POST(req: Request) {
+  
   // 1. TƏHLÜKƏSİZLİK KİLİDİ
-  if (!checkAdminAuth()) {
+  // checkAdminAuth() artıq Promise qaytarır, ona görə await etməliyik
+  const isAdmin = await checkAdminAuth(); // <-- await əlavə olundu
+
+  if (!isAdmin) {
     return NextResponse.json({ error: "İcazəsiz giriş! (Access Denied)" }, { status: 401 });
   }
 
