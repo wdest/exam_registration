@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
-  TrendingUp, Activity, PieChart, PenTool, Trophy, Medal, Award
+  TrendingUp, Activity, PieChart, PenTool
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -35,8 +35,10 @@ export default function StudentCabinet() {
 
   const fetchData = async () => {
     try {
+      // Bizim yaratdığımız yeni API-yə sorğu göndəririk
       const res = await fetch("/api/student/dashboard");
       
+      // Əgər giriş edilməyibsə, loginə atırıq
       if (res.status === 401 || res.status === 403) {
         router.push("/student-login");
         return;
@@ -52,7 +54,7 @@ export default function StudentCabinet() {
         setChartData(data.chartData);
         setRecentGrades(data.recentGrades);
         
-        // Avatar Logic
+        // Avatar yaddaşı
         const savedAvatar = localStorage.getItem(`avatar_${data.student.id}`);
         if (savedAvatar) {
             setSelectedAvatar(savedAvatar);
@@ -75,9 +77,13 @@ export default function StudentCabinet() {
       setIsAvatarMenuOpen(false);
   };
 
+  // --- YENİLƏNMİŞ ÇIXIŞ FUNKSİYASI ---
   const handleLogout = () => {
-    // Cookie-ni server tərəfli silmək ən yaxşısıdır, amma burda manual silirik
+    // Bütün mümkün kukiləri silirik ki, problem qalmasın
     document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+    document.cookie = "student_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT"; 
+    
+    // Login səhifəsinə yönləndiririk
     router.push("/student-login");
     router.refresh();
   };
