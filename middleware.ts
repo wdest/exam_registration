@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
+  // 1. Tokeni oxu
   const token = request.cookies.get('auth_token')?.value
   const { pathname } = request.nextUrl
 
-  // Tokeni yoxlayırıq
+  // 2. User məlumatını yoxla
   let user = null
   if (token) {
     try {
@@ -15,45 +16,50 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // -----------------------------------------------------------
-  // 1. LOGIN SƏHİFƏSİ (Artıq giriş edibsə, içəri at)
-  // -----------------------------------------------------------
+  // URL yaratmaq üçün təmiz funksiya (Bu `?type=` zibilini təmizləyir)
+  const cleanUrl = (path: string) => new URL(path, request.nextUrl.origin)
+
+  // ===========================================================
+  // 1. LOGIN SƏHİFƏSİ (/login)
+  // (Əgər artıq giriş edibsə, onu gözlətmə, kabinetinə tulla)
+  // ===========================================================
   if (pathname === '/login') {
     if (user) {
-      if (user.role === 'teacher') return NextResponse.redirect(new URL('/teacher-cabinet', request.url))
-      if (user.role === 'student') return NextResponse.redirect(new URL('/student', request.url))
-      if (user.role === 'admin') return NextResponse.redirect(new URL('/admin', request.url))
+      if (user.role === 'teacher') return NextResponse.redirect(cleanUrl('/teacher-cabinet'))
+      if (user.role === 'student') return NextResponse.redirect(cleanUrl('/student'))
+      if (user.role === 'admin') return NextResponse.redirect(cleanUrl('/admin'))
     }
+    // Giriş etməyibsə, qoy Login səhifəsini görsün
     return NextResponse.next()
   }
 
-  // -----------------------------------------------------------
+  // ===========================================================
   // 2. MÜƏLLİM KABİNETİ QORUMASI
-  // -----------------------------------------------------------
+  // ===========================================================
   if (pathname.startsWith('/teacher-cabinet')) {
+    // User yoxdursa VƏ YA rolu müəllim deyilsə -> TƏMİZ LOGINƏ AT
     if (!user || user.role !== 'teacher') {
-      // DİQQƏT: Artıq ?type=teacher YOXDUR. Sadəcə login.
-      return NextResponse.redirect(new URL('/login', request.url))
+      return NextResponse.redirect(cleanUrl('/login'))
     }
   }
 
-  // -----------------------------------------------------------
+  // ===========================================================
   // 3. ŞAGİRD KABİNETİ QORUMASI
-  // -----------------------------------------------------------
+  // ===========================================================
   if (pathname.startsWith('/student') && pathname !== '/login') {
+    // User yoxdursa VƏ YA rolu şagird deyilsə -> TƏMİZ LOGINƏ AT
     if (!user || user.role !== 'student') {
-      // DİQQƏT: Artıq ?type=student YOXDUR. Sadəcə login.
-      return NextResponse.redirect(new URL('/login', request.url))
+      return NextResponse.redirect(cleanUrl('/login'))
     }
   }
 
-  // -----------------------------------------------------------
-  // 4. ADMIN PANELİ (GİZLİ)
-  // -----------------------------------------------------------
+  // ===========================================================
+  // 4. ADMIN PANELİ (GİZLİ QALMALIDIR) 🕵️‍♂️
+  // ===========================================================
   if (pathname.startsWith('/admin')) {
+    // Admin deyilsə -> Ana Səhifəyə at (Gizlilik üçün)
     if (!user || user.role !== 'admin') {
-      // Admin deyilsə, Ana Səhifəyə at
-      return NextResponse.redirect(new URL('/', request.url))
+      return NextResponse.redirect(cleanUrl('/'))
     }
   }
 
