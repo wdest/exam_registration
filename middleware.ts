@@ -5,7 +5,7 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value
   const { pathname } = request.nextUrl
 
-  // Tokeni yoxla
+  // Tokeni yoxlayırıq
   let user = null
   if (token) {
     try {
@@ -16,9 +16,8 @@ export function middleware(request: NextRequest) {
   }
 
   // -----------------------------------------------------------
-  // 1. LOGIN SƏHİFƏSİ (Artıq giriş edibsə, təkrar görməsin)
+  // 1. LOGIN SƏHİFƏSİ (Artıq giriş edibsə, içəri at)
   // -----------------------------------------------------------
-  // DƏYİŞİKLİK BURADA: /student-login əvəzinə /login oldu
   if (pathname === '/login') {
     if (user) {
       if (user.role === 'teacher') return NextResponse.redirect(new URL('/teacher-cabinet', request.url))
@@ -29,28 +28,31 @@ export function middleware(request: NextRequest) {
   }
 
   // -----------------------------------------------------------
-  // 2. QORUNAN SƏHİFƏLƏR (Müəllim, Şagird)
+  // 2. MÜƏLLİM KABİNETİ QORUMASI
   // -----------------------------------------------------------
   if (pathname.startsWith('/teacher-cabinet')) {
     if (!user || user.role !== 'teacher') {
-      // DƏYİŞİKLİK: /login-ə yönləndiririk
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
-  }
-
-  if (pathname.startsWith('/student') && pathname !== '/login') {
-    if (!user || user.role !== 'student') {
-      // DƏYİŞİKLİK: /login-ə yönləndiririk
+      // DİQQƏT: Artıq ?type=teacher YOXDUR. Sadəcə login.
       return NextResponse.redirect(new URL('/login', request.url))
     }
   }
 
   // -----------------------------------------------------------
-  // 3. ADMIN PANELİ (Gizli)
+  // 3. ŞAGİRD KABİNETİ QORUMASI
+  // -----------------------------------------------------------
+  if (pathname.startsWith('/student') && pathname !== '/login') {
+    if (!user || user.role !== 'student') {
+      // DİQQƏT: Artıq ?type=student YOXDUR. Sadəcə login.
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+  }
+
+  // -----------------------------------------------------------
+  // 4. ADMIN PANELİ (GİZLİ)
   // -----------------------------------------------------------
   if (pathname.startsWith('/admin')) {
     if (!user || user.role !== 'admin') {
-      // Admin deyilsə, Ana səhifəyə at (Gizlilik üçün)
+      // Admin deyilsə, Ana Səhifəyə at
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
@@ -63,6 +65,6 @@ export const config = {
     '/teacher-cabinet/:path*', 
     '/student/:path*', 
     '/admin/:path*',
-    '/login' // DƏYİŞİKLİK: student-login əvəzinə login
+    '/login' 
   ],
 }
