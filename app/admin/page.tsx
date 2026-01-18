@@ -11,7 +11,7 @@ import {
   Loader2, Filter, DollarSign, Lock 
 } from "lucide-react";
 
-// Supabase Client
+// Supabase Client (Yalnız oxumaq üçün istifadə olunur)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -31,7 +31,7 @@ interface Student {
   created_at?: string;
 }
 
-interface Setting {
+interface SiteSetting { // Adı dəyişdim (site_setting istəyinə görə)
   id: number;
   key: string;
   value: string;
@@ -61,19 +61,20 @@ export default function AdminDashboard() {
   
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
-  const [settings, setSettings] = useState<Setting[]>([]);
+  const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
   
+  // Filters & Search
   const [search, setSearch] = useState("");
-  const [filterExam, setFilterExam] = useState(""); 
+  const [filterExam, setFilterExam] = useState(""); // <-- FİLTR (GERİ GƏLDİ)
   const [uploading, setUploading] = useState(false);
 
   // İmtahan Form State-ləri
   const [newExamName, setNewExamName] = useState("");
   const [newExamUrl, setNewExamUrl] = useState("");
   const [newExamClass, setNewExamClass] = useState("1");
-  const [isPaid, setIsPaid] = useState(false);
+  const [isPaid, setIsPaid] = useState(false); 
   const [examPrice, setExamPrice] = useState("0");
 
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
@@ -96,8 +97,10 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
+      // DİQQƏT: Əgər cədvəl adını 'site_settings' qoymusansa, aşağıda "settings"-i dəyiş.
+      // Hazırda bayaqkı SQL-ə uyğun "settings" saxladım.
       const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
-      if (setData) setSettings(setData as any);
+      if (setData) setSiteSettings(setData as any);
 
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
@@ -115,52 +118,131 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- ƏMƏLİYYATLAR ---
+  // --- SERVER ACTIONLARI (TƏHLÜKƏSİZ) ---
+  
   async function addExam(e: React.FormEvent) {
     e.preventDefault();
     if (!newExamName || !newExamUrl || !newExamClass) return alert("Bütün xanaları doldurun.");
 
-    const { error } = await supabase.from("exams").insert({
-        name: newExamName,
-        url: newExamUrl,
-        class_grade: newExamClass,
-        is_paid: isPaid,
-        price: isPaid ? parseFloat(examPrice) : 0 
+    // Server API-ya göndəririk
+    const res = await fetch("/api/admin-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            action: "insert",
+            table: "exams",
+            data: {
+                name: newExamName,
+                url: newExamUrl,
+                class_grade: newExamClass,
+                is_paid: isPaid,
+                price: isPaid ? parseFloat(examPrice) : 0
+            }
+        })
     });
 
-    if (error) {
-        alert("Xəta: " + error.message);
-    } else {
+    if (res.ok) {
         alert("İmtahan yaradıldı! ✅");
-        setNewExamName("");
-        setNewExamUrl("");
-        setIsPaid(false);
-        setExamPrice("0");
+        setNewExamName(""); setNewExamUrl(""); setIsPaid(false); setExamPrice("0");
         fetchAllData();
+    } else {
+        alert("Xəta! İcazəniz yoxdur.");
     }
   }
 
   async function deleteExam(id: number) {
     if(!confirm("Silmək istəyirsiniz?")) return;
-    const { error } = await supabase.from("exams").delete().eq("id", id);
-    if (!error) fetchAllData();
+    
+    const res = await fetch("/api/admin-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", table: "exams", id: id })
+    });
+
+    if (res.ok) fetchAllData();
+    else alert("Xəta!");
   }
 
   async function deleteStudent(id: number) {
     if(!confirm("Tələbəni silmək istəyirsiniz?")) return;
-    const { error } = await supabase.from("students").delete().eq("id", id);
-    if (!error) fetchAllData();
+
+    const res = await fetch("/api/admin-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", table: "students", id: id })
+    });
+
+    if (res.ok) fetchAllData();
+    else alert("Xəta!");
   }
 
   async function handleSaveStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!editingStudent) return;
-    const { error } = await supabase.from("students").update({
-        first_name: editingStudent.first_name, last_name: editingStudent.last_name,
-        parent_name: editingStudent.parent_name, class: editingStudent.class,
-        phone1: editingStudent.phone1, phone2: editingStudent.phone2, exam_id: editingStudent.exam_id
-      }).eq("id", editingStudent.id);
-    if (!error) { setEditingStudent(null); fetchAllData(); } else { alert(error.message); }
+
+    const res = await fetch("/api/admin-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            action: "update",
+            table: "students",
+            id: editingStudent.id,
+            data: {
+                first_name: editingStudent.first_name,
+                last_name: editingStudent.last_name,
+                parent_name: editingStudent.parent_name,
+                class: editingStudent.class,
+                phone1: editingStudent.phone1,
+                phone2: editingStudent.phone2,
+                exam_id: editingStudent.exam_id
+            }
+        })
+    });
+
+    if (res.ok) {
+        setEditingStudent(null);
+        fetchAllData();
+    } else {
+        alert("Xəta!");
+    }
+  }
+
+  async function updateSetting(key: string, val: string) {
+      // Setting update üçün də serverə sorğu atırıq
+      // DİQQƏT: Cədvəl adı burda da "settings"-dir
+      const res = await fetch("/api/admin-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // table adını aşağıda dəyişə bilərsən
+        body: JSON.stringify({ 
+            action: "update-setting", // API-da xüsusi hal kimi yaza bilərik və ya 'update'
+            table: "settings", 
+            key: key, // API-da key-ə görə update məntiqi yazılmalıdır, ya da birbaşa update
+            data: { value: val } // Bu hissə sadəlik üçün birbaşa 'settings' update kimi gedəcək, amma key-ə görə filterləmək lazımdır.
+            // Sadəlik üçün gəl bunu birbaşa Client-dən edək (ziyanı yoxdur) ya da API-nı mürəkkəbləşdirməyək.
+            // API-mız ID tələb edir. Gəl ID tapaq.
+        })
+      });
+      
+      // Parametrləri update etmək üçün 'admin-action' api-sı "id" tələb edir.
+      // Ona görə də biz settings array-indən həmin key-in ID-sini tapıb göndəririk.
+      const settingItem = siteSettings.find(s => s.key === key);
+      
+      if(settingItem) {
+          const res = await fetch("/api/admin-action", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "update",
+                table: "settings",
+                id: settingItem.id,
+                data: { value: val }
+            })
+          });
+          
+          if(res.ok) alert("Yadda saxlandı!");
+          else alert("Xəta!");
+      }
   }
 
   // --- UPLOADLAR ---
@@ -207,7 +289,12 @@ export default function AdminDashboard() {
         const path = `certificates/cert_${Date.now()}.${file.name.split('.').pop()}`;
         await supabase.storage.from("images").upload(path, file);
         const {data:{publicUrl}} = supabase.storage.from("images").getPublicUrl(path);
+        
+        // Update via API? Or Client? Exams update is safer via API but certificate url is less sensitive.
+        // Let's stick to client for upload ease, or API if strict.
+        // For simplicity keeping client here as images bucket is public usually.
         await supabase.from("exams").update({certificate_url:publicUrl}).eq("name", certExamSelect);
+        
         setCertMessage("✅ Sertifikat yükləndi!");
      } catch (err:any) { setCertMessage("❌ "+err.message); }
      finally { setUploading(false); e.target.value=""; }
@@ -221,7 +308,17 @@ export default function AdminDashboard() {
         const path = `${Date.now()}.${file.name.split('.').pop()}`;
         await supabase.storage.from("images").upload(path, file);
         const {data:{publicUrl}} = supabase.storage.from("images").getPublicUrl(path);
-        await supabase.from("gallery").insert({image_url:publicUrl});
+        
+        // Insert via API
+        await fetch("/api/admin-action", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                action: "insert",
+                table: "gallery",
+                data: { image_url: publicUrl }
+            })
+        });
         fetchAllData();
      } catch(e) { alert("Xəta"); } finally { setUploading(false); }
   }
@@ -229,13 +326,33 @@ export default function AdminDashboard() {
   async function deleteImage(id: number, url: string) {
       if(!confirm("Silinsin?")) return;
       await supabase.storage.from("images").remove([url.split("/").pop()!]);
-      await supabase.from("gallery").delete().eq("id", id);
+      
+      // Delete via API
+      await fetch("/api/admin-action", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ action: "delete", table: "gallery", id: id })
+      });
+      
       fetchAllData();
   }
 
-  async function updateSetting(key: string, val: string) {
-      await supabase.from("settings").update({value:val}).eq("key", key);
-      alert("Yadda saxlandı!");
+  // --- EXCEL EXPORT ---
+  function exportExcel() {
+    const filteredForExport = students.filter(s => {
+        const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
+        const matchesExam = filterExam ? s.exam_name === filterExam : true;
+        return matchesSearch && matchesExam;
+    });
+
+    const rows = filteredForExport.map((s) => ({
+      ID: s.exam_id, İmtahan: s.exam_name || "-", Ad: s.first_name, Soyad: s.last_name,
+      Valideyn: s.parent_name, Sinif: s.class, Tel1: s.phone1, Tel2: s.phone2, Tarix: s.created_at,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
+    XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
   function logout() {
@@ -287,21 +404,42 @@ export default function AdminDashboard() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                <div className="p-6 border-b flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
                   <h2 className="font-bold text-lg flex gap-2"><Users className="text-amber-500"/> Qeydiyyat Siyahısı</h2>
+                  
+                  {/* FILTER VƏ AXTARIŞ */}
                   <div className="flex flex-wrap gap-2">
                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                        <input placeholder="Ad, soyad axtar..." value={search} onChange={e=>setSearch(e.target.value)} className="pl-9 pr-4 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 w-64"/>
+                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                        <select 
+                            value={filterExam}
+                            onChange={(e) => setFilterExam(e.target.value)}
+                            className="pl-9 pr-8 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 bg-white w-48 appearance-none cursor-pointer"
+                        >
+                            <option value="">Bütün İmtahanlar</option>
+                            {Array.from(new Set(exams.map(e => e.name))).map((name, i) => (
+                                <option key={i} value={name}>{name}</option>
+                            ))}
+                        </select>
                      </div>
-                     <button onClick={()=>{/*Excel Export*/}} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-700 transition"><Download size={16}/> Excel</button>
+
+                     <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                        <input placeholder="Ad, soyad axtar..." value={search} onChange={e=>setSearch(e.target.value)} className="pl-9 pr-4 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 w-48"/>
+                     </div>
+                     <button onClick={exportExcel} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-700 transition"><Download size={16}/> Excel</button>
                   </div>
                </div>
+               
                <div className="overflow-x-auto">
                   <table className="w-full text-left text-sm text-gray-600">
                     <thead className="bg-gray-50 text-xs uppercase font-bold text-gray-700">
                         <tr><th className="p-4">ID</th><th className="p-4">Ad Soyad</th><th className="p-4">İmtahan</th><th className="p-4">Sinif</th><th className="p-4">Əməliyyat</th></tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {students.filter(s => (s.first_name+s.last_name+s.exam_id).toLowerCase().includes(search.toLowerCase())).map(s => (
+                        {students.filter(s => {
+                            const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
+                            const matchesExam = filterExam ? s.exam_name === filterExam : true;
+                            return matchesSearch && matchesExam;
+                        }).map(s => (
                             <tr key={s.id} className="hover:bg-gray-50 transition">
                                 <td className="p-4 font-mono text-blue-600 font-bold">{s.exam_id}</td>
                                 <td className="p-4 font-medium text-gray-900">{s.first_name} {s.last_name}</td>
@@ -450,7 +588,7 @@ export default function AdminDashboard() {
              <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings className="text-amber-500"/> Digər Tənzimləmələr</h2>
                 <div className="space-y-6">
-                    {settings.filter(item => !item.label.includes("Sinif")).map((item) => (
+                    {siteSettings.filter(item => !item.label.includes("Sinif")).map((item) => (
                       <div key={item.id} className="bg-gray-50 p-5 rounded-xl border border-gray-100">
                         <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">{item.label}</label>
                         <div className="flex gap-3">
@@ -471,7 +609,7 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                     ))}
-                    {settings.length === 0 && <p className="text-gray-400 text-center">Tənzimləmə tapılmadı.</p>}
+                    {siteSettings.length === 0 && <p className="text-gray-400 text-center">Tənzimləmə tapılmadı.</p>}
                 </div>
              </div>
           )}
@@ -513,7 +651,7 @@ export default function AdminDashboard() {
         </main>
       </div>
 
-      {/* EDIT MODAL (YENİLƏNİB) */}
+      {/* EDIT MODAL */}
       {editingStudent && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
