@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { checkAdminAuth } from ""../../../lib/admin-check";
+import { checkAdminAuth } from "../../../lib/admin-check"; // <-- Tək dırnaq olmalıdır
 
 // Server tərəfdə işləyən Supabase Client
 const supabase = createClient(
@@ -9,14 +9,13 @@ const supabase = createClient(
 );
 
 export async function POST(req: Request) {
-  // 1. TƏHLÜKƏSİZLİK KİLİDİ: Kuki yoxdursa, qapıdan qovuruq! 🔒
+  // 1. TƏHLÜKƏSİZLİK KİLİDİ
   if (!checkAdminAuth()) {
     return NextResponse.json({ error: "İcazəsiz giriş! (Access Denied)" }, { status: 401 });
   }
 
   try {
     const { action, table, data, id } = await req.json();
-    let query;
 
     // 2. ƏMƏLİYYATLAR
     if (action === "insert") {
