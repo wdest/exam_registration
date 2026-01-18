@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { checkAdminAuth } from "@/lib/admin-check";
+import { checkAdminAuth } from ""../../../lib/admin-check";
 
 // Server tərəfdə işləyən Supabase Client
 const supabase = createClient(
