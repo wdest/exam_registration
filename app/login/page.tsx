@@ -22,7 +22,7 @@ export default function LoginPage() {
     setError("");
 
     try {
-      // 1. ADMIN GİRİŞİ (Sənin kodun)
+      // 1. ADMIN GİRİŞİ (Statik yoxlama)
       if (email === "admin@moc.com" && password === "moc12345") {
         document.cookie = "super_admin_access=true; path=/; max-age=86400; SameSite=Lax";
         router.push("/admin");
@@ -38,10 +38,9 @@ export default function LoginPage() {
       if (authError) throw new Error("Email və ya şifrə yanlışdır.");
 
       if (data.user) {
-         // Rolu yoxla (metadata-dan)
+         // Rolu yoxla
          const role = data.user.user_metadata?.role || "student"; 
          
-         // Kabinetə yönləndir
          if (role === "teacher") {
              router.push("/teacher-cabinet");
          } else {
@@ -57,61 +56,62 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex bg-white">
+    <div className="min-h-screen flex bg-white font-sans">
       
-      {/* --- SOL TƏRƏF (LOGO) --- */}
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-600 to-indigo-900 items-center justify-center relative overflow-hidden">
-        {/* Arxa fon bəzəkləri */}
-        <div className="absolute top-0 left-0 w-full h-full opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
-        <div className="absolute top-[-100px] left-[-100px] w-96 h-96 bg-blue-400 rounded-full blur-3xl opacity-30"></div>
-        <div className="absolute bottom-[-100px] right-[-100px] w-96 h-96 bg-purple-500 rounded-full blur-3xl opacity-30"></div>
+      {/* --- SOL TƏRƏF (DİZAYN) --- */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-700 to-indigo-900 items-center justify-center relative overflow-hidden">
+        
+        {/* Arxa fon bəzəkləri (Blur effektləri) */}
+        <div className="absolute top-[-100px] left-[-100px] w-96 h-96 bg-blue-500 rounded-full blur-[150px] opacity-40"></div>
+        <div className="absolute bottom-[-100px] right-[-100px] w-96 h-96 bg-purple-600 rounded-full blur-[150px] opacity-40"></div>
 
-        {/* LOGO QUTUSU */}
-        <div className="relative z-10 bg-white/10 backdrop-blur-md border border-white/20 p-12 rounded-3xl shadow-2xl flex items-center justify-center">
-             {/* Logo şəkli - public qovluğunda logo.png olmalıdır */}
-             <Image 
-                src="/logo.png" 
-                alt="Logo" 
-                width={250} 
-                height={250} 
-                className="object-contain drop-shadow-lg"
-                priority
-             />
+        {/* ORTADAKI ŞÜŞƏ QUTU (GLASSMORPHISM) */}
+        <div className="relative z-10 bg-white/10 backdrop-blur-xl border border-white/20 p-16 rounded-3xl shadow-2xl flex items-center justify-center">
+             {/* Logo - public/logo.png faylı olmalıdır */}
+             <div className="relative w-48 h-48">
+                <Image 
+                    src="/logo.png" 
+                    alt="Logo" 
+                    fill
+                    className="object-contain drop-shadow-2xl"
+                    priority
+                />
+             </div>
         </div>
       </div>
 
       {/* --- SAĞ TƏRƏF (FORM) --- */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-16 bg-gray-50">
-        <div className="w-full max-w-md space-y-8">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-16 bg-white">
+        <div className="w-full max-w-md space-y-10">
             
-            <div className="text-center">
-                <h2 className="text-3xl font-black text-gray-900 tracking-tight">Xoş Gəldiniz!</h2>
-                <p className="mt-2 text-gray-500">Kabinetə daxil olmaq üçün məlumatlarınızı daxil edin</p>
+            <div className="text-center space-y-2">
+                <h2 className="text-4xl font-black text-gray-900 tracking-tight">Xoş Gəldiniz!</h2>
+                <p className="text-gray-500 font-medium">Kabinetə daxil olmaq üçün məlumatlarınızı daxil edin</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
                 
                 {error && (
-                    <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-100 animate-pulse">
+                    <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm font-bold flex items-center gap-2 border border-red-100 animate-pulse">
                         <AlertCircle size={20} />
                         {error}
                     </div>
                 )}
 
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Email</label>
+                <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700 ml-1">Email</label>
                     <input 
                         type="email" 
                         required
                         placeholder="mail@example.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full p-4 bg-white border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition font-medium"
+                        className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white transition-all font-medium text-gray-800"
                     />
                 </div>
 
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">Şifrə</label>
+                <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-700 ml-1">Şifrə</label>
                     <div className="relative">
                         <input 
                             type={showPassword ? "text" : "password"} 
@@ -119,30 +119,30 @@ export default function LoginPage() {
                             placeholder="••••••••"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-4 bg-white border border-gray-200 rounded-xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition font-medium pr-12"
+                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-600 focus:bg-white transition-all font-medium text-gray-800 pr-12"
                         />
                         <button 
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
                             className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
                         >
-                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            {showPassword ? <EyeOff size={22} /> : <Eye size={22} />}
                         </button>
                     </div>
                 </div>
 
                 <button 
                     disabled={loading}
-                    className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition transform active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all transform active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-3 text-lg"
                 >
-                    {loading ? <Loader2 className="animate-spin" /> : <LogIn size={20} />}
+                    {loading ? <Loader2 className="animate-spin" /> : <LogIn size={24} />}
                     {loading ? "Gözləyin..." : "Daxil Ol"}
                 </button>
 
             </form>
 
-            <div className="text-center text-sm text-gray-400 mt-6">
-                © 2024 Main Olympic Center
+            <div className="text-center">
+                <p className="text-sm text-gray-400">© 2024 Main Olympic Center</p>
             </div>
         </div>
       </div>
