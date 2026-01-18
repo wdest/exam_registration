@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "@supabase/auth-helpers-nextjs": "^0.10.0",
     "pdf-parse": "^1.1.1",
     "xlsx": "^0.18.5",
     "@google/generative-ai": "^0.21.0",
