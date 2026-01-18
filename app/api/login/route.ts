@@ -2,7 +2,6 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Supabase "Service Role" açarı ilə (RLS-i yan keçmək üçün)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -11,16 +10,16 @@ const supabaseAdmin = createClient(
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { type, identifier, password } = body; // type: 'teacher' | 'student' | 'admin'
-    const cookieStore = cookies();
+    const { type, identifier, password } = body;
+    
+    // DƏYİŞİKLİK BURADADIR: cookies() artıq await tələb edir
+    const cookieStore = await cookies();
 
     let user = null;
     let role = "";
     let redirectUrl = "";
 
-    // ------------------------------------------
-    // 1. MÜƏLLİM GİRİŞİ (Database)
-    // ------------------------------------------
+    // --- MÜƏLLİM ---
     if (type === "teacher") {
       const { data, error } = await supabaseAdmin
         .from("teachers")
@@ -37,9 +36,7 @@ export async function POST(request: Request) {
       redirectUrl = "/teacher-cabinet";
     }
 
-    // ------------------------------------------
-    // 2. ŞAGİRD GİRİŞİ (Database)
-    // ------------------------------------------
+    // --- ŞAGİRD ---
     else if (type === "student") {
       const { data, error } = await supabaseAdmin
         .from("local_students")
@@ -55,13 +52,11 @@ export async function POST(request: Request) {
       redirectUrl = "/student";
     }
 
-    // ------------------------------------------
-    // 3. ADMIN GİRİŞİ (Əlavə olaraq köhnə funksiyanı saxlamaq istəsən)
-    // ------------------------------------------
+    // --- ADMIN ---
     else if (type === "admin") {
       if (password === process.env.ADMIN_PASSWORD) {
          role = "admin";
-         user = { id: 0, first_name: "Admin" }; // Saxta user obyekti
+         user = { id: 0, first_name: "Admin" };
          redirectUrl = "/admin";
       } else {
          return NextResponse.json({ error: "Admin şifrəsi yanlışdır" }, { status: 401 });
@@ -72,22 +67,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Yanlış giriş növü" }, { status: 400 });
     }
 
-    // ------------------------------------------
-    // COOKIE YARADILMASI (Möhür)
-    // ------------------------------------------
+    // --- KUKİ YAZILMASI ---
     const tokenData = JSON.stringify({ 
       role, 
       id: user.id, 
       name: user.full_name || user.first_name 
     });
 
-    // Next.js-in öz 'cookies' funksiyası (daha rahatdır)
+    // await etdiyimiz üçün artıq .set() funksiyası işləyəcək
     cookieStore.set("auth_token", tokenData, {
-      httpOnly: true, // 🔒 JS oxuya bilməz
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24, // 1 gün
+      maxAge: 60 * 60 * 24, 
     });
 
     return NextResponse.json({ success: true, redirect: redirectUrl });
