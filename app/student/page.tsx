@@ -35,10 +35,13 @@ export default function StudentCabinet() {
 
   const fetchData = async () => {
     try {
+      // Bizim yaratdığımız yeni API-yə sorğu göndəririk
       const res = await fetch("/api/student/dashboard");
       
+      // Əgər giriş edilməyibsə, loginə atırıq
       if (res.status === 401 || res.status === 403) {
-        router.push("/student-login");
+        // DÜZƏLİŞ: Artıq /login istifadə edirik
+        router.push("/login"); 
         return;
       }
 
@@ -52,7 +55,7 @@ export default function StudentCabinet() {
         setChartData(data.chartData);
         setRecentGrades(data.recentGrades);
         
-        // Avatar Logic
+        // Avatar yaddaşı
         const savedAvatar = localStorage.getItem(`avatar_${data.student.id}`);
         if (savedAvatar) {
             setSelectedAvatar(savedAvatar);
@@ -75,24 +78,23 @@ export default function StudentCabinet() {
       setIsAvatarMenuOpen(false);
   };
 
-  // --- YENİLƏNMİŞ VƏ DÜZƏLDİLMİŞ ÇIXIŞ FUNKSİYASI ---
+  // --- ÇIXIŞ FUNKSİYASI (YENİLƏNİB) ---
   const handleLogout = async () => {
     try {
-      // Yüklənmə ekranını açırıq ki, istifadəçi gözləsin
       setLoading(true);
 
-      // Serverə "Kukiləri Sil" əmrini göndəririk (POST sorğusu)
+      // Serverə "Kukiləri Sil" əmrini göndəririk
       await fetch("/api/logout", {
         method: "POST",
       });
 
-      // İndi təmiz şəkildə loginə yönləndiririk
-      router.push("/student-login");
+      // DÜZƏLİŞ: Təmiz login səhifəsinə yönləndiririk
+      router.push("/login");
       router.refresh(); 
     } catch (error) {
       console.error("Çıxış zamanı xəta:", error);
-      // Xəta olsa belə məcburi çıxarırıq
-      router.push("/student-login");
+      // Xəta olsa belə loginə atırıq
+      router.push("/login");
     }
   };
 
