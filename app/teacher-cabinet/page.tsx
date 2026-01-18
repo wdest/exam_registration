@@ -6,10 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, Trash2, Pencil, RefreshCcw,
-  BarChart3, TrendingUp, Activity, PieChart, Filter
+  BarChart3, TrendingUp, Activity, PieChart
 } from "lucide-react";
 
-// Supabase client-side (sadəcə real-time və ya əlavə sorğular üçün qala bilər)
+// Supabase client (yalnız qruplar və grade-lər üçün, əgər onlara hələ API yazmamışıqsa)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -70,15 +70,14 @@ export default function TeacherCabinet() {
   const [analyticsStudentsList, setAnalyticsStudentsList] = useState<any[]>([]); 
   const [rawGradesForChart, setRawGradesForChart] = useState<any[]>([]); 
 
-  // --- YENİLƏNMİŞ AUTHENTICATION (Login Problemini Həll Edir) ---
+  // --- AUTHENTICATION (API ilə) ---
   useEffect(() => {
     const initData = async () => {
         try {
-            // Birbaşa Server API-dən soruşuruq: "Mən kiməm?"
+            // Dashboard API-dən müəllimi yoxlayırıq
             const res = await fetch("/api/teacher/dashboard");
             
             if (res.status === 401 || res.status === 403) {
-                // Giriş yoxdursa -> Loginə at
                 router.push("/login");
                 return;
             }
@@ -86,7 +85,6 @@ export default function TeacherCabinet() {
             const data = await res.json();
             if (data.teacher) {
                 setTeacher(data.teacher);
-                // Müəllim tapıldısa, dataları yüklə
                 fetchData(data.teacher.id);
             }
         } catch (error) {
@@ -100,9 +98,20 @@ export default function TeacherCabinet() {
     initData();
   }, [router]);
 
+  // --- DATA FETCHING (YENİLƏNİB - API İLƏ) ---
   const fetchData = async (teacherId: number) => {
-    const { data: sData } = await supabase.from('local_students').select('*').eq('teacher_id', teacherId).order('created_at', { ascending: false });
-    if (sData) setStudents(sData);
+    // 1. Şagirdləri Təhlükəsiz API-dən gətiririk
+    try {
+        const res = await fetch("/api/teacher/students");
+        if (res.ok) {
+            const data = await res.json();
+            setStudents(data.students);
+        }
+    } catch (e) {
+        console.error("Şagirdlər yüklənmədi", e);
+    }
+
+    // 2. Qruplar (Hələlik Supabase - əgər RLS "Select" üçün açıqdırsa)
     const { data: gData } = await supabase.from('groups').select('*').eq('teacher_id', teacherId).order('created_at', { ascending: false });
     if (gData) setGroups(gData);
   };
@@ -117,7 +126,6 @@ export default function TeacherCabinet() {
     const studentsInGroup = members.map((m: any) => m.local_students);
     setAnalyticsStudentsList(studentsInGroup);
 
-    // Son 1 ilin datalarını çəkirik
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
@@ -131,7 +139,6 @@ export default function TeacherCabinet() {
     if (!allGrades) return;
     setRawGradesForChart(allGrades);
 
-    // CƏDVƏL STATİSTİKASI (Ümumi)
     let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0;
 
     const stats = studentsInGroup.map((student: any) => {
@@ -158,26 +165,22 @@ export default function TeacherCabinet() {
         avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0
     });
 
-    // Chart-ı başlat (Default: Son 4 dərs)
     updateChart(allGrades, 'group', null, 'lessons4');
   };
 
   // --- CHART GENERATOR ---
   const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => {
       let filteredData = [...data];
-
-      // 1. Filtr
       if (mode === 'individual' && studentId) {
           filteredData = filteredData.filter(g => g.student_id.toString() === studentId.toString());
       }
 
-      // 2. Qruplaşdırma
       const groupedData: { [key: string]: number[] } = {};
 
       filteredData.forEach((g: any) => {
           if (g.score !== null) {
               const date = new Date(g.grade_date);
-              let key = g.grade_date; // Default: Günlük
+              let key = g.grade_date; 
 
               if (interval === 'weeks4') {
                   const startOfYear = new Date(date.getFullYear(), 0, 1);
@@ -194,20 +197,16 @@ export default function TeacherCabinet() {
           }
       });
 
-      // 3. Ortalamalar
       let chartResult = Object.keys(groupedData).map(key => {
           const scores = groupedData[key];
           const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
           return { label: key, avg: parseFloat(avg.toFixed(1)), rawDate: key };
       });
 
-      // 4. İnterval Limitləri
       if (interval === 'lessons4') {
           chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
           chartResult = chartResult.slice(-4);
-      } else if (interval === 'weeks4') {
-          chartResult = chartResult.slice(-4);
-      } else if (interval === 'months4') {
+      } else if (interval === 'weeks4' || interval === 'months4') {
           chartResult = chartResult.slice(-4);
       }
       
@@ -221,7 +220,7 @@ export default function TeacherCabinet() {
   }, [analysisMode, selectedStudentForChart, chartInterval, rawGradesForChart]);
 
 
-  // --- CRUD ---
+  // --- CRUD (YENİLƏNİB - API İLƏ) ---
   const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const nameRegex = /^[a-zA-ZəüöğıçşƏÜÖĞIÇŞ\s]+$/;
@@ -229,27 +228,76 @@ export default function TeacherCabinet() {
     if (newStudent.phone.length !== 7) { alert("Nömrə natamamdır (7 rəqəm)."); return; }
     if (!newStudent.grade) { alert("Sinif seçin."); return; }
     const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`;
-    if (editingId) {
-        const { error } = await supabase.from('local_students').update({ ...newStudent, phone: formattedPhone }).eq('id', editingId);
-        if (!error) { alert("Yeniləndi!"); resetForm(); fetchData(teacher.id); }
-    } else {
-        let uniqueId = Math.floor(Math.random() * 10000) + 1;
-        while (students.some(s => s.student_code === uniqueId)) uniqueId = Math.floor(Math.random() * 10000) + 1;
-        const { error } = await supabase.from('local_students').insert([{ ...newStudent, phone: formattedPhone, teacher_id: teacher.id, student_code: uniqueId }]);
-        if (!error) { alert(`Əlavə edildi! ID: ${uniqueId}`); resetForm(); fetchData(teacher.id); }
+    
+    // API-yə göndəriləcək data
+    const studentPayload = { 
+        ...newStudent, 
+        phone: formattedPhone, 
+        student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 
+    };
+
+    try {
+        const res = await fetch("/api/teacher/students", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: editingId ? 'update' : 'create',
+                id: editingId,
+                studentData: studentPayload
+            })
+        });
+
+        const result = await res.json();
+        
+        if (!res.ok) throw new Error(result.error || "Xəta baş verdi");
+
+        alert(editingId ? "Yeniləndi!" : "Əlavə edildi!");
+        resetForm();
+        fetchData(teacher.id);
+
+    } catch (error: any) {
+        alert("Xəta: " + error.message);
     }
   };
+
   const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
+  
   const startEdit = (student: any) => {
       const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = "";
       if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); }
       setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
   };
-  const deleteStudent = async (id: number) => { if (confirm("Silinsin?")) { await supabase.from('local_students').delete().eq('id', id); fetchData(teacher.id); if (editingId === id) resetForm(); } };
+
+  // --- SİLMƏ (YENİLƏNİB - API İLƏ) ---
+  const deleteStudent = async (id: number) => { 
+      if (!confirm("Silinsin?")) return;
+      try {
+        const res = await fetch("/api/teacher/students", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: 'delete', id: id })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+
+        fetchData(teacher.id);
+        if (editingId === id) resetForm();
+      } catch (error: any) {
+        alert("Xəta: " + error.message);
+      }
+  };
   
   const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); setTempTime(""); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
-  const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); await supabase.from('groups').insert([{ name: newGroupName, schedule: finalSchedule, teacher_id: teacher.id }]); alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); fetchData(teacher.id); };
+  
+  const handleCreateGroup = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      if (scheduleSlots.length === 0) return; 
+      const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); 
+      // Qrup yaratmaq üçün də API yaza bilərsən, hələlik Supabase qalsın
+      await supabase.from('groups').insert([{ name: newGroupName, schedule: finalSchedule, teacher_id: teacher.id }]); 
+      alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); fetchData(teacher.id); 
+  };
   
   const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
   
@@ -267,14 +315,13 @@ export default function TeacherCabinet() {
   const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; await supabase.from('daily_grades').delete().eq('group_id', selectedGroup.id).eq('grade_date', gradingDate); const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); await supabase.from('daily_grades').insert(updates); alert("Saxlanıldı!"); };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
   
-  // YENİLƏNMİŞ ÇIXIŞ
+  // ÇIXIŞ
   const handleLogout = async () => { 
       try {
           await fetch("/api/logout", { method: "POST" });
           router.push("/login");
           router.refresh();
       } catch (error) {
-          console.error(error);
           router.push("/login");
       }
   };
@@ -383,13 +430,19 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- GROUPS UI --- */}
+        {/* --- GROUPS, ANALYTICS UI HİSSƏLƏRİ EYNİ QALIR (YUXARIDA SƏNİN KODUNDAKI KİMİ) --- */}
+        {/* Mən burada qısaldıram, amma sən yuxarıda atdığım "GROUPS" və "ANALYTICS" hissələrini olduğu kimi saxla. */}
+        {/* Onlar API-dən asılı deyil, data gələndən sonra işləyir. */}
+        
+        {/* Qruplar bölməsi */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
+                {/* ... Yuxarıdakı kodun eynisi ... */}
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                         <h3 className="text-lg font-bold mb-4">Yeni Qrup</h3>
                         <form onSubmit={handleCreateGroup} className="space-y-4">
+                            {/* ... Form inputları ... */}
                             <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
                             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl border dark:border-gray-600">
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
@@ -482,9 +535,10 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- ANALYTICS UI --- */}
+        {/* Analiz bölməsi */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in">
+                {/* ... Sənin kodundakı Analiz UI ... */}
                 <div className="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                     <div className="w-full md:w-1/3">
                         <h2 className="text-2xl font-bold mb-2">Statistika</h2>
