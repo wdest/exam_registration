@@ -44,6 +44,7 @@ export function middleware(request: NextRequest) {
     if (user) {
       if (user.role === 'teacher') return NextResponse.redirect(cleanUrl('/teacher-cabinet'))
       if (user.role === 'student') return NextResponse.redirect(cleanUrl('/student'))
+      if (user.role === 'admin') return NextResponse.redirect(cleanUrl('/admin'))
     }
     return NextResponse.next()
   }
