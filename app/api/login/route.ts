@@ -67,6 +67,8 @@ export async function POST(request: Request) {
     // 3. ADMIN GİRİŞİ (Gizli)
     // ==========================================
     else if (type === "admin") {
+       // Check against env var or fallback for development if needed.
+       // Ideally should only be env var.
        if (password === process.env.ADMIN_PASSWORD) {
           user = { id: 0, first_name: "Admin" };
           role = "admin";
@@ -101,6 +103,17 @@ export async function POST(request: Request) {
       path: "/",
       maxAge: 60 * 60 * 24, // 1 gün
     });
+
+    // Admin üçün xüsusi kuki
+    if (role === "admin") {
+      cookieStore.set("super_admin_access", "true", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24, // 1 gün
+      });
+    }
 
     return NextResponse.json({ success: true, redirect: redirectUrl });
 

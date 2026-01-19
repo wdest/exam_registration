@@ -1,59 +1,41 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("");
+  const [loginType, setLoginType] = useState<"student" | "teacher" | "admin">("student");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+
+  const handleTabChange = (type: "student" | "teacher" | "admin") => {
+    setLoginType(type);
+    setIdentifier("");
+    setPassword("");
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // 1. ADMIN GİRİŞİ (Sadəlik üçün hardcode edirik, istəsən bazadan yoxla)
-      if (email === "admin@moc.com" && password === "moc123") {
-        // Admin üçün kuki yaradırıq
-        const adminData = JSON.stringify({ role: "admin", name: "Admin" });
-        // Kukini 1 günlük təyin edirik
-        document.cookie = `auth_token=${adminData}; path=/; max-age=86400; SameSite=Lax`;
-        router.push("/admin");
-        return;
-      }
-
-      // 2. SUPABASE GİRİŞİ (Müəllim və Şagirdlər üçün)
-      // Əvvəlcə 'students' cədvəlini yoxlayaq (Şagird kodu və ya email ilə)
-      // QEYD: Burda sadəlik üçün email/password login fərz edirik.
-      // Sənin sistemdə şagird kodla girirsə, bura həmin məntiqi yazmalısan.
-      
-      const { data: { user }, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: loginType, identifier, password }),
       });
 
-      if (error) throw error;
+      const data = await res.json();
 
-      if (user) {
-         // Userin rolunu tapmaq üçün metadata və ya cədvələ baxmaq lazımdır
-         // Tutaq ki, metadata-da role var
-         const role = user.user_metadata.role || "student"; 
-         
-         const userData = JSON.stringify({ 
-             role: role, 
-             id: user.id, 
-             email: user.email 
-         });
-         
-         document.cookie = `auth_token=${userData}; path=/; max-age=86400; SameSite=Lax`;
-
-         if (role === "teacher") router.push("/teacher-cabinet");
-         else router.push("/student");
+      if (!res.ok) {
+        throw new Error(data.error || "Giriş uğursuz oldu");
       }
 
+      if (data.redirect) {
+        router.push(data.redirect);
+        router.refresh();
+      }
     } catch (error: any) {
       alert("Xəta: " + error.message);
     } finally {
@@ -65,21 +47,88 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100">
       <form onSubmit={handleLogin} className="bg-white p-8 rounded-xl shadow-lg w-96">
         <h1 className="text-2xl font-bold mb-6 text-center">Giriş</h1>
-        <input 
-          type="email" 
-          placeholder="Email" 
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          className="w-full mb-4 p-3 border rounded-lg"
-        />
-        <input 
-          type="password" 
-          placeholder="Şifrə" 
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          className="w-full mb-6 p-3 border rounded-lg"
-        />
-        <button disabled={loading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold">
+
+        {/* Tabs */}
+        <div className="flex mb-6 border-b">
+          <button
+            type="button"
+            className={`flex-1 py-2 ${loginType === "student" ? "border-b-2 border-blue-600 font-bold text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+            onClick={() => handleTabChange("student")}
+          >
+            Şagird
+          </button>
+          <button
+            type="button"
+            className={`flex-1 py-2 ${loginType === "teacher" ? "border-b-2 border-blue-600 font-bold text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+            onClick={() => handleTabChange("teacher")}
+          >
+            Müəllim
+          </button>
+          <button
+            type="button"
+            className={`flex-1 py-2 ${loginType === "admin" ? "border-b-2 border-blue-600 font-bold text-blue-600" : "text-gray-500 hover:text-gray-700"}`}
+            onClick={() => handleTabChange("admin")}
+          >
+            Admin
+          </button>
+        </div>
+
+        {loginType === "student" && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Şagird Kodu</label>
+            <input
+              type="text"
+              placeholder="Şagird kodunu daxil edin"
+              value={identifier}
+              onChange={e => setIdentifier(e.target.value)}
+              className="w-full p-3 border rounded-lg"
+              required
+            />
+          </div>
+        )}
+
+        {loginType === "teacher" && (
+          <>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">İstifadəçi adı</label>
+              <input
+                type="text"
+                placeholder="İstifadəçi adı"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                className="w-full p-3 border rounded-lg"
+                required
+              />
+            </div>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Şifrə</label>
+              <input
+                type="password"
+                placeholder="Şifrə"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                className="w-full p-3 border rounded-lg"
+                required
+              />
+            </div>
+          </>
+        )}
+
+        {loginType === "admin" && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Admin Şifrəsi</label>
+            <input
+              type="password"
+              placeholder="Şifrə"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full p-3 border rounded-lg"
+              required
+            />
+          </div>
+        )}
+
+        <button disabled={loading} className="w-full bg-blue-600 text-white p-3 rounded-lg font-bold hover:bg-blue-700 transition">
           {loading ? "Giriş edilir..." : "Daxil Ol"}
         </button>
       </form>
