@@ -29,7 +29,8 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin')) {
     // Əgər gizli kuki yoxdursa -> Ana səhifəyə tulla (Stealth Mode)
     // Loginə atmırıq ki, kimsə admin panelin varlığını bilməsin.
-    if (adminCookie !== 'true') {
+    // ARTIQ "true" YOX, XÜSUSİ HASH YOXLAYIRIQ
+    if (adminCookie !== 'v2_secure_hash_99881122_matrix_mode') {
       return NextResponse.redirect(cleanUrl('/'))
     }
     // Kuki varsa, burax keçsin

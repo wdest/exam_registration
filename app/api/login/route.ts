@@ -102,6 +102,17 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 24, // 1 gün
     });
 
+    // Əgər Admin girişidirsə, "Matrix" kukisini də əlavə edirik ki, Middleware buraxın
+    if (role === "admin") {
+      cookieStore.set("super_admin_access", "v2_secure_hash_99881122_matrix_mode", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24, // 1 gün
+      });
+    }
+
     return NextResponse.json({ success: true, redirect: redirectUrl });
 
   } catch (error: any) {

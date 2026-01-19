@@ -9,18 +9,23 @@ export default function SecretEntry() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
 
-  const handleSecretLogin = (e: React.FormEvent) => {
+  const handleSecretLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // --- GİZLİ ŞİFRƏ (PIN) ---
-    if (pin === "zpOb0PT2RMTIK4WC") {
-      
-      // Brauzerə xüsusi "Möhür" (Cookie) vururuq.
-      // Bu möhür olmadan Admin panel açılmayacaq.
-      document.cookie = "super_admin_access=true; path=/; max-age=86400; SameSite=Lax";
-      
-      router.push("/admin");
-    } else {
+    try {
+      // API-yə sorğu göndəririk (Server-Side Cookie üçün)
+      const res = await fetch("/api/admin-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+
+      if (res.ok) {
+        router.push("/admin");
+      } else {
+        throw new Error("Yanlış PIN");
+      }
+    } catch (err) {
       setError(true);
       setPin("");
       setTimeout(() => setError(false), 1000);

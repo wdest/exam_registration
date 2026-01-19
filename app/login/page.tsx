@@ -17,11 +17,17 @@ export default function LoginPage() {
     try {
       // 1. ADMIN GİRİŞİ (Sadəlik üçün hardcode edirik, istəsən bazadan yoxla)
       if (email === "admin@moc.com" && password === "moc123") {
-        // Admin üçün kuki yaradırıq
-        const adminData = JSON.stringify({ role: "admin", name: "Admin" });
-        // Kukini 1 günlük təyin edirik
-        document.cookie = `auth_token=${adminData}; path=/; max-age=86400; SameSite=Lax`;
-        router.push("/admin");
+        // ARTIQ API İLƏ GİRİŞ EDİRİK (Təhlükəsizlik üçün)
+        const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "admin", identifier: email, password: password })
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        
+        router.push(data.redirect);
         return;
       }
 
