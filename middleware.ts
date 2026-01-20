@@ -28,33 +28,30 @@ export function middleware(request: NextRequest) {
   // ===========================================================
   // 1. ADMIN PANELİ (GİZLİ QALMALIDIR)
   // ===========================================================
+ // middleware.ts içində bu hissəni tap və dəyiş:
+
+  // ===========================================================
+  // 1. ADMIN PANELİ (GİZLİ QALMALIDIR)
+  // ===========================================================
   if (pathname.startsWith('/admin')) {
+    
+    // 🕵️‍♂️ DEBUG KAMERASI: Bunu Vercel Loglarında görəcəksən
+    console.log("------------------------------------------------");
+    console.log("🛑 ADMIN GİRİŞ CƏHDİ: " + pathname);
+    console.log("🍪 Brauzerdən gələn kuki: ", adminCookie);
+    console.log("🔑 Gözlənilən şifrə: v2_secure_hash_99881122_matrix_mode");
+    
+    // Şifrəni yoxlayırıq
     if (adminCookie !== 'v2_secure_hash_99881122_matrix_mode') {
+      console.log("❌ UĞURSUZ! Kuki uyğun gəlmir və ya yoxdur.");
+      console.log("------------------------------------------------");
       return NextResponse.redirect(cleanUrl('/'))
     }
-    // Admin üçün hərəkət varsa, admin cookie vaxtını da uzada bilərik (opsional)
-    const response = NextResponse.next()
-    return response
-  }
 
-  // ===========================================================
-  // 2. LOGIN SƏHİFƏSİ (/login)
-  // ===========================================================
-  if (pathname === '/login') {
-    if (user) {
-      if (user.role === 'teacher') return NextResponse.redirect(cleanUrl('/teacher-cabinet'))
-      if (user.role === 'student') return NextResponse.redirect(cleanUrl('/student'))
-    }
-    // Əgər token var amma user null-dırsa (yəni JSON səhvdrisə), 
-    // login səhifəsində cookie-ni təmizləyən response qaytarırıq.
-    if (token && !user) {
-      const response = NextResponse.next()
-      response.cookies.delete('auth_token')
-      return response
-    }
+    console.log("✅ UĞURLU! Admin panel açılır.");
+    console.log("------------------------------------------------");
     return NextResponse.next()
   }
-
   // ===========================================================
   // 3. ROL ƏSASLI QORUMA
   // ===========================================================
