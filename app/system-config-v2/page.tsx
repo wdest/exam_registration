@@ -1,39 +1,30 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Fingerprint, ShieldAlert, ArrowRight, Lock } from "lucide-react";
+import { ShieldAlert, ArrowRight, Lock } from "lucide-react";
 
 export default function SecretEntry() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSecretLogin = async (e: React.FormEvent) => {
+  const handleSecretLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      const res = await fetch("/api/admin-verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      });
+    // 🛑 Sadə Yoxlama (Frontend-də)
+    // Middleware-də "123456" qoymuşuq, burada da eynisini yoxlayırıq.
+    if (pin === "123456") {
+        
+        // ✅ BİRBAŞA YÖNLƏNDİRMƏ
+        // Middleware bunu görəcək, kukini yazacaq və səni təmiz /admin səhifəsinə atacaq.
+        window.location.href = "/admin?pass=123456";
 
-      if (res.ok) {
-        // ✅ 1.5 Saniyə gözlədirik və Random kodla yönləndiririk (Cache-Buster)
-        setTimeout(() => {
-           const rnd = Math.floor(Math.random() * 9999);
-           window.location.href = `/admin?v=${rnd}`; 
-        }, 1500); 
-      } else {
-        throw new Error("Yanlış PIN");
-      }
-    } catch (err) {
-      setError(true);
-      setPin("");
-      setLoading(false);
-      setTimeout(() => setError(false), 1000);
+    } else {
+        setError(true);
+        setPin("");
+        setLoading(false);
+        setTimeout(() => setError(false), 1000);
     }
   };
 
@@ -44,12 +35,12 @@ export default function SecretEntry() {
       <form onSubmit={handleSecretLogin} className="relative z-10 flex flex-col items-center gap-6 p-12 border border-green-900/50 rounded-xl bg-black/80 shadow-2xl shadow-green-900/20 backdrop-blur-sm w-full max-w-md">
         
         <div className={`p-4 rounded-full border-2 transition-all duration-300 ${error ? "border-red-600 bg-red-900/20 text-red-600 animate-shake" : "border-green-600 bg-green-900/20"}`}>
-            {error ? <ShieldAlert size={48} /> : (loading ? <Lock size={48} className="animate-pulse"/> : <Fingerprint size={48} />)}
+            {error ? <ShieldAlert size={48} /> : <Lock size={48} className={loading ? "animate-pulse" : ""} />}
         </div>
 
         <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold tracking-widest uppercase">Restricted Area</h1>
-            <p className="text-xs text-green-700">TEST MODE: 123456</p>
+            <p className="text-xs text-green-700">EMERGENCY MODE</p>
         </div>
         
         <div className="w-full relative group">
@@ -60,12 +51,12 @@ export default function SecretEntry() {
               value={pin}
               onChange={e => setPin(e.target.value)}
               disabled={loading}
-              className="w-full bg-black border border-green-800 text-center text-3xl tracking-[0.5em] text-green-400 p-4 rounded-lg outline-none focus:border-green-500 focus:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all placeholder:text-green-900 placeholder:text-sm placeholder:tracking-normal disabled:opacity-50"
+              className="w-full bg-black border border-green-800 text-center text-3xl tracking-[0.5em] text-green-400 p-4 rounded-lg outline-none focus:border-green-500 focus:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all placeholder:text-green-900 placeholder:text-sm placeholder:tracking-normal"
             />
         </div>
         
-        <button disabled={loading} className="group w-full bg-green-900/30 hover:bg-green-600 hover:text-black border border-green-800 py-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed">
-           {loading ? "VERIFYING..." : "Access System"} <ArrowRight size={18} className={`transition-transform ${loading ? "" : "group-hover:translate-x-1"}`}/>
+        <button disabled={loading} className="group w-full bg-green-900/30 hover:bg-green-600 hover:text-black border border-green-800 py-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wider">
+           {loading ? "UNLOCKING..." : "Access System"} <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform"/>
         </button>
 
       </form>
