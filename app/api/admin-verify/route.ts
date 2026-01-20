@@ -4,28 +4,26 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { pin } = body;
-    
-    // Vercel-dəki parolun (Settings-də yazdığın)
-    const SECRET_PIN = process.env.ADMIN_PASSWORD; 
 
-    // Əgər parol düzdürsə
-    if (pin === SECRET_PIN) {
+    // 🛑 TEST REJİMİ: Parol konkret "123456"
+    if (pin === "123456") {
+      
       const response = NextResponse.json({ success: true });
 
-      // 🔥 KUKİNİ BELƏ YAZIRIQ (Vercel üçün)
-      response.cookies.set('super_admin_access', 'ACCESS_GRANTED_2026', {
-        httpOnly: true, 
-        secure: true,    // Vercel (HTTPS) olduğu üçün TRUE
-        sameSite: 'lax', // Redirect zamanı itməməsi üçün 'Lax'
-        maxAge: 60 * 60, // 1 saat
-        path: '/',       // Bütün saytda keçərli olsun
+      // 🔥 VERCEL ÜÇÜN BETON KUKİ AYARLARI
+      response.cookies.set('final_test_cookie', 'OPEN_SESAME', {
+        httpOnly: true,
+        secure: true,      // Vercel (HTTPS) üçün vacibdir
+        sameSite: 'none',  // ⚠️ Redirect zamanı kuki itməməsi üçün ən güclü ayar
+        maxAge: 3600,      // 1 saat
+        path: '/',         // Bütün saytda keçərlidir
       });
 
       return response;
     } else {
-      return NextResponse.json({ success: false, message: "Parol Səhvdir" }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Səhvdir" }, { status: 401 });
     }
   } catch (e) {
-    return NextResponse.json({ success: false, message: "Xəta" }, { status: 500 });
+    return NextResponse.json({ success: false }, { status: 500 });
   }
 }
