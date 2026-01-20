@@ -22,12 +22,14 @@ export default function SecretEntry() {
       });
 
       if (res.ok) {
-        // ✅ QIZIL HİSSƏ: 
-        // Dərhal yönləndirmirik! 500ms gözləyirik ki, kuki tam otursun.
-        // Bu "timeout" olmasa, brauzer bəzən kukini çatdırıb yaddaşa yaza bilmir.
+        // 🛑 KÖHNƏ: window.location.href = "/admin"; 
+        
+        // ✅ YENİ (Cache-Buster): 
+        // Linkin sonuna təsadüfi rəqəm əlavə edirik ki, brauzer keşdən oxumasın!
         setTimeout(() => {
-            window.location.href = "/admin"; 
-        }, 500);
+             const randomCode = Math.floor(Math.random() * 999999);
+             window.location.href = `/admin?refresh=${randomCode}`; 
+        }, 1000); 
       } else {
         throw new Error("Yanlış PIN");
       }
