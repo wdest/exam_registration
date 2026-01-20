@@ -16,7 +16,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-
 interface Student {
   id: number;
   exam_id: string;
@@ -57,12 +56,12 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("students");
-  
+   
   const [students, setStudents] = useState<Student[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
-  
+   
   const [search, setSearch] = useState("");
   const [filterExam, setFilterExam] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -80,12 +79,11 @@ export default function AdminDashboard() {
   const [certExamSelect, setCertExamSelect] = useState("");
   const [certMessage, setCertMessage] = useState("");
 
+  // 🔥 DÜZƏLİŞ BURDADIR:
+  // O səhv yoxlamanı sildim. Middleware buraxıbsa, deməli icazən var.
+  // Sadəcə datanı çəkirik.
   useEffect(() => {
-    if (!document.cookie.includes("super_admin_access=true")) {
-        router.push("/"); 
-    } else {
-        fetchAllData();
-    }
+     fetchAllData();
   }, []);
 
   async function fetchAllData() {
@@ -264,8 +262,8 @@ export default function AdminDashboard() {
       fetchAllData();
   }
 
+  // Logout funksiyası (Sadə redirect)
   function logout() {
-    document.cookie = "super_admin_access=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
     router.push("/"); 
   }
 
@@ -273,7 +271,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      
+       
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2">
@@ -307,31 +305,31 @@ export default function AdminDashboard() {
 
         {/* MAIN CONTENT */}
         <main className="flex-1 p-8 overflow-y-auto">
-          
+           
           {/* 1. TƏLƏBƏLƏR - FULL DATA */}
           {activeTab === "students" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
                <div className="p-6 border-b flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
                   <h2 className="font-bold text-lg flex gap-2"><Users className="text-amber-500"/> Qeydiyyat Siyahısı</h2>
                   <div className="flex flex-wrap gap-2">
-                     <div className="relative">
-                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                        <select 
+                      <div className="relative">
+                         <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                         <select 
                             value={filterExam}
                             onChange={(e) => setFilterExam(e.target.value)}
                             className="pl-9 pr-8 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 bg-white w-48 appearance-none cursor-pointer"
-                        >
+                         >
                             <option value="">Bütün İmtahanlar</option>
                             {Array.from(new Set(exams.map(e => e.name))).map((name, i) => (
                                 <option key={i} value={name}>{name}</option>
                             ))}
-                        </select>
-                     </div>
-                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                        <input placeholder="Axtar..." value={search} onChange={e=>setSearch(e.target.value)} className="pl-9 pr-4 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 w-48"/>
-                     </div>
-                     <button onClick={exportExcel} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-700 transition"><Download size={16}/> Excel</button>
+                         </select>
+                      </div>
+                      <div className="relative">
+                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                         <input placeholder="Axtar..." value={search} onChange={e=>setSearch(e.target.value)} className="pl-9 pr-4 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 w-48"/>
+                      </div>
+                      <button onClick={exportExcel} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-700 transition"><Download size={16}/> Excel</button>
                   </div>
                </div>
                
