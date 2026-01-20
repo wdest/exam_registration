@@ -3,23 +3,28 @@ import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const adminCookie = request.cookies.get('super_admin_access')?.value
   const cleanUrl = (path: string) => new URL(path, request.nextUrl.origin)
 
-  // 1. LOGLAMA (Vercel Loglarında bunu görəcəksən)
+  // ===========================================================
+  // 1. ADMIN PANELİ YOXLAMASI (TEST REJİMİ)
+  // ===========================================================
   if (pathname.startsWith('/admin')) {
-    console.log(`[MIDDLEWARE] Admin Girişi: ${pathname}`);
-    console.log(`[MIDDLEWARE] Kuki dəyəri: '${adminCookie}'`);
     
-    // Şifrəni yoxlayırıq: 'ACCESS_GRANTED_2026'
-    if (adminCookie !== 'ACCESS_GRANTED_2026') {
-      console.log(`[MIDDLEWARE] ❌ İcazə yoxdur, ana səhifəyə atılır.`);
+    // Kukini oxuyuruq
+    const secret = request.cookies.get('final_test_cookie')?.value
+
+    // Əgər kuki 'OPEN_SESAME' deyilsə -> Ana səhifəyə at
+    if (secret !== 'OPEN_SESAME') {
       return NextResponse.redirect(cleanUrl('/'))
     }
-    console.log(`[MIDDLEWARE] ✅ İcazə verildi!`);
+    
+    // Düzdürsə -> İcazə ver
+    return NextResponse.next()
   }
 
-  // Digər login yoxlamaları (Müəllim/Şagird)
+  // ===========================================================
+  // 2. MÜƏLLİM VƏ ŞAGİRD (Sənin köhnə kodların)
+  // ===========================================================
   const token = request.cookies.get('auth_token')?.value
   let user = null
   if (token) { try { user = JSON.parse(token) } catch (e) { user = null } }
@@ -40,12 +45,10 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // 🛑 MATCHER-i DƏYİŞDİM: /admin sadəcə yox, həm də alt səhifələri tutsun
   matcher: [
     '/teacher-cabinet/:path*', 
     '/student/:path*', 
-    '/admin',         // ✅ Bunu əlavə etdim (dəqiq /admin üçün)
-    '/admin/:path*',  // ✅ Bu da alt səhifələr üçün
+    '/admin/:path*', // Admin qovluğu
     '/login'
   ],
 }
