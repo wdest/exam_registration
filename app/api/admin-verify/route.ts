@@ -4,24 +4,18 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { pin } = body;
-    const SECRET_PIN = process.env.ADMIN_PASSWORD;
+    const SECRET_PIN = process.env.ADMIN_PASSWORD; // Vercel-də Environment Variable-a bunu yazdığına əmin ol!
 
     if (pin === SECRET_PIN) {
       const response = NextResponse.json({ success: true });
 
-      // 🔥 PRODUCTION STANDARTI
+      // 🔥 VERCEL ÜÇÜN XÜSUSİ AYARLAR
       response.cookies.set('super_admin_access', 'v2_secure_hash_99881122_matrix_mode', {
         httpOnly: true, 
-        
-        // Bu kod avtomatik başa düşür: Sayt Vercel-dədirsə -> Secure: TRUE
-        // Yox əgər Localhost-dursa -> Secure: FALSE (xəta verməsin deyə)
-        secure: process.env.NODE_ENV === 'production', 
-        
-        // ⚠️ BU ÇOX VACİBDİR: 'Lax' qoy ki, redirect zamanı kuki itməsin!
-        sameSite: 'lax', 
-        
+        secure: true,    // ✅ Vercel (HTTPS) olduğu üçün MÜTLƏQ TRUE
+        sameSite: 'lax', // ✅ BU ÇOX VACİBDİR! 'Strict' olsa redirect edəndə kuki itir. 'Lax' qoy.
         maxAge: 60 * 60, // 1 saat
-        path: '/',
+        path: '/',       // Bütün saytda keçərli olsun
       });
 
       return response;
