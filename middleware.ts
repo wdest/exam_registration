@@ -5,19 +5,22 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const cleanUrl = (path: string) => new URL(path, request.nextUrl.origin)
 
-  // --- ADMIN YOXLAMASI ---
+  // --- ADMIN GİRİŞİ ---
   if (pathname.startsWith('/admin')) {
-    const secret = request.cookies.get('final_access_key')?.value
+    
+    // Kukini yoxlayırıq
+    const secret = request.cookies.get('super_admin_session')?.value
 
-    // Kuki 'OPEN_SESAME' deyilsə -> Ana səhifəyə
-    if (secret !== 'OPEN_SESAME') {
+    // Əgər kuki bizim gizli token deyilsə -> QOV!
+    if (secret !== 'ACCESS_GRANTED_SECURE_V2') {
       return NextResponse.redirect(cleanUrl('/'))
     }
+    
+    // İcazə ver
     return NextResponse.next()
   }
-  // -----------------------
 
-  // (Sənin digər kodların olduğu kimi qalır)
+  // --- (Digər kodların - Login/Student/Teacher - Olduğu kimi saxla) ---
   const token = request.cookies.get('auth_token')?.value
   let user = null
   if (token) { try { user = JSON.parse(token) } catch (e) { user = null } }
