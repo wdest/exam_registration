@@ -9,13 +9,13 @@ export async function POST(request: Request) {
     if (pin === SECRET_PIN) {
       const response = NextResponse.json({ success: true });
 
-      // 🔥 VERCEL ÜÇÜN BETON AYARLAR
+      // 🔥 VERCEL + CHROME ÜÇÜN "QIZIL ORTA" AYARI
       response.cookies.set('super_admin_access', 'v2_secure_hash_99881122_matrix_mode', {
-        httpOnly: true, 
-        secure: true,      // ✅ Vercel (HTTPS) olduğu üçün TRUE
-        sameSite: 'none',  // ✅ 'lax' yox, 'none' qoyuruq (HTTPS-də ən yaxşı işləyən budur)
-        maxAge: 60 * 60,   // 1 saat
-        path: '/',         // ✅ Kuki bütün saytda keçərli olsun
+        httpOnly: true,  // JavaScript oxuya bilməz (Təhlükəsizlik)
+        secure: true,    // Vercel (HTTPS) olduğu üçün TRUE
+        sameSite: 'lax', // ✅ 'lax' qoyuruq. Redirect zamanı kuki itmir.
+        maxAge: 60 * 60, // 1 saat
+        path: '/',       // Bütün saytda keçərli olsun
       });
 
       return response;
