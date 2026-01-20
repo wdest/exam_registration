@@ -33,8 +33,8 @@ export default function Navbar() {
               <Image 
                 src="/logo.png" 
                 alt="MOC Logo" 
-                width={140} 
-                height={50} 
+                width={280} 
+                height={100} 
                 className="object-contain h-12 w-auto"
                 priority
               />
