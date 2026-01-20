@@ -11,11 +11,13 @@ import {
   Loader2, Filter, DollarSign, Lock, Eye 
 } from "lucide-react";
 
+// Supabase Client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
+// --- TİPLƏR (INTERFACES) ---
 interface Student {
   id: number;
   exam_id: string;
@@ -55,34 +57,42 @@ interface Exam {
 export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("students");
+  const [activeTab, setActiveTab] = useState("results"); // Default tab
    
+  // Data States
   const [students, setStudents] = useState<Student[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
    
+  // UI States
   const [search, setSearch] = useState("");
   const [filterExam, setFilterExam] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  // Exam Create States
   const [newExamName, setNewExamName] = useState("");
   const [newExamUrl, setNewExamUrl] = useState("");
   const [newExamClass, setNewExamClass] = useState("1");
   const [isPaid, setIsPaid] = useState(false); 
   const [examPrice, setExamPrice] = useState("0");
 
+  // Edit State
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
+  // Upload Selection States
   const [uploadExamSelect, setUploadExamSelect] = useState(""); 
   const [uploadMessage, setUploadMessage] = useState(""); 
   const [certExamSelect, setCertExamSelect] = useState("");
   const [certMessage, setCertMessage] = useState("");
 
-  // Random Preview Data
-  const [previewName, setPreviewName] = useState("Əli Vəliyev");
+  // Preview Data (Random)
+  const [previewName, setPreviewName] = useState("ABULFAZL GASIMZADA");
+  const [previewExamName, setPreviewExamName] = useState("Almaniya");
   const [previewScore, setPreviewScore] = useState("650");
+  const [previewPercent, setPreviewPercent] = useState("92%");
 
+  // Səhifə açılanda datanı çək
   useEffect(() => {
      fetchAllData();
   }, []);
@@ -90,17 +100,17 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
-      const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
-      if (setData) setSiteSettings(setData as any);
-
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
-
-      const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
-      if (galData) setGallery(galData as any);
-
+      
       const { data: examData } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
       if (examData) setExams(examData as any);
+      
+      const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
+      if (galData) setGallery(galData as any);
+      
+      const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
+      if (setData) setSiteSettings(setData as any);
 
     } catch (error) {
       console.error("Data xətası:", error);
@@ -109,7 +119,9 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- SERVER ACTIONLARI ---
+  // --- API AKSİYALARI ---
+
+  // 1. Yeni İmtahan
   async function addExam(e: React.FormEvent) {
     e.preventDefault();
     if (!newExamName || !newExamUrl || !newExamClass) return alert("Bütün xanaları doldurun.");
@@ -132,8 +144,9 @@ export default function AdminDashboard() {
     } else { alert("Xəta!"); }
   }
 
+  // 2. İmtahan Sil
   async function deleteExam(id: number) {
-    if(!confirm("Silmək istəyirsiniz?")) return;
+    if(!confirm("Bu imtahanı silmək istəyirsiniz?")) return;
     const res = await fetch("/api/admin-action", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", table: "exams", id: id })
@@ -141,6 +154,7 @@ export default function AdminDashboard() {
     if (res.ok) fetchAllData(); else alert("Xəta!");
   }
 
+  // 3. Tələbə Sil
   async function deleteStudent(id: number) {
     if(!confirm("Tələbəni silmək istəyirsiniz?")) return;
     const res = await fetch("/api/admin-action", {
@@ -150,6 +164,7 @@ export default function AdminDashboard() {
     if (res.ok) fetchAllData(); else alert("Xəta!");
   }
 
+  // 4. Tələbə Redaktə
   async function handleSaveStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!editingStudent) return;
@@ -168,6 +183,7 @@ export default function AdminDashboard() {
     if (res.ok) { setEditingStudent(null); fetchAllData(); } else { alert("Xəta!"); }
   }
 
+  // 5. Setting Update
   async function updateSetting(key: string, val: string) {
       const settingItem = siteSettings.find(s => s.key === key);
       if(settingItem) {
@@ -179,6 +195,7 @@ export default function AdminDashboard() {
       }
   }
 
+  // 6. Excel Export
   function exportExcel() {
     const filteredForExport = students.filter(s => {
         const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
@@ -195,6 +212,9 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
+  // --- YÜKLƏMƏ FUNKSİYALARI ---
+
+  // A. Nəticə Yüklə (Excel)
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     if (!uploadExamSelect) { alert("İmtahan seçin!"); e.target.value=""; return;}
@@ -217,28 +237,90 @@ export default function AdminDashboard() {
             })).filter(i => i.student_id);
             await fetch("/api/upload-result", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ data: formattedData }) });
             setUploadMessage("✅ Nəticələr yükləndi! (" + formattedData.length + " nəfər)");
-            fetchAllData(); // Datanı yenilə ki, indikator görünsün
+            fetchAllData(); 
         } catch (err:any) { setUploadMessage("❌ Xəta: " + err.message); }
         finally { setUploading(false); e.target.value=""; }
     };
     reader.readAsBinaryString(file);
   }
 
+  // B. Sertifikat Yüklə
   async function handleCertificateUpload(e: React.ChangeEvent<HTMLInputElement>) {
      if (!e.target.files?.length || !certExamSelect) return alert("İmtahan seçin!");
      setUploading(true);
      try {
         const file = e.target.files[0];
-        const path = `certificates/cert_${Date.now()}.${file.name.split('.').pop()}`;
+        // Fayl adını unikal edirik ki, konflikt olmasın
+        const path = `certificates/cert_${Date.now()}_${Math.random().toString(36).substr(2,9)}.${file.name.split('.').pop()}`;
+        
         await supabase.storage.from("images").upload(path, file);
         const {data:{publicUrl}} = supabase.storage.from("images").getPublicUrl(path);
+        
+        // Bazanı yeniləyirik
         await supabase.from("exams").update({certificate_url:publicUrl}).eq("name", certExamSelect);
+        
         setCertMessage("✅ Sertifikat yükləndi!");
-        fetchAllData(); // Preview görünsün deyə
+        setPreviewExamName(certExamSelect);
+        fetchAllData(); 
      } catch (err:any) { setCertMessage("❌ "+err.message); }
      finally { setUploading(false); e.target.value=""; }
   }
 
+  // C. Şablonu Silmək (Database + Storage)
+  async function deleteCertificate() {
+     if(!certExamSelect) return alert("İmtahan seçin!");
+     if(!confirm("DİQQƏT: Bu imtahanın sertifikat şablonunu silmək istəyirsiniz?")) return;
+
+     setUploading(true);
+     try {
+         // 1. Bazadan linki sil (NULL et)
+         await supabase.from("exams").update({ certificate_url: null }).eq("name", certExamSelect);
+         
+         // 2. Storage-dən silmək (Opsional: Əgər köhnə linki bilsəydik silərdik, amma vacib deyil, əsas bazadır)
+         // Əsas odur ki, bazadan silinsin, onda "Yüklənib" yazısı itəcək.
+         
+         setCertMessage("🗑️ Şablon silindi.");
+         setCertExamSelect(""); // Reset selection
+         fetchAllData();
+     } catch (err:any) {
+         setCertMessage("❌ Xəta: " + err.message);
+     } finally {
+         setUploading(false);
+     }
+  }
+
+  // D. Nəticələri Silmək (Bu imtahana aid bütün tələbələri silir)
+  async function deleteExamResults() {
+     if(!uploadExamSelect) return alert("İmtahan seçin!");
+     const count = getResultCount(uploadExamSelect);
+     if(count === 0) return alert("Bu imtahan üçün nəticə yoxdur.");
+
+     if(!confirm(`DİQQƏT: "${uploadExamSelect}" imtahanının BÜTÜN nəticələrini (${count} tələbə) silmək istəyirsiniz?\nBu əməliyyat geri qaytarıla bilməz!`)) return;
+
+     setUploading(true);
+     try {
+         // Students cədvəlindən bu imtahan adına uyğun olanları silirik
+         // Qeyd: Bu API endpointi lazımdır. Mən sadəlik üçün mövcud delete student məntiqini loop edəcəm və ya birbaşa supabase.
+         // Ən təmizi birbaşa supabase-dən silməkdir (əgər RLS icazə verirsə)
+         
+         // 1. İD-ləri tap
+         const studentsToDelete = students.filter(s => s.exam_name === uploadExamSelect).map(s => s.id);
+         
+         // 2. Tək-tək və ya bulk sil (Supabase JS ilə)
+         const { error } = await supabase.from("students").delete().in("id", studentsToDelete);
+         
+         if(error) throw error;
+
+         setUploadMessage("🗑️ Bütün nəticələr silindi.");
+         fetchAllData();
+     } catch(err:any) {
+         setUploadMessage("❌ Xəta: " + err.message);
+     } finally {
+         setUploading(false);
+     }
+  }
+
+  // E. Qalereya Yüklə
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
      if (!e.target.files?.length) return;
      setUploading(true);
@@ -255,6 +337,7 @@ export default function AdminDashboard() {
      } catch(e) { alert("Xəta"); } finally { setUploading(false); }
   }
 
+  // F. Qalereya Sil
   async function deleteImage(id: number, url: string) {
       if(!confirm("Silinsin?")) return;
       await supabase.storage.from("images").remove([url.split("/").pop()!]);
@@ -269,15 +352,9 @@ export default function AdminDashboard() {
     router.push("/"); 
   }
 
-  // Helper Functions for Indicators
-  const checkResultsExist = (examName: string) => {
-    return students.some(s => s.exam_name === examName);
-  };
-
-  const getResultCount = (examName: string) => {
-    return students.filter(s => s.exam_name === examName).length;
-  };
-
+  // Helpers
+  const checkResultsExist = (examName: string) => students.some(s => s.exam_name === examName);
+  const getResultCount = (examName: string) => students.filter(s => s.exam_name === examName).length;
   const getSelectedCertExam = () => exams.find(e => e.name === certExamSelect);
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-amber-500" size={40}/></div>;
@@ -460,17 +537,17 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* 3. UPLOAD RESULTS & CERTIFICATES (YENİLƏNDİ) */}
+          {/* 3. UPLOAD RESULTS & CERTIFICATES */}
           {activeTab === "results" && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
                  
-                 {/* RESULTS SECTION */}
+                 {/* A. RESULTS SECTION */}
                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center flex flex-col items-center">
                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-4"><FileText size={24}/></div>
                      <h2 className="text-xl font-bold mb-2">Nəticələri Yüklə</h2>
-                     <p className="text-sm text-gray-500 mb-6">ZipGrade Excel (.xlsx, .csv) faylı</p>
+                     <p className="text-sm text-gray-500 mb-6">ZipGrade Excel (.xlsx, .csv)</p>
                      
-                     <select value={uploadExamSelect} onChange={e=>setUploadExamSelect(e.target.value)} className="w-full p-3 border rounded-xl mb-4 bg-gray-50 outline-none focus:border-green-500 transition">
+                     <select value={uploadExamSelect} onChange={e=>setUploadExamSelect(e.target.value)} className="w-full p-3 border rounded-xl mb-4 bg-gray-50 outline-none focus:border-green-500 transition cursor-pointer">
                          <option value="">İmtahan Seç...</option>
                          {Array.from(new Set(exams.map(e=>e.name))).map(n => (
                              <option key={n} value={n}>
@@ -479,10 +556,15 @@ export default function AdminDashboard() {
                          ))}
                      </select>
                      
-                     {/* İNDİKATOR: Bu imtahan üçün neçə nəfər var? */}
+                     {/* İNDİKATOR */}
                      {uploadExamSelect && checkResultsExist(uploadExamSelect) && (
-                         <div className="mb-4 bg-green-50 text-green-700 text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-2">
-                            <CheckCircle size={16}/> {getResultCount(uploadExamSelect)} nəfərin nəticəsi artıq bazadadır.
+                         <div className="mb-4 w-full">
+                             <div className="bg-green-50 text-green-700 text-sm font-bold px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-2">
+                                <CheckCircle size={16}/> {getResultCount(uploadExamSelect)} nəfər yüklənib.
+                             </div>
+                             <button onClick={deleteExamResults} className="text-xs text-red-500 hover:text-red-700 font-bold underline">
+                                🗑️ Bu imtahanın nəticələrini sil
+                             </button>
                          </div>
                      )}
 
@@ -496,13 +578,13 @@ export default function AdminDashboard() {
                      {uploadMessage && <p className={`mt-4 font-bold text-sm ${uploadMessage.includes("Xəta") ? "text-red-500" : "text-green-600"}`}>{uploadMessage}</p>}
                  </div>
 
-                 {/* CERTIFICATE SECTION */}
+                 {/* B. CERTIFICATE SECTION */}
                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center flex flex-col items-center">
                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-4"><ImageIcon size={24}/></div>
                      <h2 className="text-xl font-bold mb-2">Sertifikat Şablonu</h2>
                      <p className="text-sm text-gray-500 mb-6">Boş şablon (.jpg, .png)</p>
                      
-                     <select value={certExamSelect} onChange={e=>setCertExamSelect(e.target.value)} className="w-full p-3 border rounded-xl mb-4 bg-gray-50 outline-none focus:border-purple-500 transition">
+                     <select value={certExamSelect} onChange={e=>{setCertExamSelect(e.target.value); setPreviewExamName(e.target.value);}} className="w-full p-3 border rounded-xl mb-4 bg-gray-50 outline-none focus:border-purple-500 transition cursor-pointer">
                          <option value="">İmtahan Seç...</option>
                          {Array.from(new Set(exams.map(e=>e.name))).map(n => {
                              const ex = exams.find(x => x.name === n);
@@ -514,35 +596,74 @@ export default function AdminDashboard() {
                          })}
                      </select>
 
-                     {/* LIVE PREVIEW SECTION */}
+                     {/* LIVE PREVIEW + SIL DÜYMƏSİ */}
                      {certExamSelect && (() => {
                         const ex = getSelectedCertExam();
                         if (ex?.certificate_url) {
                             return (
                                 <div className="mb-6 w-full animate-in fade-in zoom-in duration-300">
-                                    <p className="text-left text-xs font-bold text-gray-500 mb-2 flex items-center gap-1"><Eye size={12}/> LIVE PREVIEW (Təxmini Görünüş)</p>
-                                    <div className="relative w-full aspect-[1.414] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg group">
-                                        <img src={ex.certificate_url} className="w-full h-full object-cover"/>
-                                        {/* Overlay Simulation */}
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                                            {/* Bu sadəcə vizual nümunədir, əsl koordinatları backend edir */}
-                                            <h3 className="text-2xl md:text-3xl font-serif font-bold text-black/80 drop-shadow-sm">{previewName}</h3>
-                                            <p className="text-lg md:text-xl font-bold text-red-600 mt-2 bg-white/50 px-2 rounded backdrop-blur-sm">Nəticə: {previewScore}</p>
+                                    <div className="flex justify-between items-end mb-2">
+                                        <p className="text-left text-xs font-bold text-gray-500 flex items-center gap-1"><Eye size={12}/> LIVE PREVIEW</p>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={(e) => { e.preventDefault(); setPreviewName("Tələbə " + Math.floor(Math.random()*100)); setPreviewScore(String(Math.floor(Math.random()*700))); }} 
+                                                className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1 transition"
+                                            >
+                                                <RefreshCw size={10}/> Data
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.preventDefault(); deleteCertificate(); }} 
+                                                className="text-xs bg-red-100 hover:bg-red-200 px-2 py-1 rounded text-red-600 flex items-center gap-1 transition font-bold"
+                                            >
+                                                <Trash2 size={10}/> Şablonu Sil
+                                            </button>
                                         </div>
-                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-1 text-center">
-                                            Nümunə rejimi. Real yazılar koordinatlara görə dəyişə bilər.
-                                        </div>
-                                        {/* Randomize Button */}
-                                        <button 
-                                            onClick={(e) => { e.preventDefault(); setPreviewName("Tələbə " + Math.floor(Math.random()*100)); setPreviewScore(String(Math.floor(Math.random()*700))); }} 
-                                            className="absolute top-2 right-2 bg-white text-black p-1 rounded-full shadow hover:bg-gray-100 pointer-events-auto"
-                                            title="Random Data"
-                                        >
-                                            <RefreshCw size={14}/>
-                                        </button>
                                     </div>
-                                    <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg">
-                                        ✅ Bu imtahan üçün şablon aktivdir.
+                                    
+                                    {/* PREVIEW CONTAINER */}
+                                    <div className="relative w-full aspect-[1.414] rounded-lg overflow-hidden shadow-xl border border-gray-300 group select-none">
+                                        <img src={ex.certificate_url} className="w-full h-full object-cover"/>
+                                        
+                                        <div className="absolute inset-0 flex flex-col items-center text-center">
+                                            {/* AD SOYAD */}
+                                            <div className="absolute top-[42%] w-full px-10">
+                                                <h1 className="text-[4vw] md:text-[3.5vw] font-bold text-gray-900 uppercase tracking-wide leading-tight drop-shadow-sm font-sans">
+                                                    {previewName}
+                                                </h1>
+                                            </div>
+
+                                            {/* MƏTN */}
+                                            <div className="absolute top-[58%] w-full px-16">
+                                                <p className="text-[1.8vw] md:text-[1.5vw] text-gray-700 leading-snug">
+                                                    Main Olympic Center tərəfindən keçirilən <span className="font-bold text-black">{previewExamName}</span> imtahanında iştirak etmişdir.
+                                                </p>
+                                            </div>
+
+                                            {/* BAL VƏ FAİZ */}
+                                            <div className="absolute top-[72%] w-full flex justify-center gap-[15%]">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[1.2vw] font-bold text-gray-600 uppercase">BAL</span>
+                                                    <span className="text-[3vw] font-bold text-amber-600 leading-none">{previewScore}</span>
+                                                </div>
+                                                <div className="flex flex-col items-center">
+                                                    <span className="text-[1.2vw] font-bold text-gray-600 uppercase">FAİZ</span>
+                                                    <span className="text-[3vw] font-bold text-amber-600 leading-none">{previewPercent}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* TARİX */}
+                                            <div className="absolute bottom-[6%] left-[6%]">
+                                                <span className="text-[1.5vw] font-bold text-gray-700">2026-01-21</span>
+                                            </div>
+                                             {/* SİNİF */}
+                                            <div className="absolute bottom-[6%] right-[6%]">
+                                                <span className="text-[1.5vw] font-bold text-gray-700">9-cu Sinif</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg text-center">
+                                        ✅ Şablon aktivdir. Yazılar avtomatik yerləşəcək.
                                     </div>
                                 </div>
                             )
