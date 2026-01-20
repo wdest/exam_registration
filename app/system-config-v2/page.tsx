@@ -21,7 +21,7 @@ export default function SecretEntry() {
       });
 
       if (res.ok) {
-        router.push("/admin");
+        window.location.href = "/admin";  // ✅ BUNU YAZ
       } else {
         throw new Error("Yanlış PIN");
       }
