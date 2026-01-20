@@ -2,72 +2,93 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  // 1. Şagird/Müəllim üçün Tokeni oxu
-  const token = request.cookies.get('auth_token')?.value
+  const { pathname } = request.nextUrl
   
-  // 2. Admin üçün Gizli Kukini oxu (YENİ)
+  // 1. Tokenləri oxu
+  const token = request.cookies.get('auth_token')?.value
   const adminCookie = request.cookies.get('super_admin_access')?.value
 
-  const { pathname } = request.nextUrl
+  // URL yaratmaq üçün köməkçi funksiya
+  const cleanUrl = (path: string) => new URL(path, request.nextUrl.origin)
 
-  // 3. User məlumatını yoxla (Şagird/Müəllim üçün)
+  // User datasını pars edirik
   let user = null
+  
+  // Login loop problemini həll etmək üçün:
+  // Əgər token var amma JSON səhvdirsə, onu aşağıda siləcəyik.
   if (token) {
     try {
       user = JSON.parse(token)
     } catch (e) {
       user = null
+      // JSON xətası varsa, deməli token zədəlidir, onu nəzərə almırıq
     }
   }
 
-  // URL yaratmaq üçün köməkçi funksiya
-  const cleanUrl = (path: string) => new URL(path, request.nextUrl.origin)
-
   // ===========================================================
-  // 1. ADMIN PANELİ (GİZLİ QALMALIDIR) 🕵️‍♂️
+  // 1. ADMIN PANELİ (GİZLİ QALMALIDIR)
   // ===========================================================
   if (pathname.startsWith('/admin')) {
-    // Əgər gizli kuki yoxdursa -> Ana səhifəyə tulla (Stealth Mode)
-    // Loginə atmırıq ki, kimsə admin panelin varlığını bilməsin.
-    // ARTIQ "true" YOX, XÜSUSİ HASH YOXLAYIRIQ
     if (adminCookie !== 'v2_secure_hash_99881122_matrix_mode') {
       return NextResponse.redirect(cleanUrl('/'))
     }
-    // Kuki varsa, burax keçsin
-    return NextResponse.next()
+    // Admin üçün hərəkət varsa, admin cookie vaxtını da uzada bilərik (opsional)
+    const response = NextResponse.next()
+    return response
   }
 
   // ===========================================================
   // 2. LOGIN SƏHİFƏSİ (/login)
-  // (Əgər artıq giriş edibsə, onu gözlətmə, kabinetinə tulla)
   // ===========================================================
   if (pathname === '/login') {
     if (user) {
       if (user.role === 'teacher') return NextResponse.redirect(cleanUrl('/teacher-cabinet'))
       if (user.role === 'student') return NextResponse.redirect(cleanUrl('/student'))
     }
+    // Əgər token var amma user null-dırsa (yəni JSON səhvdrisə), 
+    // login səhifəsində cookie-ni təmizləyən response qaytarırıq.
+    if (token && !user) {
+      const response = NextResponse.next()
+      response.cookies.delete('auth_token')
+      return response
+    }
     return NextResponse.next()
   }
 
   // ===========================================================
-  // 3. MÜƏLLİM KABİNETİ QORUMASI
+  // 3. ROL ƏSASLI QORUMA
   // ===========================================================
-  if (pathname.startsWith('/teacher-cabinet')) {
-    if (!user || user.role !== 'teacher') {
-      return NextResponse.redirect(cleanUrl('/login'))
-    }
+  const isTeacherRoute = pathname.startsWith('/teacher-cabinet')
+  const isStudentRoute = pathname.startsWith('/student') && pathname !== '/login'
+
+  if (isTeacherRoute && (!user || user.role !== 'teacher')) {
+    return NextResponse.redirect(cleanUrl('/login'))
+  }
+
+  if (isStudentRoute && (!user || user.role !== 'student')) {
+    return NextResponse.redirect(cleanUrl('/login'))
   }
 
   // ===========================================================
-  // 4. ŞAGİRD KABİNETİ QORUMASI
+  // 4. COOKIE VAXTINI YENİLƏMƏK (10 DƏQİQƏ İNAKTİVLİK)
   // ===========================================================
-  if (pathname.startsWith('/student') && pathname !== '/login') {
-    if (!user || user.role !== 'student') {
-      return NextResponse.redirect(cleanUrl('/login'))
-    }
+  // Bura çatıbsa, deməli istifadəçinin icazəsi var.
+  // Biz indi cavabı (response) hazırlayıb, cookie-ni yeniləyib göndəririk.
+  
+  const response = NextResponse.next()
+
+  if (token) {
+    // Cookie-ni yenidən set edirik ki, ömrü uzansın (Sliding Expiration)
+    response.cookies.set('auth_token', token, {
+      httpOnly: true, // JavaScript oxuya bilməsin (təhlükəsizlik üçün vacibdir)
+      secure: process.env.NODE_ENV === 'production', // Https tələbi
+      sameSite: 'strict',
+      maxAge: 10 , // 10 dəqiqə (saniyə ilə)
+      path: '/',
+    })
   }
 
-  return NextResponse.next()
+  return response
 }
 
 export const config = {
