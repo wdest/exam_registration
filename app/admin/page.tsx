@@ -8,7 +8,7 @@ import {
   Users, Settings, Image as ImageIcon, LogOut, Search, Download, 
   Save, Upload, Trash2, RefreshCw, Edit, X, Link as LinkIcon, 
   PlusCircle, ExternalLink, FileText, CheckCircle, AlertCircle, 
-  Loader2, Filter, DollarSign, Lock 
+  Loader2, Filter, DollarSign, Lock, Eye 
 } from "lucide-react";
 
 const supabase = createClient(
@@ -79,9 +79,10 @@ export default function AdminDashboard() {
   const [certExamSelect, setCertExamSelect] = useState("");
   const [certMessage, setCertMessage] = useState("");
 
-  // 🔥 DÜZƏLİŞ BURDADIR:
-  // O səhv yoxlamanı sildim. Middleware buraxıbsa, deməli icazən var.
-  // Sadəcə datanı çəkirik.
+  // Random Preview Data
+  const [previewName, setPreviewName] = useState("Əli Vəliyev");
+  const [previewScore, setPreviewScore] = useState("650");
+
   useEffect(() => {
      fetchAllData();
   }, []);
@@ -215,7 +216,8 @@ export default function AdminDashboard() {
                 wrong_count: Number(row.PossiblePoints || 0) - Number(row.EarnedPoints || 0)
             })).filter(i => i.student_id);
             await fetch("/api/upload-result", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ data: formattedData }) });
-            setUploadMessage("✅ Nəticələr yükləndi!");
+            setUploadMessage("✅ Nəticələr yükləndi! (" + formattedData.length + " nəfər)");
+            fetchAllData(); // Datanı yenilə ki, indikator görünsün
         } catch (err:any) { setUploadMessage("❌ Xəta: " + err.message); }
         finally { setUploading(false); e.target.value=""; }
     };
@@ -232,6 +234,7 @@ export default function AdminDashboard() {
         const {data:{publicUrl}} = supabase.storage.from("images").getPublicUrl(path);
         await supabase.from("exams").update({certificate_url:publicUrl}).eq("name", certExamSelect);
         setCertMessage("✅ Sertifikat yükləndi!");
+        fetchAllData(); // Preview görünsün deyə
      } catch (err:any) { setCertMessage("❌ "+err.message); }
      finally { setUploading(false); e.target.value=""; }
   }
@@ -262,10 +265,20 @@ export default function AdminDashboard() {
       fetchAllData();
   }
 
-  // Logout funksiyası (Sadə redirect)
   function logout() {
     router.push("/"); 
   }
+
+  // Helper Functions for Indicators
+  const checkResultsExist = (examName: string) => {
+    return students.some(s => s.exam_name === examName);
+  };
+
+  const getResultCount = (examName: string) => {
+    return students.filter(s => s.exam_name === examName).length;
+  };
+
+  const getSelectedCertExam = () => exams.find(e => e.name === certExamSelect);
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-amber-500" size={40}/></div>;
 
@@ -306,7 +319,7 @@ export default function AdminDashboard() {
         {/* MAIN CONTENT */}
         <main className="flex-1 p-8 overflow-y-auto">
            
-          {/* 1. TƏLƏBƏLƏR - FULL DATA */}
+          {/* 1. TƏLƏBƏLƏR */}
           {activeTab === "students" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
                <div className="p-6 border-b flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
@@ -447,17 +460,32 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* 3. UPLOAD RESULTS */}
+          {/* 3. UPLOAD RESULTS & CERTIFICATES (YENİLƏNDİ) */}
           {activeTab === "results" && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
+                 
+                 {/* RESULTS SECTION */}
                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center flex flex-col items-center">
                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-4"><FileText size={24}/></div>
                      <h2 className="text-xl font-bold mb-2">Nəticələri Yüklə</h2>
                      <p className="text-sm text-gray-500 mb-6">ZipGrade Excel (.xlsx, .csv) faylı</p>
+                     
                      <select value={uploadExamSelect} onChange={e=>setUploadExamSelect(e.target.value)} className="w-full p-3 border rounded-xl mb-4 bg-gray-50 outline-none focus:border-green-500 transition">
                          <option value="">İmtahan Seç...</option>
-                         {Array.from(new Set(exams.map(e=>e.name))).map(n=><option key={n} value={n}>{n}</option>)}
+                         {Array.from(new Set(exams.map(e=>e.name))).map(n => (
+                             <option key={n} value={n}>
+                                 {n} {checkResultsExist(n) ? " (✅ Yüklənib)" : ""}
+                             </option>
+                         ))}
                      </select>
+                     
+                     {/* İNDİKATOR: Bu imtahan üçün neçə nəfər var? */}
+                     {uploadExamSelect && checkResultsExist(uploadExamSelect) && (
+                         <div className="mb-4 bg-green-50 text-green-700 text-sm font-bold px-4 py-2 rounded-lg flex items-center gap-2">
+                            <CheckCircle size={16}/> {getResultCount(uploadExamSelect)} nəfərin nəticəsi artıq bazadadır.
+                         </div>
+                     )}
+
                      <div className={`w-full border-2 border-dashed border-gray-300 p-8 rounded-xl hover:bg-gray-50 transition relative ${!uploadExamSelect && 'opacity-50 pointer-events-none'}`}>
                          <input type="file" accept=".xlsx,.csv" onChange={handleResultUpload} disabled={uploading} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"/>
                          <div className="flex flex-col items-center text-gray-500">
@@ -467,19 +495,66 @@ export default function AdminDashboard() {
                      </div>
                      {uploadMessage && <p className={`mt-4 font-bold text-sm ${uploadMessage.includes("Xəta") ? "text-red-500" : "text-green-600"}`}>{uploadMessage}</p>}
                  </div>
+
+                 {/* CERTIFICATE SECTION */}
                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center flex flex-col items-center">
                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-4"><ImageIcon size={24}/></div>
                      <h2 className="text-xl font-bold mb-2">Sertifikat Şablonu</h2>
                      <p className="text-sm text-gray-500 mb-6">Boş şablon (.jpg, .png)</p>
+                     
                      <select value={certExamSelect} onChange={e=>setCertExamSelect(e.target.value)} className="w-full p-3 border rounded-xl mb-4 bg-gray-50 outline-none focus:border-purple-500 transition">
                          <option value="">İmtahan Seç...</option>
-                         {Array.from(new Set(exams.map(e=>e.name))).map(n=><option key={n} value={n}>{n}</option>)}
+                         {Array.from(new Set(exams.map(e=>e.name))).map(n => {
+                             const ex = exams.find(x => x.name === n);
+                             return (
+                                 <option key={n} value={n}>
+                                     {n} {ex?.certificate_url ? " (✅ Yüklənib)" : ""}
+                                 </option>
+                             );
+                         })}
                      </select>
+
+                     {/* LIVE PREVIEW SECTION */}
+                     {certExamSelect && (() => {
+                        const ex = getSelectedCertExam();
+                        if (ex?.certificate_url) {
+                            return (
+                                <div className="mb-6 w-full animate-in fade-in zoom-in duration-300">
+                                    <p className="text-left text-xs font-bold text-gray-500 mb-2 flex items-center gap-1"><Eye size={12}/> LIVE PREVIEW (Təxmini Görünüş)</p>
+                                    <div className="relative w-full aspect-[1.414] border-2 border-gray-800 rounded-lg overflow-hidden shadow-lg group">
+                                        <img src={ex.certificate_url} className="w-full h-full object-cover"/>
+                                        {/* Overlay Simulation */}
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                            {/* Bu sadəcə vizual nümunədir, əsl koordinatları backend edir */}
+                                            <h3 className="text-2xl md:text-3xl font-serif font-bold text-black/80 drop-shadow-sm">{previewName}</h3>
+                                            <p className="text-lg md:text-xl font-bold text-red-600 mt-2 bg-white/50 px-2 rounded backdrop-blur-sm">Nəticə: {previewScore}</p>
+                                        </div>
+                                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-1 text-center">
+                                            Nümunə rejimi. Real yazılar koordinatlara görə dəyişə bilər.
+                                        </div>
+                                        {/* Randomize Button */}
+                                        <button 
+                                            onClick={(e) => { e.preventDefault(); setPreviewName("Tələbə " + Math.floor(Math.random()*100)); setPreviewScore(String(Math.floor(Math.random()*700))); }} 
+                                            className="absolute top-2 right-2 bg-white text-black p-1 rounded-full shadow hover:bg-gray-100 pointer-events-auto"
+                                            title="Random Data"
+                                        >
+                                            <RefreshCw size={14}/>
+                                        </button>
+                                    </div>
+                                    <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg">
+                                        ✅ Bu imtahan üçün şablon aktivdir.
+                                    </div>
+                                </div>
+                            )
+                        }
+                        return null;
+                     })()}
+
                      <div className={`w-full border-2 border-dashed border-gray-300 p-8 rounded-xl hover:bg-gray-50 transition relative ${!certExamSelect && 'opacity-50 pointer-events-none'}`}>
                          <input type="file" accept="image/*" onChange={handleCertificateUpload} disabled={uploading} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"/>
                          <div className="flex flex-col items-center text-gray-500">
                              {uploading ? <Loader2 className="animate-spin mb-2"/> : <ImageIcon className="mb-2"/>}
-                             <span>{uploading ? "Yüklənir..." : "Şəkli bura atın"}</span>
+                             <span>{uploading ? "Yüklənir..." : "Dəyişmək üçün bura atın"}</span>
                          </div>
                      </div>
                      {certMessage && <p className={`mt-4 font-bold text-sm ${certMessage.includes("Xəta") ? "text-red-500" : "text-green-600"}`}>{certMessage}</p>}
