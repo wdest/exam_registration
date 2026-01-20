@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { Fingerprint, ShieldAlert, ArrowRight, Lock } from "lucide-react";
 
 export default function SecretEntry() {
-  const router = useRouter();
   const [pin, setPin] = useState("");
   const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(false); // Düyməyə basanda bilinməsi üçün
+  const [loading, setLoading] = useState(false);
 
   const handleSecretLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); // Yüklənir effekti
+    setLoading(true);
 
     try {
       const res = await fetch("/api/admin-verify", {
@@ -22,14 +21,11 @@ export default function SecretEntry() {
       });
 
       if (res.ok) {
-        // 🛑 KÖHNƏ: window.location.href = "/admin"; 
-        
-        // ✅ YENİ (Cache-Buster): 
-        // Linkin sonuna təsadüfi rəqəm əlavə edirik ki, brauzer keşdən oxumasın!
+        // ✅ 1.5 Saniyə gözlədirik və Random kodla yönləndiririk (Cache-Buster)
         setTimeout(() => {
-             const randomCode = Math.floor(Math.random() * 999999);
-             window.location.href = `/admin?refresh=${randomCode}`; 
-        }, 1000); 
+           const rnd = Math.floor(Math.random() * 9999);
+           window.location.href = `/admin?v=${rnd}`; 
+        }, 1500); 
       } else {
         throw new Error("Yanlış PIN");
       }
@@ -53,7 +49,7 @@ export default function SecretEntry() {
 
         <div className="text-center space-y-2">
             <h1 className="text-2xl font-bold tracking-widest uppercase">Restricted Area</h1>
-            <p className="text-xs text-green-700">MOC SECURITY SYSTEM V2.0</p>
+            <p className="text-xs text-green-700">TEST MODE: 123456</p>
         </div>
         
         <div className="w-full relative group">
