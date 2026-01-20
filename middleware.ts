@@ -2,47 +2,22 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl
+  const { pathname } = request.nextUrl
   const cleanUrl = (path: string) => new URL(path, request.nextUrl.origin)
 
-  // ===========================================================
-  // 1. ADMIN PANELİ (URL-dən Kuki Yaratmaq)
-  // ===========================================================
+  // --- ADMIN YOXLAMASI ---
   if (pathname.startsWith('/admin')) {
-    
-    // A. Əvvəlcə baxırıq: Brauzerdə kuki varmı?
-    const secretCookie = request.cookies.get('super_admin_access')?.value
+    const secret = request.cookies.get('final_access_key')?.value
 
-    // B. Əgər URL-də şifrə varsa (Məsələn: /admin?pass=123456)
-    // Biz dərhal kuki yaradıb içəri salırıq
-    const urlPass = searchParams.get('pass')
-
-    if (urlPass === '123456') {
-       const response = NextResponse.redirect(cleanUrl('/admin')) // Təmiz URL-ə atırıq
-       
-       // 🔥 MIDDLEWARE ÖZÜ KUKİ YAZIR (Bu 100% işləyir)
-       response.cookies.set('super_admin_access', 'OPEN_SESAME', {
-         httpOnly: true,
-         secure: true,
-         sameSite: 'lax',
-         maxAge: 3600,
-         path: '/'
-       })
-       return response
-    }
-
-    // C. Əgər kuki yoxdursa və ya səhvdirsə -> Çölə at
-    if (secretCookie !== 'OPEN_SESAME') {
+    // Kuki 'OPEN_SESAME' deyilsə -> Ana səhifəyə
+    if (secret !== 'OPEN_SESAME') {
       return NextResponse.redirect(cleanUrl('/'))
     }
-    
-    // D. Hər şey qaydasındadırsa -> Davam
     return NextResponse.next()
   }
+  // -----------------------
 
-  // ===========================================================
-  // 2. DIGƏR HİSSƏLƏR (Login, Student, Teacher - Olduğu kimi)
-  // ===========================================================
+  // (Sənin digər kodların olduğu kimi qalır)
   const token = request.cookies.get('auth_token')?.value
   let user = null
   if (token) { try { user = JSON.parse(token) } catch (e) { user = null } }
