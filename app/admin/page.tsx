@@ -59,13 +59,13 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("results");
-   
+    
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
-   
+    
   // UI States
   const [search, setSearch] = useState("");
   const [filterExam, setFilterExam] = useState("");
@@ -236,9 +236,10 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (FIXED & SECURE) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (AI INTEQRASİYA) ---
 
-  // A. Nəticə Yüklə (Excel)
+  // A. Nəticə Yüklə (Excel) - AI VERSİYASI 🔥
+  // Sütunları dəyişmirik, olduğu kimi API-yə atırıq ki, Gemini özü tapsın.
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     if (!uploadExamSelect) { alert("İmtahan seçin!"); e.target.value=""; return;}
@@ -253,30 +254,29 @@ export default function AdminDashboard() {
         try {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
-            const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
             
-            const formattedData = data.map((row) => ({
-                student_id: String(row.StudentID || row.ID || row.StudentId).trim(),
-                quiz: uploadExamSelect,
-                score: Number(row.EarnedPoints || row.Score || row.Bal || 0),
-                total: Number(row.PossiblePoints || row.Total || 0),
-                percent: Number(((Number(row.EarnedPoints||0)/Number(row.PossiblePoints||1))*100).toFixed(2)),
-                correct_count: Number(row.EarnedPoints || 0),
-                wrong_count: Number(row.PossiblePoints || 0) - Number(row.EarnedPoints || 0)
-            })).filter(i => i.student_id);
-
-            // YENİ SECURE API CALL
-            const res = await fetch("/api/upload-result", { 
+            // Xam məlumatı götürürük (Formatlamırıq!)
+            const rawData: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            
+            // API-yə göndəririk (Raw Data + Exam Name + Points)
+            const res = await fetch("/api/upload-results", { 
                 method: "POST", 
                 headers: {"Content-Type":"application/json"}, 
-                body: JSON.stringify({ data: formattedData }) 
+                body: JSON.stringify({ 
+                    data: rawData, 
+                    examName: uploadExamSelect, // Seçilən imtahan adı
+                    pointsPerQuestion: 4 
+                }) 
             });
 
             const resultJson = await res.json();
             
-            if (!res.ok) throw new Error(resultJson.error);
+            if (!res.ok) throw new Error(resultJson.error || "Xəta baş verdi");
 
-            setUploadMessage(`✅ Nəticələr yükləndi! (${formattedData.length} nəfər)`);
+            const count = resultJson.processed_count || 0;
+            const skipped = resultJson.skipped_count || 0;
+            setUploadMessage(`✅ ${count} nəfər uğurla yükləndi! (${skipped} nəfər yazılmadı)`);
+            
             fetchAllData(); 
         } catch (err:any) { 
             setUploadMessage("❌ Xəta: " + err.message); 
@@ -447,7 +447,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-       
+        
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2">
