@@ -23,37 +23,62 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Məlumat formatı yanlışdır." }, { status: 400 });
     }
 
-    // 🔥 DÜZƏLİŞ BURADADIR: DUBLİKATLARI SİLİRİK 🔥
-    // Eyni student_id və quiz cütlüyündən yalnız birini saxlayırıq.
+    // --- A. DUBLİKATLARI SİLİRİK (Əvvəlki kod) ---
     const uniqueDataMap = new Map();
-
     data.forEach((item) => {
-        // Hər sətir üçün unikal açar yaradırıq (məs: "12345-Almaniya")
         const uniqueKey = `${item.student_id}-${item.quiz}`;
-        // Map-ə yazırıq. Əgər eyni açar varsa, üstündən yazır (sonuncunu saxlayır)
         uniqueDataMap.set(uniqueKey, item);
     });
-
-    // Təmizlənmiş listi alırıq
     const cleanedData = Array.from(uniqueDataMap.values());
 
-    console.log(`Gələn sətir: ${data.length}, Təmizlənmiş sətir: ${cleanedData.length}`);
+
+    // --- B. YENİ HİSSƏ: BAZADA OLMAYANLARI SİLİRİK (FILTER) ---
+    
+    // 1. Excel-dən gələn bütün ID-ləri yığırıq
+    const incomingStudentIds = cleanedData.map(item => item.student_id);
+
+    // 2. Bazadan soruşuruq: "Bu ID-lərdən hansılar səndə var?"
+    // DİQQƏT: 'exam_id' sənin students cədvəlindəki şagird nömrəsidir
+    const { data: existingStudents, error: searchError } = await supabase
+        .from('students')
+        .select('exam_id')
+        .in('exam_id', incomingStudentIds);
+
+    if (searchError) throw searchError;
+
+    // 3. Tapılan ID-ləri bir siyahıya (Set) yığırıq ki, tez yoxlaya bilək
+    // (Məsələn: [101, 102, 105] tapıldı)
+    const allowedIds = new Set(existingStudents?.map(s => s.exam_id));
+
+    // 4. Yalnız icazəli olanları saxlayırıq
+    const finalDataToInsert = cleanedData.filter(item => allowedIds.has(item.student_id));
+
+    console.log(`Gələn: ${data.length}, Dublikatsız: ${cleanedData.length}, Bazada Olan: ${finalDataToInsert.length}`);
+
+    if (finalDataToInsert.length === 0) {
+        return NextResponse.json({ 
+            success: false, 
+            message: "Heç bir nəticə yüklənmədi. Excel-dəki şagird ID-ləri bazada tapılmadı." 
+        });
+    }
 
     // 3. Bazaya yazırıq (Upsert)
     const { error } = await supabase
       .from("results")
-      .upsert(cleanedData, { onConflict: "student_id,quiz" });
+      .upsert(finalDataToInsert, { onConflict: "student_id,quiz" });
 
     if (error) {
-        // Əgər yenə xəta olsa, dəqiq səbəbi görək
         console.error("Supabase Error:", error);
         throw new Error(error.message);
     }
 
+    // Mesajda neçəsinin yükləndiyini, neçəsinin silindiyini deyirik
+    const skippedCount = cleanedData.length - finalDataToInsert.length;
+    
     return NextResponse.json({ 
         success: true, 
-        processed_count: cleanedData.length, 
-        message: "Uğurla yükləndi." 
+        processed_count: finalDataToInsert.length, 
+        message: `Uğurla yükləndi: ${finalDataToInsert.length} nəfər. (Bazada olmayan ${skippedCount} nəfər silindi)` 
     });
 
   } catch (e: any) {
