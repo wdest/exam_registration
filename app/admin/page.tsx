@@ -11,7 +11,8 @@ import {
   Loader2, Filter, DollarSign, Lock, Eye 
 } from "lucide-react";
 
-// --- SUPABASE CLIENT ---
+// --- SUPABASE CLIENT (Yalnız oxumaq üçün) ---
+// Yazmaq əməliyyatlarını API ilə edəcəyik.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -57,7 +58,7 @@ interface Exam {
 export default function AdminDashboard() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("results"); // Default olaraq Results açılır
+  const [activeTab, setActiveTab] = useState("results");
    
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
@@ -100,6 +101,7 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
+      // Oxuma əməliyyatları üçün Public Policy-lər açıq olmalıdır
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
       
@@ -116,6 +118,28 @@ export default function AdminDashboard() {
       console.error("Data xətası:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // --- YENİ: TƏHLÜKƏSİZ ŞƏKİL YÜKLƏMƏ FUNKSİYASI ---
+  async function secureImageUpload(file: File, folderName: string = "gallery"): Promise<string | null> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folderName);
+
+    try {
+        const res = await fetch("/api/upload-image", {
+            method: "POST",
+            body: formData,
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Yükləmə xətası");
+        
+        return data.url; // Şəkilin URL-i qayıdır
+    } catch (err: any) {
+        alert("Yükləmə xətası: " + err.message);
+        return null;
     }
   }
 
@@ -212,20 +236,25 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (FIXED & SECURE) ---
 
   // A. Nəticə Yüklə (Excel)
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     if (!uploadExamSelect) { alert("İmtahan seçin!"); e.target.value=""; return;}
-    setUploading(true); setUploadMessage("");
+    
+    setUploading(true); 
+    setUploadMessage("");
+    
     const file = e.target.files[0];
     const reader = new FileReader();
+    
     reader.onload = async (evt) => {
         try {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
             const data: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            
             const formattedData = data.map((row) => ({
                 student_id: String(row.StudentID || row.ID || row.StudentId).trim(),
                 quiz: uploadExamSelect,
@@ -235,11 +264,26 @@ export default function AdminDashboard() {
                 correct_count: Number(row.EarnedPoints || 0),
                 wrong_count: Number(row.PossiblePoints || 0) - Number(row.EarnedPoints || 0)
             })).filter(i => i.student_id);
-            await fetch("/api/upload-result", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ data: formattedData }) });
-            setUploadMessage("✅ Nəticələr yükləndi! (" + formattedData.length + " nəfər)");
+
+            // YENİ SECURE API CALL
+            const res = await fetch("/api/upload-result", { 
+                method: "POST", 
+                headers: {"Content-Type":"application/json"}, 
+                body: JSON.stringify({ data: formattedData }) 
+            });
+
+            const resultJson = await res.json();
+            
+            if (!res.ok) throw new Error(resultJson.error);
+
+            setUploadMessage(`✅ Nəticələr yükləndi! (${formattedData.length} nəfər)`);
             fetchAllData(); 
-        } catch (err:any) { setUploadMessage("❌ Xəta: " + err.message); }
-        finally { setUploading(false); e.target.value=""; }
+        } catch (err:any) { 
+            setUploadMessage("❌ Xəta: " + err.message); 
+        } finally { 
+            setUploading(false); 
+            e.target.value=""; 
+        }
     };
     reader.readAsBinaryString(file);
   }
@@ -247,23 +291,23 @@ export default function AdminDashboard() {
   // B. Sertifikat Yüklə (Təhlükəsiz Versiya)
   async function handleCertificateUpload(e: React.ChangeEvent<HTMLInputElement>) {
      if (!e.target.files?.length || !certExamSelect) return alert("İmtahan seçin!");
+     
      setUploading(true);
+     setCertMessage("");
+
      try {
         const file = e.target.files[0];
-        // Unikal ad
-        const path = `certificates/cert_${Date.now()}_${Math.random().toString(36).substr(2,9)}.${file.name.split('.').pop()}`;
         
-        // 1. Şəkli Storage-ə atırıq
-        const { error: uploadError } = await supabase.storage.from("images").upload(path, file);
-        if(uploadError) throw uploadError;
+        // 1. Şəkli Secure API ilə yükləyirik
+        const uploadedUrl = await secureImageUpload(file, "certificates");
+        
+        if (!uploadedUrl) throw new Error("Şəkil yüklənmədi");
 
-        const {data:{publicUrl}} = supabase.storage.from("images").getPublicUrl(path);
-        
         // 2. ID-ni tapırıq
         const exam = exams.find(e => e.name === certExamSelect);
         if(!exam) throw new Error("İmtahan tapılmadı");
 
-        // 3. API ilə bazanı yeniləyirik (RLS-i keçmək üçün)
+        // 3. API ilə bazanı yeniləyirik
         const res = await fetch("/api/admin-action", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -271,7 +315,7 @@ export default function AdminDashboard() {
                 action: "update",
                 table: "exams",
                 id: exam.id,
-                data: { certificate_url: publicUrl }
+                data: { certificate_url: uploadedUrl }
             })
         });
 
@@ -280,11 +324,15 @@ export default function AdminDashboard() {
         setCertMessage("✅ Sertifikat yükləndi!");
         setPreviewExamName(certExamSelect);
         fetchAllData(); 
-     } catch (err:any) { setCertMessage("❌ "+err.message); }
-     finally { setUploading(false); e.target.value=""; }
+     } catch (err:any) { 
+         setCertMessage("❌ " + err.message); 
+     } finally { 
+         setUploading(false); 
+         e.target.value=""; 
+     }
   }
 
-  // C. Şablonu Silmək (Database-dən silir)
+  // C. Şablonu Silmək
   async function deleteCertificate() {
      if(!certExamSelect) return alert("İmtahan seçin!");
      if(!confirm("DİQQƏT: Bu imtahanın sertifikat şablonunu silmək istəyirsiniz?")) return;
@@ -294,7 +342,6 @@ export default function AdminDashboard() {
          const exam = exams.find(e => e.name === certExamSelect);
          if(!exam) throw new Error("İmtahan tapılmadı");
 
-         // API ilə bazadakı linki silirik
          const res = await fetch("/api/admin-action", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -302,14 +349,13 @@ export default function AdminDashboard() {
                 action: "update",
                 table: "exams",
                 id: exam.id,
-                data: { certificate_url: null } // NULL edirik
+                data: { certificate_url: null }
             })
         });
 
         if(!res.ok) throw new Error("Silinmədi");
          
          setCertMessage("🗑️ Şablon silindi.");
-         // Seçimi təmizləmirik ki, istifadəçi dərhal silindiyini görsün
          fetchAllData();
      } catch (err:any) {
          setCertMessage("❌ Xəta: " + err.message);
@@ -328,10 +374,9 @@ export default function AdminDashboard() {
 
      setUploading(true);
      try {
-         // Silinəcək ID-ləri tapırıq
          const studentsToDelete = students.filter(s => s.exam_name === uploadExamSelect).map(s => s.id);
          
-         // Loop ilə silirik (və ya API-də bulk delete yaza bilərsən, amma bu təhlükəsizdir)
+         // Loop ilə silirik (Secure API ilə)
          for (const id of studentsToDelete) {
              await fetch("/api/admin-action", {
                 method: "POST", headers: { "Content-Type": "application/json" },
@@ -351,31 +396,36 @@ export default function AdminDashboard() {
   // E. Qalereya Yüklə
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
      if (!e.target.files?.length) return;
+     
      setUploading(true);
      try {
         const file = e.target.files[0];
-        const path = `${Date.now()}.${file.name.split('.').pop()}`;
         
-        // 1. Storage
-        const { error: upErr } = await supabase.storage.from("images").upload(path, file);
-        if(upErr) throw upErr;
+        // 1. Storage (Secure API)
+        const uploadedUrl = await secureImageUpload(file, "gallery");
+        
+        if (!uploadedUrl) throw new Error("Şəkil yüklənmədi");
 
-        const {data:{publicUrl}} = supabase.storage.from("images").getPublicUrl(path);
-        
-        // 2. Database (API vasitəsilə)
+        // 2. Database (Admin API)
         await fetch("/api/admin-action", {
             method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ action: "insert", table: "gallery", data: { image_url: publicUrl } })
+            body: JSON.stringify({ action: "insert", table: "gallery", data: { image_url: uploadedUrl } })
         });
+        
         fetchAllData();
-     } catch(e) { alert("Xəta"); } finally { setUploading(false); }
+     } catch(e:any) { 
+         alert("Xəta: " + e.message); 
+     } finally { 
+         setUploading(false); 
+         e.target.value = "";
+     }
   }
 
   // F. Qalereya Sil
   async function deleteImage(id: number, url: string) {
       if(!confirm("Silinsin?")) return;
-      // Storage silmək (optional, amma yaxşıdır)
-      await supabase.storage.from("images").remove([url.split("/").pop()!]);
+      // Storage silmək (optional, burda API yazmamışıq, sadəcə bazadan silirik)
+      
       // Baza silmək (API)
       await fetch("/api/admin-action", {
         method: "POST", headers: {"Content-Type": "application/json"},
@@ -431,7 +481,7 @@ export default function AdminDashboard() {
 
         {/* MAIN CONTENT */}
         <main className="flex-1 p-8 overflow-y-auto">
-           
+            
           {/* 1. TƏLƏBƏLƏR */}
           {activeTab === "students" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
@@ -669,7 +719,7 @@ export default function AdminDashboard() {
 
                                         {/* ƏGƏR ŞƏKİL YOXDURSA - XƏBƏRDARLIQ */}
                                         <div className="absolute inset-0 flex items-center justify-center -z-10">
-                                            <p className="text-gray-400 text-xs text-center px-4">Şəkil yüklənmədi.<br/>Supabase 'images' bucket-i PUBLIC edin.</p>
+                                            <p className="text-gray-400 text-xs text-center px-4">Şəkil yüklənmədi.</p>
                                         </div>
                                         
                                         {/* MƏTN LAYI (OVERLAY) */}
