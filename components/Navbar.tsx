@@ -11,7 +11,7 @@ export default function Navbar() {
   // --- GİZLƏTMƏ MƏNTİQİ ---
   if (
     pathname === "/" ||                   // 1. Ana Səhifədə gizlət
-    pathname === "/login" ||              // 2. Yeni Login səhifəsində gizlət
+    // pathname === "/login" ||           // <-- BU SƏTRİ SİLDİM (Artıq logində görünəcək)
     pathname === "/student-login" ||      // (Köhnə login varsa, orada da gizlət)
     pathname === "/redirect" ||           // Redirect səhifəsində gizlət
     pathname.startsWith("/student") ||    // 3. Şagird kabinetinin içində hər yerdə gizlət
@@ -25,7 +25,8 @@ export default function Navbar() {
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+        {/* Hündürlüyü h-16-dan h-20-yə qaldırdım ki, böyük logo yerləşsin */}
+        <div className="flex justify-between h-20">
           
           {/* SOL TƏRƏF - LOGO */}
           <div className="flex items-center">
@@ -33,9 +34,10 @@ export default function Navbar() {
               <Image 
                 src="/logo.png" 
                 alt="MOC Logo" 
-                width={280} 
-                height={100} 
-                className="object-contain h-12 w-auto"
+                width={300}        // Piksel keyfiyyəti üçün biraz artırdım
+                height={120} 
+                // Logonu böyütmək üçün h-12 əvəzinə h-16 etdim
+                className="object-contain h-16 w-auto"
                 priority
               />
             </Link>
