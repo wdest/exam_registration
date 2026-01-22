@@ -26,7 +26,7 @@ const itemVariants = {
 export default function LandingPage() {
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+   
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [siteInfo, setSiteInfo] = useState({
@@ -61,12 +61,12 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-orange-50/30 font-sans text-gray-800 overflow-x-hidden">
-      
+       
       {/* --- 1. NAVBAR --- */}
       <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md shadow-sm border-b border-orange-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20 md:h-24">
-            
+             
             {/* Logo */}
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
@@ -126,7 +126,7 @@ export default function LandingPage() {
                 <a href="#services" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700">Xidmətlər</a>
                 <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700">Əlaqə</a>
                 <Link href="/netice" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700 flex items-center gap-2"><span>📊</span> Nəticələr</Link>
-                
+                 
                 <Link 
                     href="/student-login" 
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -172,7 +172,7 @@ export default function LandingPage() {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="flex flex-col items-center gap-6 px-4"
           >
-             {/* 1. ÜST SIRA (Köməkçi/Kiçik düymələr): İmtahana Başla + Əlaqə */}
+             {/* 1. ÜST SIRA */}
              <div className="flex flex-col sm:flex-row justify-center gap-4 w-full sm:w-auto">
                  <Link 
                    href="/redirect" 
@@ -188,7 +188,7 @@ export default function LandingPage() {
                  </a>
              </div>
 
-             {/* 2. ALT SIRA (ƏSAS/BÖYÜK DÜYMƏ): Sınağa Yazıl (Satış) */}
+             {/* 2. ALT SIRA */}
              <Link 
                href="/exam" 
                className="w-full sm:w-96 py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-xl rounded-xl shadow-xl hover:shadow-orange-500/30 hover:scale-105 transition-all duration-300 flex items-center justify-center gap-2"
@@ -199,7 +199,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 3. XİDMƏTLƏRİMİZ --- */}
+      {/* --- 3. XİDMƏTLƏRİMİZ (DƏYİŞİKLİK BURADA: SMM) --- */}
       <section id="services" className="py-16 md:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div 
@@ -219,18 +219,21 @@ export default function LandingPage() {
             viewport={{ once: true, amount: 0.1 }}
             className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8"
           >
+            {/* 1. Riyaziyyat */}
             <motion.div variants={itemVariants} className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl transition duration-300 group">
               <div className="w-12 h-12 md:w-14 md:h-14 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center text-2xl md:text-3xl mb-4 md:mb-6 group-hover:scale-110 transition">📐</div>
               <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 md:mb-3">Riyaziyyat və Məntiq</h3>
               <p className="text-sm md:text-base text-gray-600">Güclü məntiqi təfəkkür formalaşdıran xüsusi proqramlar.</p>
             </motion.div>
             
+            {/* 2. SMM (DƏYİŞDİRİLDİ) */}
             <motion.div variants={itemVariants} className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl transition duration-300 group">
-              <div className="w-12 h-12 md:w-14 md:h-14 bg-teal-100 text-teal-600 rounded-2xl flex items-center justify-center text-2xl md:text-3xl mb-4 md:mb-6 group-hover:scale-110 transition">🌍</div>
-              <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 md:mb-3">Xarici Dillər</h3>
-              <p className="text-sm md:text-base text-gray-600">İngilis və Rus dili üzrə qabaqcıl tədris metodikası.</p>
+              <div className="w-12 h-12 md:w-14 md:h-14 bg-teal-100 text-teal-600 rounded-2xl flex items-center justify-center text-2xl md:text-3xl mb-4 md:mb-6 group-hover:scale-110 transition">📢</div>
+              <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 md:mb-3">SMM və Marketinq</h3>
+              <p className="text-sm md:text-base text-gray-600">Sosial media hesablarının peşəkar idarə edilməsi və brendinq.</p>
             </motion.div>
             
+            {/* 3. İT */}
             <motion.div variants={itemVariants} className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl transition duration-300 group">
               <div className="w-12 h-12 md:w-14 md:h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center text-2xl md:text-3xl mb-4 md:mb-6 group-hover:scale-110 transition">💻</div>
               <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 md:mb-3">İT və Proqramlaşdırma</h3>
@@ -240,9 +243,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 4. QALEREYA --- */}
-      <section id="gallery" className="py-16 md:py-24 bg-orange-50/50 border-t border-orange-100 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 mb-10 text-center">
+      {/* --- 4. QALEREYA (YENİ DİZAYN) --- */}
+      <section id="gallery" className="py-16 md:py-24 bg-gradient-to-r from-orange-50 via-white to-orange-50 overflow-hidden relative">
+        <div className="max-w-7xl mx-auto px-4 mb-10 text-center relative z-10">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Mərkəzimizdən Görüntülər</h2>
             <p className="mt-2 text-gray-500">Tələbələrimizin uğurları və dərs mühiti</p>
         </div>
@@ -252,19 +255,43 @@ export default function LandingPage() {
         ) : galleryImages.length === 0 ? (
           <div className="text-center text-gray-400">Şəkil yoxdur.</div>
         ) : (
-          <div className="relative w-full">
-            <div className="absolute left-0 top-0 bottom-0 w-10 md:w-20 bg-gradient-to-r from-orange-50 to-transparent z-10 pointer-events-none" />
-            <div className="absolute right-0 top-0 bottom-0 w-10 md:w-20 bg-gradient-to-l from-orange-50 to-transparent z-10 pointer-events-none" />
+          <div className="relative w-full py-10">
+            {/* Gradient Mask for Smooth Edges */}
+            <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white via-white/80 to-transparent z-20 pointer-events-none" />
+            <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white via-white/80 to-transparent z-20 pointer-events-none" />
 
+            {/* Sonsuz Fırlanan Hissə */}
             <motion.div 
-              className="flex gap-4 md:gap-8 w-max"
+              className="flex gap-8 w-max px-8"
               animate={{ x: ["0%", "-50%"] }} 
-              transition={{ ease: "linear", duration: 40, repeat: Infinity }}
+              transition={{ 
+                ease: "linear", 
+                duration: 50, // Sürəti tənzimlədim (daha asta və axıcı)
+                repeat: Infinity 
+              }}
+              // Mouse üzərinə gələndə axını dayandırır ki, rahat baxılsın
+              whileHover={{ animationPlayState: "paused" }}
             >
-              {[...galleryImages, ...galleryImages].map((item, index) => (
-                <div key={index} className="relative w-64 h-40 md:w-96 md:h-64 flex-shrink-0 rounded-2xl overflow-hidden shadow-md border-4 border-white">
+              {[...galleryImages, ...galleryImages, ...galleryImages].map((item, index) => (
+                <motion.div 
+                  key={index} 
+                  className="relative w-72 h-52 md:w-96 md:h-64 flex-shrink-0 rounded-3xl overflow-hidden shadow-xl border-4 border-white bg-gray-100 cursor-pointer"
+                  // YENİLİK: Hover effektləri (Böyümə və Parıltı)
+                  whileHover={{ 
+                    scale: 1.15, 
+                    rotate: index % 2 === 0 ? 2 : -2, // Bir az əyilir
+                    zIndex: 50,
+                    boxShadow: "0px 20px 40px rgba(245, 158, 11, 0.3)" // Amber kölgə
+                  }}
+                  transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                >
                   <img src={item.image_url} alt="Gallery" className="w-full h-full object-cover"/>
-                </div>
+                  
+                  {/* Şəkil üzərinə gələndə yaranan parıltı layı */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                     <span className="text-white font-medium text-sm">MOC Gallery</span>
+                  </div>
+                </motion.div>
               ))}
             </motion.div>
           </div>
@@ -304,7 +331,7 @@ export default function LandingPage() {
              }
           </div>
         </div>
-        
+         
         <div className="max-w-7xl mx-auto px-4 mt-12 pt-6 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center text-gray-500 text-xs md:text-sm">
           <p>© 2025 Main Olympic Center. Bütün hüquqlar qorunur.</p>
           <p className="mt-2 md:mt-0">Created by DestTex </p>
