@@ -1,29 +1,32 @@
 import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
+  // 1. Form məlumatlarını alırıq
   const formData = await request.formData();
-  const pin = formData.get('pin');
+  const pin = formData.get('pin'); // Frontend-də input name="pin" olmalıdır!
   const cleanUrl = (path: string) => new URL(path, request.url);
 
-  // .env faylından oxuyur
+  // 2. Parolu Serverin Yaddaşından (.env) oxuyuruq
+  // .env faylında: ADMIN_SECRET_PASS=MOC_ULTRA_SECURE_2026
   const SECRET = process.env.ADMIN_SECRET_PASS;
 
   if (pin === SECRET) {
-    // 303 Redirect - Form post edildikdən sonra yönləndirmə üçün idealdır
+    // 3. Parol düzdürsə -> Admin səhifəsinə Redirect (303 statusu ilə)
     const response = NextResponse.redirect(cleanUrl('/admin'), 303);
 
-    // 🔥 DÜZƏLİŞ: Middleware ilə eyni dəyəri istifadə edirik: 'ACCESS_GRANTED'
+    // 4. KUKİNİ YAPIŞDIRIRIQ (Middleware bunu yoxlayacaq)
+    // Diqqət: Value 'ACCESS_GRANTED' olmalıdır ki, Middleware buraxsın.
     response.cookies.set('super_admin_session', 'ACCESS_GRANTED', {
-      httpOnly: true, 
-      secure: process.env.NODE_ENV === 'production', // Production-da HTTPS məcburidir
+      httpOnly: true,  // JavaScript oxuya bilməz (Təhlükəsizlik)
+      secure: process.env.NODE_ENV === 'production', // HTTPS məcburiyyəti
       sameSite: 'lax',
-      maxAge: 3600,
+      maxAge: 3600,    // 1 saatlıq sessiya
       path: '/',
     });
 
     return response;
   } else {
-    // Səhvdirsə, giriş səhifəsinə qaytar (və ya ana səhifəyə)
+    // Səhvdirsə -> Səhifəyə error qaytarırıq
     return NextResponse.redirect(cleanUrl('/system-config-v2?error=1'));
   }
 }
