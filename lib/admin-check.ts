@@ -2,12 +2,12 @@ import { cookies } from "next/headers";
 
 export async function checkAdminAuth() {
   try {
-    const cookieStore = cookies();
+    // 🔥 DƏYİŞİKLİK BURADADIR: 'await' əlavə etdik
+    const cookieStore = await cookies();
     
-    // Middleware-in yaratdığı kukini oxuyuruq
+    // İndi artıq .get() işləyəcək
     const adminSession = cookieStore.get('super_admin_session')?.value;
 
-    // Əgər kuki varsa və dəyəri 'ACCESS_GRANTED'-dirsə, deməli Admindir
     if (adminSession === 'ACCESS_GRANTED') {
       return true;
     }
