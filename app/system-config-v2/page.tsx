@@ -1,12 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-// useRouter lazım deyil, çünki form özü redirect edəcək
 
 export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
-  // URL-də error varsa (serverdən qayıdanda), qırmızı yansın
+  // URL-də ?error=1 varsa, qırmızı yansın
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -16,15 +15,11 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black text-green-500 font-mono selection:bg-green-900">
-      {/* Arxa fon effekti */}
       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 pointer-events-none"></div>
 
-      {/* 🔥 VACİB: Form birbaşa sənin API-yə göndərir (Server Action kimi) 
-          action="/api/admin-login" -> Sənin API faylının yolu
-          method="POST" -> API POST qəbul edir
-      */}
+      {/* 🔥 DƏYİŞİKLİK BURADA: action="/api/auth" */}
       <form 
-        action="/api/admin-login" 
+        action="/api/auth" 
         method="POST" 
         onSubmit={() => setLoading(true)}
         className="relative z-10 flex flex-col gap-4 p-8 border border-green-800 bg-black/80 shadow-[0_0_20px_rgba(0,255,0,0.2)] rounded-xl"
@@ -33,14 +28,15 @@ export default function AdminLogin() {
           SYSTEM ACCESS
         </h1>
 
-        {/* Name="pin" olmalıdır ki, API formData.get('pin') ilə tuta bilsin */}
+        {/* Input name="pin" olmalıdır ki, API onu oxuya bilsin */}
         <input 
           type="password" 
           name="pin"
           placeholder="ENTER PASSCODE"
           required
+          autoComplete="off"
           className={`bg-gray-900 border ${error ? "border-red-600 animate-shake" : "border-green-700"} p-3 text-center outline-none focus:border-green-400 text-green-400 placeholder-green-800 w-64 tracking-[0.5em]`}
-          onChange={() => setError(false)} // Yazanda qırmızılıq getsin
+          onChange={() => setError(false)}
         />
 
         <button 
