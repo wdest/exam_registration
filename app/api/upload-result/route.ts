@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     // 3. GEMINI ANALİZİ (Ən vacib hissə) 🧠
     // Modeli seçirik (Flash modeli sürətli və ucuzdur)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
     // AI-ya əmr veririk (Prompt)
     const prompt = `
