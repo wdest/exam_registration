@@ -13,7 +13,7 @@ export default function Navbar() {
 
   // --- GİZLƏTMƏ MƏNTİQİ ---
   if (
-    pathname === "/" ||                   // 1. Ana Səhifədə gizlət (Əgər LandingPage-in öz navbarı varsa)
+    pathname === "/" ||                   // 1. Ana Səhifədə gizlət
     // pathname === "/login" ||           // Logində görünür
     pathname === "/student-login" ||      // (Köhnə login varsa, orada da gizlət)
     pathname === "/redirect" ||           // Redirect səhifəsində gizlət
@@ -75,9 +75,9 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* YENİLƏNDİ: İmtahana Başla -> /login səhifəsinə atır */}
+            {/* DÜZƏLDİLDİ: İmtahana Başla -> /redirect */}
             <Link 
-              href="/login" 
+              href="/redirect" 
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 transition border border-amber-200"
             >
               <Zap size={18} className="text-amber-500" />
@@ -117,7 +117,7 @@ export default function Navbar() {
                     <ClipboardList size={20} /> Nəticələr
                 </Link>
                 
-                {/* YENİ ƏLAVƏ: Kabinetə Giriş (Mobil üçün) */}
+                {/* DÜZƏLDİLDİ: Kabinetə Giriş -> /login */}
                 <Link 
                     href="/login" 
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -126,8 +126,8 @@ export default function Navbar() {
                     <UserCircle size={20}/> Kabinetə Giriş
                 </Link>
 
-                {/* YENİLƏNDİ: İmtahana Başla -> /login */}
-                <Link href="/login" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center bg-amber-500 text-white py-4 rounded-xl font-bold shadow-md text-lg">
+                {/* DÜZƏLDİLDİ: İmtahana Başla -> /redirect */}
+                <Link href="/redirect" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center bg-amber-500 text-white py-4 rounded-xl font-bold shadow-md text-lg">
                   ⚡ İmtahana Başla
                 </Link>
               </div>
