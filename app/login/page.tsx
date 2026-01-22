@@ -3,20 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { User, Lock, Hash, ArrowRight, ShieldCheck } from "lucide-react";
+import { User, Lock, Hash, ArrowRight } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   
-  // Giriş növü: 'teacher' | 'student' | 'admin'
-  const [loginType, setLoginType] = useState<"teacher" | "student" | "admin">("teacher");
+  // Giriş növü: sadəcə 'teacher' və ya 'student'
+  const [loginType, setLoginType] = useState<"teacher" | "student">("teacher");
 
   // İnputlar
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [studentCode, setStudentCode] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,10 +26,9 @@ export default function LoginPage() {
     // Struktura uyğun məlumatların hazırlanması
     if (loginType === "teacher") {
       body = { type: "teacher", identifier: username, password };
-    } else if (loginType === "student") {
-      body = { type: "student", identifier: studentCode };
     } else {
-      body = { type: "admin", identifier: adminEmail, password };
+      // Student
+      body = { type: "student", identifier: studentCode };
     }
 
     try {
@@ -147,29 +145,6 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* ADMIN FORMU (Gizli keçidlə aktivləşir) */}
-            {loginType === "admin" && (
-               <>
-               <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
-                  <ShieldCheck size={16}/> Admin Girişi
-               </div>
-               <input 
-                 type="email" 
-                 placeholder="Admin Email" 
-                 value={adminEmail}
-                 onChange={e => setAdminEmail(e.target.value)}
-                 className="w-full p-3 border border-gray-200 rounded-xl"
-               />
-               <input 
-                 type="password" 
-                 placeholder="Admin Şifrə" 
-                 value={password}
-                 onChange={e => setPassword(e.target.value)}
-                 className="w-full p-3 border border-gray-200 rounded-xl"
-               />
-             </>
-            )}
-
             <button 
               disabled={loading} 
               className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20"
@@ -179,19 +154,6 @@ export default function LoginPage() {
             </button>
 
           </form>
-
-          {/* Admin keçidi üçün kiçik link (Footer) */}
-          <div className="mt-8 text-center">
-             {loginType !== 'admin' ? (
-                <button onClick={() => setLoginType('admin')} className="text-xs text-gray-300 hover:text-gray-500 transition">
-                  Admin?
-                </button>
-             ) : (
-                <button onClick={() => setLoginType('teacher')} className="text-xs text-blue-500 hover:underline">
-                  Geri qayıt
-                </button>
-             )}
-          </div>
 
         </div>
       </div>
