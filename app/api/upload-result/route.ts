@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         // 5 saniyə vaxt qoyuruq. Əgər 5 saniyəyə cavab gəlməsə, "Manual" rejimə keçirik.
         const aiPromise = (async () => {
             // Model adı: 'gemini-1.5-flash' (Preview modellər bəzən donur)
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
             
             const prompt = `
               Match these Excel headers to target keys based on meaning (multilingual support):
