@@ -3,15 +3,15 @@ import { createClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI } from "@google/generative-ai"; 
 import { checkAdminAuth } from "../../../lib/admin-check";
 
-// 🔥 ƏN VACİB HİSSƏ: Timeout-u artırırıq (Vercel/Next.js üçün)
-export const maxDuration = 60; // 60 saniyə vaxt veririk (Standart 10 olur)
+// Vercel-ə deyirik ki, bacardığın qədər gözlə (lakin Hobby planında max 10s olur)
+export const maxDuration = 60; 
 export const dynamic = 'force-dynamic';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: Request) {
-    // ... kodun qalanı olduğu kimi davam edir ...
   try {
+    // 1. Admin yoxlanışı
     const isAdmin = await checkAdminAuth();
     if (!isAdmin) return NextResponse.json({ error: "İcazəsiz giriş!" }, { status: 401 });
 
@@ -21,47 +21,64 @@ export async function POST(req: Request) {
     );
 
     const body = await req.json();
-    
-    // Frontend-dən gələn məlumatlar
     const { data: rawExcelData, pointsPerQuestion, examName } = body;
 
     const multiplier = pointsPerQuestion ? Number(pointsPerQuestion) : 4;
-    // Əgər examName gəlməsə, default "Test" götürür (amma frontend-dən gəlməlidir)
-    const finalQuizName = examName || "Test"; 
+    const finalQuizName = examName || "Test";
 
     if (!rawExcelData || !Array.isArray(rawExcelData) || rawExcelData.length === 0) {
       return NextResponse.json({ error: "Excel boşdur." }, { status: 400 });
     }
 
-    // --- GEMINI AI (MODEL BURDA SEÇİLİR) ---
-    // Qeyd: 'gemini-3-flash-preview' əgər aktiv deyilsə, 'gemini-2.0-flash-exp' istifadə et.
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+    // --- SÜTUNLARI TAPMAQ STRATEGİYASI ---
+    // Əvvəl AI ilə yoxlayırıq, gecikərsə sadə məntiqlə tapırıq.
 
-    // Sütunları tapmaq üçün AI prompt
-    const columnPrompt = `
-      Analyze these JSON keys from an Excel file header:
-      ${JSON.stringify(Object.keys(rawExcelData[0]))}
-      
-      Identify which key corresponds to:
-      1. Student ID (e.g., ZipGrade ID, External Id, StudentID)
-      2. Correct Answers Count (e.g., Num Correct, Corrects)
-      3. Total Questions Count (e.g., Num Questions, Questions)
-      4. Percent (e.g., Percent, Percent Correct)
+    const headers = Object.keys(rawExcelData[0]); // Yalnız başlıqları götürürük
+    let mapping: any = null;
 
-      Return ONLY a JSON object:
-      {
-        "id_col": "key_name",
-        "correct_col": "key_name",
-        "total_questions_col": "key_name",
-        "percent_col": "key_name"
-      }
-    `;
-    
-    const result = await model.generateContent(columnPrompt);
-    const mappingText = result.response.text().replace(/```json/g, "").replace(/```/g, "").trim();
-    const mapping = JSON.parse(mappingText);
-    
-    console.log("AI Tapdı:", mapping);
+    try {
+        // AI funksiyasını çağırırıq (Timeout ilə)
+        // 5 saniyə vaxt qoyuruq. Əgər 5 saniyəyə cavab gəlməsə, "Manual" rejimə keçirik.
+        const aiPromise = (async () => {
+            // Model adı: 'gemini-1.5-flash' (Preview modellər bəzən donur)
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+            
+            const prompt = `
+              Match these Excel headers to target keys based on meaning (multilingual support):
+              Headers: ${JSON.stringify(headers)}
+              
+              Targets:
+              - id_col: Student ID, ZipGrade ID, No, Kod
+              - correct_col: Correct Count, Num Correct, Düzgün
+              - total_questions_col: Question Count, Sual, Total Questions
+              - percent_col: Percent, Faiz, Score %
+
+              Return ONLY JSON: {"id_col": "...", "correct_col": "...", "total_questions_col": "...", "percent_col": "..."}
+            `;
+            const result = await model.generateContent(prompt);
+            const text = result.response.text().replace(/```json|```/g, "").trim();
+            return JSON.parse(text);
+        })();
+
+        // Yarış: Ya AI cavab verir, ya da 5 saniyə bitir
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject("Timeout"), 5000));
+        
+        mapping = await Promise.race([aiPromise, timeoutPromise]);
+        console.log("✅ AI Mapping Uğurlu:", mapping);
+
+    } catch (err) {
+        console.warn("⚠️ AI Gecikdi və ya Xəta verdi, Manual rejimə keçilir...", err);
+        // FALLBACK (MANUAL AXTARIŞ) - Əgər AI işləməsə bu işə düşür
+        const findKey = (keywords: string[]) => headers.find(h => keywords.some(k => h.toLowerCase().includes(k))) || "";
+        
+        mapping = {
+            id_col: findKey(['id', 'kod', 'no', 'student']),
+            correct_col: findKey(['correct', 'duz', 'düz', 'dogru']),
+            total_questions_col: findKey(['question', 'sual', 'ümumi']),
+            percent_col: findKey(['percent', 'faiz', '%'])
+        };
+        console.log("🔧 Manual Mapping:", mapping);
+    }
 
     // --- DATA EMALI ---
     const processedData = rawExcelData
@@ -69,14 +86,16 @@ export async function POST(req: Request) {
       .map((item: any) => {
         const correct = Number(item[mapping.correct_col]) || 0;
         const totalQ = Number(item[mapping.total_questions_col]) || 0;
+        // Əgər Total 0-dırsa, təxmini hesablayırıq (və ya səhv sayını 0 götürürük)
+        const validTotal = totalQ === 0 ? correct : totalQ; 
         
         return {
            student_id: String(item[mapping.id_col]).trim(),
-           quiz: finalQuizName, // ARTIQ SEÇİLƏN AD OLACAQ
+           quiz: finalQuizName,
            correct_count: correct,
-           wrong_count: totalQ - correct,
+           wrong_count: validTotal - correct,
            score: correct * multiplier,
-           total: totalQ * multiplier,
+           total: validTotal * multiplier,
            percent: Number(item[mapping.percent_col]) || 0
         };
       });
@@ -92,7 +111,7 @@ export async function POST(req: Request) {
     const finalDataToInsert = processedData.filter((d: any) => validIds.has(d.student_id));
 
     if (finalDataToInsert.length === 0) {
-        return NextResponse.json({ success: false, message: "Bazada uyğun şagird tapılmadı." });
+        return NextResponse.json({ success: false, message: "Bazada uyğun şagird tapılmadı. ID-ləri yoxlayın." });
     }
 
     // --- YAZMAQ ---
@@ -112,7 +131,7 @@ export async function POST(req: Request) {
     });
 
   } catch (e: any) {
-    console.error("API Error:", e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error("Critical API Error:", e);
+    return NextResponse.json({ error: "Server xətası: " + e.message }, { status: 500 });
   }
 }
