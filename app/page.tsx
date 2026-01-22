@@ -243,7 +243,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 4. QALEREYA (YENİ DİZAYN) --- */}
+      {/* --- 4. QALEREYA (YENİLƏNMİŞ DİZAYN) --- */}
       <section id="gallery" className="py-16 md:py-24 bg-gradient-to-r from-orange-50 via-white to-orange-50 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 mb-10 text-center relative z-10">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Mərkəzimizdən Görüntülər</h2>
@@ -266,7 +266,7 @@ export default function LandingPage() {
               animate={{ x: ["0%", "-50%"] }} 
               transition={{ 
                 ease: "linear", 
-                duration: 50, // Sürəti tənzimlədim (daha asta və axıcı)
+                duration: 100, // DƏYİŞİKLİK 1: Sürət azaldıldı (50 -> 100)
                 repeat: Infinity 
               }}
               // Mouse üzərinə gələndə axını dayandırır ki, rahat baxılsın
@@ -275,13 +275,16 @@ export default function LandingPage() {
               {[...galleryImages, ...galleryImages, ...galleryImages].map((item, index) => (
                 <motion.div 
                   key={index} 
-                  className="relative w-72 h-52 md:w-96 md:h-64 flex-shrink-0 rounded-3xl overflow-hidden shadow-xl border-4 border-white bg-gray-100 cursor-pointer"
-                  // YENİLİK: Hover effektləri (Böyümə və Parıltı)
+                  // DƏYİŞİKLİK 2: 'h-52' və 'md:h-64' silindi, əvəzinə 'aspect-square' əlavə olundu.
+                  // 'w-72' və 'md:w-80' ölçüləri kvadrat yaratmaq üçün istifadə olunur.
+                  className="relative w-72 md:w-80 aspect-square flex-shrink-0 rounded-3xl overflow-hidden shadow-xl border-4 border-white bg-gray-100 cursor-pointer"
+                  
+                  // Hover effektləri
                   whileHover={{ 
-                    scale: 1.15, 
-                    rotate: index % 2 === 0 ? 2 : -2, // Bir az əyilir
+                    scale: 1.05, 
+                    rotate: index % 2 === 0 ? 1 : -1, 
                     zIndex: 50,
-                    boxShadow: "0px 20px 40px rgba(245, 158, 11, 0.3)" // Amber kölgə
+                    boxShadow: "0px 20px 40px rgba(245, 158, 11, 0.3)" 
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
@@ -289,7 +292,7 @@ export default function LandingPage() {
                   
                   {/* Şəkil üzərinə gələndə yaranan parıltı layı */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                     <span className="text-white font-medium text-sm">MOC Gallery</span>
+                      <span className="text-white font-medium text-sm">MOC Gallery</span>
                   </div>
                 </motion.div>
               ))}
@@ -297,7 +300,6 @@ export default function LandingPage() {
           </div>
         )}
       </section>
-
       {/* --- 5. FOOTER --- */}
       <section id="contact" className="bg-white border-t border-gray-200 pt-16 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-16">
