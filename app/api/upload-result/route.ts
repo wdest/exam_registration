@@ -10,35 +10,78 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "İcazəsiz giriş!" }, { status: 401 });
     }
 
-    // 2. Service Role Client
+    // 2. Supabase Client
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
     const body = await req.json();
-    const { data } = body;
+    
+    // Front-end'dən gələn datalar:
+    // data: Excelin içindəki sətirlər
+    // pointsPerQuestion: Müəllimin daxil etdiyi sual balı (Input)
+    const { data: rawExcelData, pointsPerQuestion } = body; 
 
-    if (!data || !Array.isArray(data)) {
+    // Əgər sual balı gəlməyibsə, default 4 götürürük
+    const multiplier = pointsPerQuestion ? Number(pointsPerQuestion) : 4;
+
+    if (!rawExcelData || !Array.isArray(rawExcelData)) {
         return NextResponse.json({ error: "Məlumat formatı yanlışdır." }, { status: 400 });
     }
 
-    // --- A. DUBLİKATLARI SİLİRİK (Əvvəlki kod) ---
+    // --- A. DATA MAPPING (SƏNİN CƏDVƏLƏ UYĞUN) ---
+    const formattedData = rawExcelData
+      .filter((item: any) => item['ZipGrade ID']) // ID-si boş olanları atırıq
+      .map((item: any) => {
+        
+        // Exceldən rəqəmləri oxuyuruq
+        const correctCount = Number(item['Num Correc']) || 0; // Düzgün sayı
+        const questionCount = Number(item['Num Questi']) || 0; // Ümumi sual sayı
+        const excelPercent = Number(item['Percent Cor']) || 0; // Faiz
+
+        // Hesablamalar
+        const calculatedScore = correctCount * multiplier;       // BAL (Score)
+        const maxTotalScore = questionCount * multiplier;        // MAKSİMUM BAL (Total)
+        const wrongCount = questionCount - correctCount;         // SƏHV SAYI
+
+        return {
+            // Şəkildəki 'student_id' (text)
+            student_id: String(item['ZipGrade ID']), 
+            
+            // Şəkildəki 'quiz' (text)
+            quiz: item['Quiz Name'],
+            
+            // Şəkildəki 'correct_count' (int4)
+            correct_count: correctCount,
+            
+            // Şəkildəki 'wrong_count' (int4)
+            wrong_count: wrongCount,
+            
+            // Şəkildəki 'score' (int4) -> Hesabladığımız bal
+            score: calculatedScore,
+            
+            // Şəkildəki 'total' (int4) -> Maksimum mümkün bal
+            total: maxTotalScore,
+            
+            // Şəkildəki 'percent' (numeric) -> Exceldəki faiz
+            percent: excelPercent 
+        };
+      });
+
+    // --- B. DUBLİKATLARI TƏMİZLƏMƏK ---
+    // Eyni şagirdin eyni sınaq nəticəsi təkrarlanmasın
     const uniqueDataMap = new Map();
-    data.forEach((item) => {
+    formattedData.forEach((item: any) => {
         const uniqueKey = `${item.student_id}-${item.quiz}`;
         uniqueDataMap.set(uniqueKey, item);
     });
     const cleanedData = Array.from(uniqueDataMap.values());
 
-
-    // --- B. YENİ HİSSƏ: BAZADA OLMAYANLARI SİLİRİK (FILTER) ---
+    // --- C. BAZADA OLMAYAN ŞAGİRDLƏRİ SİLMƏK ---
+    // Yalnız 'students' cədvəlində qeydiyyatda olanları saxlayırıq
+    const incomingStudentIds = cleanedData.map((item: any) => item.student_id);
     
-    // 1. Excel-dən gələn bütün ID-ləri yığırıq
-    const incomingStudentIds = cleanedData.map(item => item.student_id);
-
-    // 2. Bazadan soruşuruq: "Bu ID-lərdən hansılar səndə var?"
-    // DİQQƏT: 'exam_id' sənin students cədvəlindəki şagird nömrəsidir
     const { data: existingStudents, error: searchError } = await supabase
         .from('students')
         .select('exam_id')
@@ -46,23 +89,20 @@ export async function POST(req: Request) {
 
     if (searchError) throw searchError;
 
-    // 3. Tapılan ID-ləri bir siyahıya (Set) yığırıq ki, tez yoxlaya bilək
-    // (Məsələn: [101, 102, 105] tapıldı)
     const allowedIds = new Set(existingStudents?.map(s => s.exam_id));
-
-    // 4. Yalnız icazəli olanları saxlayırıq
-    const finalDataToInsert = cleanedData.filter(item => allowedIds.has(item.student_id));
-
-    console.log(`Gələn: ${data.length}, Dublikatsız: ${cleanedData.length}, Bazada Olan: ${finalDataToInsert.length}`);
+    
+    // Filterləmə
+    const finalDataToInsert = cleanedData.filter((item: any) => allowedIds.has(item.student_id));
 
     if (finalDataToInsert.length === 0) {
         return NextResponse.json({ 
             success: false, 
-            message: "Heç bir nəticə yüklənmədi. Excel-dəki şagird ID-ləri bazada tapılmadı." 
+            message: "Yüklənən faylda bazada mövcud olan heç bir şagird ID-si tapılmadı." 
         });
     }
 
-    // 3. Bazaya yazırıq (Upsert)
+    // --- D. BAZAYA YAZMAQ (Upsert) ---
+    // 'results' cədvəlinə yazırıq
     const { error } = await supabase
       .from("results")
       .upsert(finalDataToInsert, { onConflict: "student_id,quiz" });
@@ -72,13 +112,13 @@ export async function POST(req: Request) {
         throw new Error(error.message);
     }
 
-    // Mesajda neçəsinin yükləndiyini, neçəsinin silindiyini deyirik
+    // --- E. STATİSTİKA VƏ CAVAB ---
     const skippedCount = cleanedData.length - finalDataToInsert.length;
     
     return NextResponse.json({ 
         success: true, 
         processed_count: finalDataToInsert.length, 
-        message: `Uğurla yükləndi: ${finalDataToInsert.length} nəfər. (Bazada olmayan ${skippedCount} nəfər silindi)` 
+        message: `Əla! ${finalDataToInsert.length} nəfərin nəticəsi yükləndi. (Sual dəyəri: ${multiplier} bal)` 
     });
 
   } catch (e: any) {
