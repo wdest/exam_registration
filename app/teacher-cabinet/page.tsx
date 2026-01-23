@@ -7,7 +7,7 @@ import {
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
-  Upload, Clock, LineChart as LineChartIcon
+  Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square
 } from "lucide-react";
 
 // RECHARTS
@@ -15,10 +15,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 // --- SABITLƏR ---
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
-
-// 🛑 DÜZƏLİŞ: Bu hissə əlavə olundu (Xətanın səbəbi bu idi)
 const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
-
 const DAY_INDEX_MAP: { [key: string]: number } = { 
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
@@ -51,6 +48,9 @@ export default function TeacherCabinet() {
   const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   
+  // 🔥 TOPLU SEÇİM STATE
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
   // CƏDVƏL
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
   const [currentTimePosition, setCurrentTimePosition] = useState<number | null>(null);
@@ -175,6 +175,42 @@ export default function TeacherCabinet() {
     } catch (e) { console.error(e); }
   };
 
+  // --- 🔥 TOPLU SEÇİM FUNKSİYALARI ---
+  const toggleSelectAll = () => {
+      if (selectedIds.length === students.length) {
+          setSelectedIds([]);
+      } else {
+          setSelectedIds(students.map(s => s.id));
+      }
+  };
+
+  const toggleSelectOne = (id: number) => {
+      if (selectedIds.includes(id)) {
+          setSelectedIds(selectedIds.filter(sid => sid !== id));
+      } else {
+          setSelectedIds([...selectedIds, id]);
+      }
+  };
+
+  // --- 🔥 TOPLU SİLMƏ FUNKSİYASI ---
+  const bulkDelete = async () => {
+      if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return;
+      
+      try {
+          const res = await fetch("/api/teacher/students", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds })
+          });
+          
+          if (!res.ok) throw new Error("Silinmə xətası");
+          
+          alert("Silindi!");
+          setSelectedIds([]); // Seçimi təmizlə
+          if(teacher) fetchData(teacher.id);
+      } catch (error: any) { alert(error.message); }
+  };
+
   // --- ANALYTICS FUNCTIONS ---
   const calculateAnalytics = async (groupId: string) => {
     if (!groupId) return;
@@ -296,21 +332,24 @@ export default function TeacherCabinet() {
   };
   const displayStats = getDisplayStats();
 
-  // --- UPLOAD ---
+  // --- 🔥 UPLOAD VƏ ENCODING DÜZƏLİŞİ ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setUploading(true);
     const file = e.target.files[0];
     const reader = new FileReader();
+
+    // 🛑 DÜZƏLİŞ: readAsBinaryString yerinə readAsArrayBuffer istifadə edirik ki, UTF-8 düz oxunsun
     reader.onload = async (evt) => {
         try {
-            const bstr = evt.target?.result;
-            const wb = XLSX.read(bstr, { type: "binary" });
+            const data = evt.target?.result;
+            const wb = XLSX.read(data, { type: "array" }); // type: "array"
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
-            const data = XLSX.utils.sheet_to_json(ws);
+            const jsonData = XLSX.utils.sheet_to_json(ws);
+            
             const res = await fetch("/api/teacher/students/upload", {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: data })
+                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: jsonData })
             });
             const result = await res.json();
             if (!res.ok) throw new Error(result.error || "Yükləmə xətası");
@@ -318,7 +357,8 @@ export default function TeacherCabinet() {
             if(teacher) fetchData(teacher.id);
         } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; }
     };
-    reader.readAsBinaryString(file);
+    // 🛑 DÜZƏLİŞ: ArrayBuffer oxuyuruq
+    reader.readAsArrayBuffer(file);
   };
 
   // --- CRUD & JURNAL ---
@@ -346,8 +386,6 @@ export default function TeacherCabinet() {
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
   const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); } catch (e: any) { alert(e.message); } };
-  
-  // 🛑 DÜZƏLİŞ: DAY_MAP aşağıda istifadə olunur
   const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates }) }); if (!res.ok) throw new Error("Xəta"); alert("Saxlanıldı!"); } catch (e: any) { alert(e.message); } };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
   const checkScheduleValidity = () => { if (!selectedGroup || !gradingDate) return; const parts = gradingDate.split('-'); const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()])); };
@@ -515,17 +553,43 @@ export default function TeacherCabinet() {
                 </div>
 
                 <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
-                    <h3 className="text-lg font-bold mb-4 flex justify-between items-center">Şagirdlərin Siyahısı <span className="text-sm font-normal text-gray-500">Cəmi: {students.length}</span></h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-bold flex items-center gap-2">Şagirdlərin Siyahısı <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{students.length}</span></h3>
+                        
+                        {/* 🔥 TOPLU SİLMƏ DÜYMƏSİ */}
+                        {selectedIds.length > 0 && (
+                            <button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in">
+                                <Trash2 size={18} /> Seçilənləri Sil ({selectedIds.length})
+                            </button>
+                        )}
+                    </div>
+
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold border-b dark:border-gray-600">
                                 <tr>
-                                    <th className="p-3">ID</th><th className="p-3">Kod</th><th className="p-3">Ad Soyad</th><th className="p-3">Ata adı</th><th className="p-3">Sinif</th><th className="p-3">Sektor</th><th className="p-3 text-right">Əməliyyatlar</th>
+                                    <th className="p-3 w-10">
+                                        <button onClick={toggleSelectAll} className="text-gray-500 hover:text-blue-600">
+                                            {selectedIds.length === students.length && students.length > 0 ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
+                                        </button>
+                                    </th>
+                                    <th className="p-3">ID</th>
+                                    <th className="p-3">Kod</th>
+                                    <th className="p-3">Ad Soyad</th>
+                                    <th className="p-3">Ata adı</th>
+                                    <th className="p-3">Sinif</th>
+                                    <th className="p-3">Sektor</th>
+                                    <th className="p-3 text-right">Əməliyyatlar</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {students.map((s) => (
-                                    <tr key={s.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition ${editingId === s.id ? "bg-blue-50 dark:bg-blue-900" : ""}`}>
+                                    <tr key={s.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition ${selectedIds.includes(s.id) ? "bg-blue-50 dark:bg-blue-900/30" : ""} ${editingId === s.id ? "bg-yellow-50 dark:bg-yellow-900/30" : ""}`}>
+                                        <td className="p-3">
+                                            <button onClick={() => toggleSelectOne(s.id)} className="text-gray-400 hover:text-blue-600">
+                                                {selectedIds.includes(s.id) ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
+                                            </button>
+                                        </td>
                                         <td className="p-3 font-mono text-blue-600 font-bold">#{s.student_code}</td>
                                         <td className="p-3 font-mono text-gray-500 text-xs">{s.access_code || "-"}</td>
                                         <td className="p-3 font-medium text-gray-800 dark:text-white">{s.first_name} {s.last_name}</td>
