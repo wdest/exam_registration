@@ -2,34 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, PenTool, CheckCircle, 
-  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown, Filter
+  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 const AVATARS = [
   "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"
-];
-
-// FAKE DATA - Hər şagirdin həm Ümumi, həm də Aylıq balı var
-const FAKE_RANKINGS = [
-    { id: 101, name: "Əli Məmmədov", allTimeScore: 9.9, monthlyScore: 8.5, avatar: "🦸‍♂️", class: "9" },
-    { id: 102, name: "Ayan Kərimova", allTimeScore: 9.8, monthlyScore: 9.9, avatar: "👩‍🚀", class: "10" },
-    { id: 103, name: "Murad Həsənov", allTimeScore: 9.7, monthlyScore: 9.2, avatar: "🧑‍💻", class: "9" },
-    { id: 104, name: "Leyla Quliyeva", allTimeScore: 9.6, monthlyScore: 9.5, avatar: "👩‍🎓", class: "11" },
-    { id: 105, name: "Samir Əliyev", allTimeScore: 9.5, monthlyScore: 7.8, avatar: "👨‍🎨", class: "4" },
-    { id: 106, name: "Fidan Rzayeva", allTimeScore: 9.4, monthlyScore: 9.8, avatar: "👩‍🔬", class: "9" },
-    { id: 107, name: "Orxan Vəliyev", allTimeScore: 9.3, monthlyScore: 8.9, avatar: "🕵️‍♂️", class: "10" },
-    { id: 108, name: "Nigar Səfərova", allTimeScore: 9.2, monthlyScore: 9.1, avatar: "🧝‍♀️", class: "11" },
-    { id: 109, name: "Tural Abbasov", allTimeScore: 9.1, monthlyScore: 8.4, avatar: "🧙‍♂️", class: "2" },
-    { id: 110, name: "Zəhra Məmmədli", allTimeScore: 9.0, monthlyScore: 9.6, avatar: "👩‍🎓", class: "9" },
-    { id: 111, name: "Rəsul İsayev", allTimeScore: 8.9, monthlyScore: 8.2, avatar: "👨‍🎓", class: "6" },
-    { id: 112, name: "Kənan Orucov", allTimeScore: 8.8, monthlyScore: 7.5, avatar: "🧑‍💻", class: "9" },
-    { id: 113, name: "Lalə Babayeva", allTimeScore: 8.7, monthlyScore: 9.0, avatar: "👩‍🚀", class: "10" },
-    { id: 114, name: "Elvin Mirzəyev", allTimeScore: 8.6, monthlyScore: 8.1, avatar: "🦸‍♂️", class: "11" },
-    { id: 115, name: "Günay Hacıyeva", allTimeScore: 8.5, monthlyScore: 9.3, avatar: "👩‍🔬", class: "5" },
 ];
 
 export default function StudentCabinet() {
@@ -49,11 +36,12 @@ export default function StudentCabinet() {
   const [examResults, setExamResults] = useState<any[]>([]);
   
   // SIRALAMA STATES
-  const [rankFilter, setRankFilter] = useState<'all' | 'category'>('all'); // Ümumi vs Kategoriya
-  const [timeFilter, setTimeFilter] = useState<'all_time' | 'monthly'>('all_time'); // Zaman Filtri (YENİ)
+  const [rankings, setRankings] = useState<any[]>([]); 
+  const [rankFilter, setRankFilter] = useState<'all' | 'category'>('all');
+  const [timeFilter, setTimeFilter] = useState<'all_time' | 'monthly'>('all_time'); 
   const [filteredRankings, setFilteredRankings] = useState<any[]>([]); 
   const [myCalculatedRank, setMyCalculatedRank] = useState<number>(0);
-  const [myCurrentScore, setMyCurrentScore] = useState<number>(0); // Ekranda görünəcək bal
+  const [myCurrentScore, setMyCurrentScore] = useState<number>(0);
 
   // UI States
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -65,7 +53,40 @@ export default function StudentCabinet() {
     fetchData();
   }, []);
 
-  // --- KATEQORIYA MƏNTİQİ ---
+  // --- 🔥 REAL-TIME LOGIC ---
+  useEffect(() => {
+    // 1. Dərs qiyməti dəyişəndə -> SIRALAMA YENİLƏNİR
+    const gradesChannel = supabase
+      .channel('grades-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'daily_grades' },
+        () => {
+          console.log('⚡ Jurnal dəyişdi, sıralama yenilənir...');
+          fetchData(false);
+        }
+      )
+      .subscribe();
+
+    // 2. İmtahan nəticəsi gələndə -> SADECE DATA YENILENIR (Sıralamaya təsir etmir, amma ekranda görünməlidir)
+    const resultsChannel = supabase
+      .channel('results-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'results' },
+        () => {
+          console.log('⚡ İmtahan nəticəsi gəldi...');
+          fetchData(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(gradesChannel);
+      supabase.removeChannel(resultsChannel);
+    };
+  }, []);
+
   const getCategoryName = (grade: string | number) => {
       const g = Number(grade);
       if (g >= 1 && g <= 2) return "Kids (1-2)";
@@ -77,64 +98,53 @@ export default function StudentCabinet() {
       return "Digər";
   };
 
-  // --- RANKING HESABLAMA (ZAMAN VƏ KATEQORİYA İLƏ) ---
+  // --- RANKING CALCULATION (API-dən gələn hazır datanı filterləyirik) ---
   useEffect(() => {
-      if (!student) return;
+      if (!student || rankings.length === 0) return;
 
-      let currentList = [...FAKE_RANKINGS];
-
-      // 1. ZAMAN FİLTRİ (Balı seçirik)
-      // Hər bir şagirdin obyektinə 'currentScore' adlı yeni sahə əlavə edirik ki, sıralama asan olsun
-      currentList = currentList.map(item => ({
+      // API bizə hazır "allTimeScore" və "monthlyScore" göndərir.
+      // Biz sadəcə "score" sahəsini seçdiyimiz vaxta uyğun təyin edirik.
+      let currentList = rankings.map(item => ({
           ...item,
-          score: timeFilter === 'all_time' ? item.allTimeScore : item.monthlyScore // Seçimə görə bal dəyişir
+          score: timeFilter === 'all_time' ? item.allTimeScore : item.monthlyScore 
       }));
 
-      // 2. KATEQORIYA FİLTRİ
+      // KATEQORIYA FİLTRİ
       if (rankFilter === 'category') {
-          const myCategory = getCategoryName(student.grade || "9");
+          const myCategory = getCategoryName(student.grade);
           currentList = currentList.filter(r => getCategoryName(r.class) === myCategory);
       }
 
-      // 3. MƏNİM BALIM (Simulyasiya)
-      // Real sistemdə bu bal API-dən gəlməlidir. Hazırda demo üçün:
-      // All Time = stats.avgScore
-      // Monthly = stats.avgScore - 0.5 (Sadəcə fərq görünsün deyə bir az azaldırıq)
-      const myScore = timeFilter === 'all_time' 
-          ? (parseFloat(stats.avgScore) || 0) 
-          : (Math.max(0, (parseFloat(stats.avgScore) || 0) - 0.5)); // Demo məqsədli fərqli rəqəm
-      
-      setMyCurrentScore(Number(myScore.toFixed(1)));
-      const myName = `${student.first_name} ${student.last_name}`;
+      // Mənim real balım (Siyahıdan özümü tapıram)
+      const myDataInList = currentList.find(r => r.id === student.id);
+      const myScore = myDataInList ? myDataInList.score : 0;
+      setMyCurrentScore(myScore);
 
-      // 4. MƏNİM YERİMİ HESABLA (Siyahıya özümüzü qatıb sort edirik)
-      const listWithMe = [
-          ...currentList, 
-          { id: 9999, name: myName, score: myScore, class: student.grade, avatar: selectedAvatar }
-      ];
-
-      // Balı çoxdan aza düzürük
-      listWithMe.sort((a, b) => b.score - a.score);
+      // Sıralama (Çoxdan aza)
+      currentList.sort((a, b) => b.score - a.score);
 
       // İndexi tapırıq
-      const rank = listWithMe.findIndex(r => r.id === 9999) + 1;
+      const rank = currentList.findIndex(r => r.id === student.id) + 1;
       setMyCalculatedRank(rank);
 
-      // Ekrana çıxan siyahı (Məni oradan çıxarırıq ki, dublikat olmasın, yalnız sticky barda görünüm)
-      // Amma top listdəyəmsə siyahıda da görünəcəm.
-      setFilteredRankings(currentList.sort((a, b) => b.score - a.score));
+      setFilteredRankings(currentList);
 
-  }, [rankFilter, timeFilter, student, stats.avgScore, selectedAvatar]);
+  }, [rankFilter, timeFilter, student, rankings]);
 
 
-  const fetchData = async () => {
+  const fetchData = async (showLoading = true) => {
     try {
+      if(showLoading) setLoading(true);
+      
       const res = await fetch("/api/student/dashboard");
+      
       if (res.status === 401 || res.status === 403) {
         router.push("/login"); 
         return;
       }
+
       const data = await res.json();
+      
       if (data.student) {
         setStudent(data.student);
         setGroupName(data.groupName);
@@ -144,6 +154,11 @@ export default function StudentCabinet() {
         setRecentGrades(data.recentGrades);
         setActiveExams(data.activeExams || []);
         setExamResults(data.examResults || []);
+        
+        // API-dən gələn REAL RANKING data
+        if(data.rankings) {
+            setRankings(data.rankings);
+        }
         
         const savedAvatar = localStorage.getItem(`avatar_${data.student.id}`);
         if (savedAvatar) setSelectedAvatar(savedAvatar);
@@ -188,7 +203,6 @@ export default function StudentCabinet() {
     );
   }
 
-  // Mən top 15-dəyəmsə sticky barı gizlət (və ya həmişə göstər, dizayna bağlıdır. Hələlik gizlədirəm)
   const amIInTopList = myCalculatedRank <= 15;
 
   return (
@@ -425,7 +439,7 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 4. SIRALAMA (ZAMAN VƏ KATEQORİYA İLƏ) --- */}
+        {/* --- 4. SIRALAMA --- */}
         {activeTab === 'rankings' && (
             <div className="animate-in fade-in duration-500">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
@@ -438,99 +452,85 @@ export default function StudentCabinet() {
                     
                     {/* FILTERS */}
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-                        {/* ZAMAN FILTRI */}
                         <div className="bg-white p-1 rounded-xl shadow-sm border flex">
-                            <button 
-                                onClick={() => setTimeFilter('all_time')} 
-                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${timeFilter === 'all_time' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                            >
-                                Bütün Zamanlar
-                            </button>
-                            <button 
-                                onClick={() => setTimeFilter('monthly')} 
-                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${timeFilter === 'monthly' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                            >
-                                Bu Ay
-                            </button>
+                            <button onClick={() => setTimeFilter('all_time')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${timeFilter === 'all_time' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>Bütün Zamanlar</button>
+                            <button onClick={() => setTimeFilter('monthly')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${timeFilter === 'monthly' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>Bu Ay</button>
                         </div>
-
-                        {/* KATEQORIYA FILTRI */}
                         <div className="bg-white p-1 rounded-xl shadow-sm border flex">
-                            <button 
-                                onClick={() => setRankFilter('all')} 
-                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${rankFilter === 'all' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                            >
-                                Ümumi
-                            </button>
-                            <button 
-                                onClick={() => setRankFilter('category')} 
-                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${rankFilter === 'category' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                            >
-                                {getCategoryName(student?.grade || "9")}
-                            </button>
+                            <button onClick={() => setRankFilter('all')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${rankFilter === 'all' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>Ümumi</button>
+                            <button onClick={() => setRankFilter('category')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${rankFilter === 'category' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>{getCategoryName(student?.grade || "9")}</button>
                         </div>
                     </div>
                 </div>
 
-                {/* PODIUM (TOP 3) */}
-                <div className="grid grid-cols-3 gap-2 md:gap-6 mb-12 items-end px-2 md:px-12">
-                    {/* 2-ci YER */}
-                    <div className="order-1 flex flex-col items-center">
-                        <div className="relative">
-                            <div className="text-5xl mb-2">{filteredRankings[1]?.avatar || "🥈"}</div>
-                            <div className="absolute -top-3 -right-2 bg-gray-300 text-gray-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#2</div>
-                        </div>
-                        <div className="w-full bg-gradient-to-t from-gray-200 to-gray-100 rounded-t-2xl p-4 text-center border-t-4 border-gray-300 shadow-lg h-32 md:h-40 flex flex-col justify-center">
-                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[1]?.name}</p>
-                            <p className="text-gray-500 text-xs font-bold">{filteredRankings[1]?.score} Bal</p>
-                        </div>
-                    </div>
-
-                    {/* 1-ci YER */}
-                    <div className="order-2 flex flex-col items-center z-10 -mt-8">
-                        <div className="relative animate-bounce-slow">
-                            <Crown className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-500 fill-yellow-500" size={32}/>
-                            <div className="text-6xl mb-2">{filteredRankings[0]?.avatar || "🥇"}</div>
-                        </div>
-                        <div className="w-full bg-gradient-to-t from-yellow-200 to-yellow-50 rounded-t-2xl p-4 text-center border-t-4 border-yellow-400 shadow-xl h-40 md:h-52 flex flex-col justify-center">
-                            <p className="font-black text-gray-900 text-base md:text-lg line-clamp-1">{filteredRankings[0]?.name}</p>
-                            <p className="text-yellow-700 font-bold text-sm bg-yellow-300/50 px-3 py-1 rounded-full mx-auto w-fit mt-1">{filteredRankings[0]?.score} Bal</p>
-                        </div>
-                    </div>
-
-                    {/* 3-cü YER */}
-                    <div className="order-3 flex flex-col items-center">
-                        <div className="relative">
-                            <div className="text-5xl mb-2">{filteredRankings[2]?.avatar || "🥉"}</div>
-                            <div className="absolute -top-3 -right-2 bg-orange-200 text-orange-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#3</div>
-                        </div>
-                        <div className="w-full bg-gradient-to-t from-orange-100 to-orange-50 rounded-t-2xl p-4 text-center border-t-4 border-orange-300 shadow-lg h-28 md:h-36 flex flex-col justify-center">
-                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[2]?.name}</p>
-                            <p className="text-gray-500 text-xs font-bold">{filteredRankings[2]?.score} Bal</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* SİYAHI (4-15) */}
-                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden mb-20">
-                    {filteredRankings.slice(3, 15).map((r, i) => {
-                        const rank = i + 4;
-                        const isMe = r.id === 9999; // Fake datada "mən" id=9999-dur
-                        return (
-                            <div key={r.id} className={`flex items-center p-4 border-b last:border-0 hover:bg-gray-50 transition ${isMe ? 'bg-indigo-50 hover:bg-indigo-100' : ''}`}>
-                                <div className="w-10 text-center font-black text-gray-400 text-lg mr-4">{rank}</div>
-                                <div className="text-2xl mr-4">{r.avatar}</div>
-                                <div className="flex-1">
-                                    <p className={`font-bold ${isMe ? 'text-indigo-700' : 'text-gray-800'}`}>
-                                        {r.name} {isMe && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full ml-2">SƏN</span>}
-                                    </p>
-                                    <p className="text-xs text-gray-400">{getCategoryName(r.class)}</p>
+                {filteredRankings.length > 0 && (
+                    <>
+                        <div className="grid grid-cols-3 gap-2 md:gap-6 mb-12 items-end px-2 md:px-12">
+                            {/* 2-ci YER */}
+                            {filteredRankings[1] && (
+                                <div className="order-1 flex flex-col items-center">
+                                    <div className="relative">
+                                        <div className="text-5xl mb-2">{filteredRankings[1].avatar}</div>
+                                        <div className="absolute -top-3 -right-2 bg-gray-300 text-gray-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#2</div>
+                                    </div>
+                                    <div className="w-full bg-gradient-to-t from-gray-200 to-gray-100 rounded-t-2xl p-4 text-center border-t-4 border-gray-300 shadow-lg h-32 md:h-40 flex flex-col justify-center">
+                                        <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[1].name}</p>
+                                        <p className="text-gray-500 text-xs font-bold">{filteredRankings[1].score} Bal</p>
+                                    </div>
                                 </div>
-                                <div className="font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded-lg">{r.score}</div>
-                            </div>
-                        )
-                    })}
-                </div>
+                            )}
+
+                            {/* 1-ci YER */}
+                            {filteredRankings[0] && (
+                                <div className="order-2 flex flex-col items-center z-10 -mt-8">
+                                    <div className="relative animate-bounce-slow">
+                                        <Crown className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-500 fill-yellow-500" size={32}/>
+                                        <div className="text-6xl mb-2">{filteredRankings[0].avatar}</div>
+                                    </div>
+                                    <div className="w-full bg-gradient-to-t from-yellow-200 to-yellow-50 rounded-t-2xl p-4 text-center border-t-4 border-yellow-400 shadow-xl h-40 md:h-52 flex flex-col justify-center">
+                                        <p className="font-black text-gray-900 text-base md:text-lg line-clamp-1">{filteredRankings[0].name}</p>
+                                        <p className="text-yellow-700 font-bold text-sm bg-yellow-300/50 px-3 py-1 rounded-full mx-auto w-fit mt-1">{filteredRankings[0].score} Bal</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* 3-cü YER */}
+                            {filteredRankings[2] && (
+                                <div className="order-3 flex flex-col items-center">
+                                    <div className="relative">
+                                        <div className="text-5xl mb-2">{filteredRankings[2].avatar}</div>
+                                        <div className="absolute -top-3 -right-2 bg-orange-200 text-orange-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#3</div>
+                                    </div>
+                                    <div className="w-full bg-gradient-to-t from-orange-100 to-orange-50 rounded-t-2xl p-4 text-center border-t-4 border-orange-300 shadow-lg h-28 md:h-36 flex flex-col justify-center">
+                                        <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[2].name}</p>
+                                        <p className="text-gray-500 text-xs font-bold">{filteredRankings[2].score} Bal</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* SİYAHI (4-15) */}
+                        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden mb-20">
+                            {filteredRankings.slice(3, 15).map((r, i) => {
+                                const rank = i + 4;
+                                const isMe = r.id === student.id;
+                                return (
+                                    <div key={r.id} className={`flex items-center p-4 border-b last:border-0 hover:bg-gray-50 transition ${isMe ? 'bg-indigo-50 hover:bg-indigo-100' : ''}`}>
+                                        <div className="w-10 text-center font-black text-gray-400 text-lg mr-4">{rank}</div>
+                                        <div className="text-2xl mr-4">{r.avatar}</div>
+                                        <div className="flex-1">
+                                            <p className={`font-bold ${isMe ? 'text-indigo-700' : 'text-gray-800'}`}>
+                                                {r.name} {isMe && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full ml-2">SƏN</span>}
+                                            </p>
+                                            <p className="text-xs text-gray-400">{getCategoryName(r.class)}</p>
+                                        </div>
+                                        <div className="font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded-lg">{r.score}</div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </>
+                )}
 
                 {/* SƏNİN YERİN (STICKY BOTTOM - ƏSL YERİN) */}
                 {!amIInTopList && (
@@ -579,7 +579,7 @@ export default function StudentCabinet() {
   );
 }
 
-// ... ResultCard və DetailRow komponentləri eyni qalır ...
+// ... ResultCard və DetailRow komponentləri eyni qalır (bu hissəyə dəyməyə ehtiyac yoxdur) ...
 function ResultCard({ studentName, studentId, quizName, score, total, percent, date, logoUrl }: any) {
   const isPass = percent >= 50;
   const statusColor = isPass ? "text-green-600" : "text-red-600";
