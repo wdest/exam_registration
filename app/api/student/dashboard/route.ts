@@ -2,8 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-// 🛑 DİQQƏT: Burda Service Role Key (Admin Açarı) işlədirik
-// Bu bizə imkan verir ki, RLS-ə ilişmədən müəllimin adını oxuyaq.
+// Admin açarı ilə Supabase (RLS-i keçmək üçün)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -18,7 +17,7 @@ export async function GET() {
   try {
     const user = JSON.parse(token);
 
-    // 1. Şagirdi tapırıq (Admin açarı ilə)
+    // 1. Şagirdi tapırıq
     const { data: student, error } = await supabaseAdmin
       .from("local_students")
       .select("*")
@@ -27,25 +26,21 @@ export async function GET() {
 
     if (error || !student) return NextResponse.json({ error: "Şagird tapılmadı" }, { status: 404 });
 
-    // 2. Məlumatları hazırlayırıq
+    // 2. Müəllim və Qrup adını tapırıq
     let groupName = "Təyin olunmayıb";
     let teacherName = "Təyin olunmayıb";
 
-    // A. Müəllimi tapmaq
-    // student.teacher_id varsa, gidib teachers cədvəlindən adını gətiririk
+    // Müəllim
     if (student.teacher_id) {
         const { data: teacher } = await supabaseAdmin
             .from("teachers")
             .select("full_name")
             .eq("id", student.teacher_id)
             .single();
-        
-        if (teacher) {
-            teacherName = teacher.full_name;
-        }
+        if (teacher) teacherName = teacher.full_name;
     }
 
-    // B. Qrupu tapmaq
+    // Qrup
     const { data: groupMember } = await supabaseAdmin
         .from("group_members")
         .select("group_id, groups(name)")
@@ -57,7 +52,7 @@ export async function GET() {
         groupName = groupMember.groups.name;
     }
 
-    // 3. Statistikaları Hesablamaq
+    // 3. GÜNDƏLİK QİYMƏTLƏR VƏ STATİSTİKA (Gündəlik dərslər üçün)
     const { data: grades } = await supabaseAdmin
         .from("daily_grades")
         .select("score, attendance, grade_date")
@@ -81,28 +76,46 @@ export async function GET() {
         const presentCount = grades.filter(g => g.attendance).length;
         attendanceRate = ((presentCount / grades.length) * 100).toFixed(0);
 
-        // Chart Data (Son 10 dərs)
+        // Chart Data (Son 10 dərs - Qrafik üçün)
         chartData = grades.slice(-10).map(g => ({
             date: g.grade_date.slice(5), // Ay-Gün
             bal: g.score
         }));
 
-        // Son Qiymətlər (Tərsinə çeviririk)
+        // Son Qiymətlər (Cədvəl üçün tərsinə çeviririk)
         recentGrades = [...grades].reverse().slice(0, 5);
     }
 
-    // 4. Hazır Məlumatı Göndəririk
+    // 4. 🔥 YENİ: AKTİV İMTAHANLAR (Adminin yaratdığı linklər)
+    // Şagirdin sinfinə uyğun olanları gətiririk
+    const { data: activeExams } = await supabaseAdmin
+        .from("exams") // Bazada 'exams' cədvəlin olduğunu fərz edirik
+        .select("*")
+        .eq("class_grade", student.grade) // Şagirdin sinfinə uyğun
+        .order("created_at", { ascending: false });
+
+    // 5. 🔥 YENİ: ŞAGİRDİN İMTAHAN NƏTİCƏLƏRİ (Exceldən yüklənənlər)
+    const { data: examResults } = await supabaseAdmin
+        .from("results") // Bazada 'results' cədvəli
+        .select("*")
+        .eq("student_id", student.student_code) // Student Code ilə axtarırıq (ZipGrade ID)
+        .order("created_at", { ascending: false });
+
+    // 6. MƏLUMATI GÖNDƏRİRİK
     return NextResponse.json({
         student,
         groupName,
-        teacherName, // <--- Bu artıq düzgün gələcək (Məs: "Əli Vəliyev")
+        teacherName,
         stats: { avgScore, attendance: attendanceRate },
         chartData,
-        recentGrades
+        recentGrades,
+        // Frontend-dəki yeni tablar üçün:
+        activeExams: activeExams || [], 
+        examResults: examResults || []
     });
 
   } catch (error) {
-    console.error("Server xətası:", error);
+    console.error("Dashboard API xətası:", error);
     return NextResponse.json({ error: "Server xətası" }, { status: 500 });
   }
 }
