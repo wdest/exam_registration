@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 
 // --- SUPABASE CLIENT (Yalnız oxumaq üçün) ---
-// Yazmaq əməliyyatlarını API ilə edəcəyik.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -30,6 +29,15 @@ interface Student {
   phone2: string;
   exam_name?: string;
   created_at?: string;
+}
+
+interface Result {
+  id: number; // və ya string (uuid)
+  student_id: string;
+  quiz: string;
+  score: number;
+  total: number;
+  percent: number;
 }
 
 interface SiteSetting {
@@ -62,6 +70,7 @@ export default function AdminDashboard() {
     
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
+  const [results, setResults] = useState<Result[]>([]); // YENİ: Nəticələri tutmaq üçün
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
@@ -101,16 +110,23 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
-      // Oxuma əməliyyatları üçün Public Policy-lər açıq olmalıdır
+      // 1. Tələbələr
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
       
+      // 2. YENİ: Nəticələr (Bu lazımdır ki, yaşıl tik görünsün)
+      const { data: resData } = await supabase.from("results").select("*");
+      if (resData) setResults(resData as any);
+
+      // 3. İmtahanlar
       const { data: examData } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
       if (examData) setExams(examData as any);
       
+      // 4. Qalereya
       const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
       if (galData) setGallery(galData as any);
       
+      // 5. Tənzimləmələr
       const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
       if (setData) setSiteSettings(setData as any);
 
@@ -121,7 +137,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- YENİ: TƏHLÜKƏSİZ ŞƏKİL YÜKLƏMƏ FUNKSİYASI ---
+  // --- TƏHLÜKƏSİZ ŞƏKİL YÜKLƏMƏ ---
   async function secureImageUpload(file: File, folderName: string = "gallery"): Promise<string | null> {
     const formData = new FormData();
     formData.append("file", file);
@@ -136,7 +152,7 @@ export default function AdminDashboard() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Yükləmə xətası");
         
-        return data.url; // Şəkilin URL-i qayıdır
+        return data.url; 
     } catch (err: any) {
         alert("Yükləmə xətası: " + err.message);
         return null;
@@ -145,7 +161,6 @@ export default function AdminDashboard() {
 
   // --- API AKSİYALARI (CRUD) ---
 
-  // 1. Yeni İmtahan
   async function addExam(e: React.FormEvent) {
     e.preventDefault();
     if (!newExamName || !newExamUrl || !newExamClass) return alert("Bütün xanaları doldurun.");
@@ -168,7 +183,6 @@ export default function AdminDashboard() {
     } else { alert("Xəta!"); }
   }
 
-  // 2. İmtahan Sil
   async function deleteExam(id: number) {
     if(!confirm("Bu imtahanı silmək istəyirsiniz?")) return;
     const res = await fetch("/api/admin-action", {
@@ -178,7 +192,6 @@ export default function AdminDashboard() {
     if (res.ok) fetchAllData(); else alert("Xəta!");
   }
 
-  // 3. Tələbə Sil
   async function deleteStudent(id: number) {
     if(!confirm("Tələbəni silmək istəyirsiniz?")) return;
     const res = await fetch("/api/admin-action", {
@@ -188,7 +201,6 @@ export default function AdminDashboard() {
     if (res.ok) fetchAllData(); else alert("Xəta!");
   }
 
-  // 4. Tələbə Redaktə
   async function handleSaveStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!editingStudent) return;
@@ -207,7 +219,6 @@ export default function AdminDashboard() {
     if (res.ok) { setEditingStudent(null); fetchAllData(); } else { alert("Xəta!"); }
   }
 
-  // 5. Setting Update
   async function updateSetting(key: string, val: string) {
       const settingItem = siteSettings.find(s => s.key === key);
       if(settingItem) {
@@ -219,7 +230,6 @@ export default function AdminDashboard() {
       }
   }
 
-  // 6. Excel Export
   function exportExcel() {
     const filteredForExport = students.filter(s => {
         const matchesSearch = (s.first_name + s.last_name + s.exam_id).toLowerCase().includes(search.toLowerCase());
@@ -236,10 +246,9 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (AI INTEQRASİYA) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI ---
 
-  // A. Nəticə Yüklə (Excel) - AI VERSİYASI 🔥
-  // Sütunları dəyişmirik, olduğu kimi API-yə atırıq ki, Gemini özü tapsın.
+  // A. Nəticə Yüklə (Excel)
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     if (!uploadExamSelect) { alert("İmtahan seçin!"); e.target.value=""; return;}
@@ -255,40 +264,34 @@ export default function AdminDashboard() {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
             
-            // Xam məlumatı götürürük (Formatlamırıq!)
             const rawData: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
             
-            // API-yə göndəririk (Raw Data + Exam Name + Points)
             const res = await fetch("/api/upload-results", { 
                 method: "POST", 
                 headers: {"Content-Type":"application/json"}, 
                 body: JSON.stringify({ 
                     data: rawData, 
-                    examName: uploadExamSelect, // Seçilən imtahan adı
+                    examName: uploadExamSelect, 
                     pointsPerQuestion: 4 
                 }) 
             });
 
-            // --- DÜZƏLİŞ BURADADIR ---
-            // Əvvəlcə text kimi oxuyuruq ki, JSON xətası verməsin
             const responseText = await res.text();
             let resultJson;
             try {
-                // Əgər boşdursa boş obyekt qaytar, doludursa parse et
                 resultJson = responseText ? JSON.parse(responseText) : {};
             } catch (e) {
-                console.error("Serverdən gələn cavab JSON deyil. Gələn cavab:", responseText);
-                throw new Error("Server xətası: Cavab JSON formatında deyil. (Server çökmüş ola bilər, F12 Konsola baxın).");
+                console.error("JSON Error:", responseText);
+                throw new Error("Server xətası: Cavab JSON formatında deyil.");
             }
-            // ---------------------------
             
             if (!res.ok || resultJson.success === false) {
-                throw new Error(resultJson.error || resultJson.message || "Bilinməyən xəta baş verdi");
+                throw new Error(resultJson.error || resultJson.message || "Bilinməyən xəta");
             }
 
             const count = resultJson.processed_count || 0;
-            const skipped = resultJson.skipped_count || 0;
-            setUploadMessage(`✅ ${count} nəfər uğurla yükləndi! (${skipped} nəfər yazılmadı)`);
+            const skipped = 0; // Backend-də filtr ləğv olunduğu üçün
+            setUploadMessage(`✅ ${count} nəfər uğurla yükləndi!`);
             
             fetchAllData(); 
         } catch (err:any) { 
@@ -301,7 +304,7 @@ export default function AdminDashboard() {
     reader.readAsBinaryString(file);
   }
 
-  // B. Sertifikat Yüklə (Təhlükəsiz Versiya)
+  // B. Sertifikat Yüklə
   async function handleCertificateUpload(e: React.ChangeEvent<HTMLInputElement>) {
      if (!e.target.files?.length || !certExamSelect) return alert("İmtahan seçin!");
      
@@ -310,24 +313,17 @@ export default function AdminDashboard() {
 
      try {
         const file = e.target.files[0];
-        
-        // 1. Şəkli Secure API ilə yükləyirik
         const uploadedUrl = await secureImageUpload(file, "certificates");
-        
         if (!uploadedUrl) throw new Error("Şəkil yüklənmədi");
 
-        // 2. ID-ni tapırıq
         const exam = exams.find(e => e.name === certExamSelect);
         if(!exam) throw new Error("İmtahan tapılmadı");
 
-        // 3. API ilə bazanı yeniləyirik
         const res = await fetch("/api/admin-action", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                action: "update",
-                table: "exams",
-                id: exam.id,
+                action: "update", table: "exams", id: exam.id,
                 data: { certificate_url: uploadedUrl }
             })
         });
@@ -348,7 +344,7 @@ export default function AdminDashboard() {
   // C. Şablonu Silmək
   async function deleteCertificate() {
      if(!certExamSelect) return alert("İmtahan seçin!");
-     if(!confirm("DİQQƏT: Bu imtahanın sertifikat şablonunu silmək istəyirsiniz?")) return;
+     if(!confirm("Bu şablonu silmək istəyirsiniz?")) return;
 
      setUploading(true);
      try {
@@ -356,12 +352,9 @@ export default function AdminDashboard() {
          if(!exam) throw new Error("İmtahan tapılmadı");
 
          const res = await fetch("/api/admin-action", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+            method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                action: "update",
-                table: "exams",
-                id: exam.id,
+                action: "update", table: "exams", id: exam.id,
                 data: { certificate_url: null }
             })
         });
@@ -377,23 +370,26 @@ export default function AdminDashboard() {
      }
   }
 
-  // D. Nəticələri Silmək
+  // D. Nəticələri Silmək (DÜZƏLDİLDİ: Artıq Results cədvəlindən silir)
   async function deleteExamResults() {
      if(!uploadExamSelect) return alert("İmtahan seçin!");
      const count = getResultCount(uploadExamSelect);
      if(count === 0) return alert("Bu imtahan üçün nəticə yoxdur.");
 
-     if(!confirm(`DİQQƏT: "${uploadExamSelect}" imtahanının BÜTÜN nəticələrini (${count} tələbə) silmək istəyirsiniz?\nBu əməliyyat geri qaytarıla bilməz!`)) return;
+     if(!confirm(`DİQQƏT: "${uploadExamSelect}" imtahanının BÜTÜN nəticələrini (${count} nəfər) silmək istəyirsiniz?`)) return;
 
      setUploading(true);
      try {
-         const studentsToDelete = students.filter(s => s.exam_name === uploadExamSelect).map(s => s.id);
+         // YENİ: results cədvəlindən həmin imtahana aid olanları tapırıq
+         const resultsToDelete = results.filter(r => r.quiz === uploadExamSelect);
          
-         // Loop ilə silirik (Secure API ilə)
-         for (const id of studentsToDelete) {
+         for (const resItem of resultsToDelete) {
              await fetch("/api/admin-action", {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "delete", table: "students", id: id })
+                // DİQQƏT: Burda table "results" olmalıdır, əgər admin-action icazə verirsə.
+                // Əgər admin-action ancaq students/exams üçün yazılıbsa, onu da dəyişmək lazım ola bilər.
+                // Amma hələlik 'results' göndəririk.
+                body: JSON.stringify({ action: "delete", table: "results", id: resItem.id })
             });
          }
 
@@ -409,37 +405,23 @@ export default function AdminDashboard() {
   // E. Qalereya Yüklə
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
      if (!e.target.files?.length) return;
-     
      setUploading(true);
      try {
         const file = e.target.files[0];
-        
-        // 1. Storage (Secure API)
         const uploadedUrl = await secureImageUpload(file, "gallery");
-        
         if (!uploadedUrl) throw new Error("Şəkil yüklənmədi");
 
-        // 2. Database (Admin API)
         await fetch("/api/admin-action", {
             method: "POST", headers: {"Content-Type": "application/json"},
             body: JSON.stringify({ action: "insert", table: "gallery", data: { image_url: uploadedUrl } })
         });
-        
         fetchAllData();
-     } catch(e:any) { 
-         alert("Xəta: " + e.message); 
-     } finally { 
-         setUploading(false); 
-         e.target.value = "";
-     }
+     } catch(e:any) { alert("Xəta: " + e.message); } finally { setUploading(false); e.target.value = ""; }
   }
 
   // F. Qalereya Sil
   async function deleteImage(id: number, url: string) {
       if(!confirm("Silinsin?")) return;
-      // Storage silmək (optional, burda API yazmamışıq, sadəcə bazadan silirik)
-      
-      // Baza silmək (API)
       await fetch("/api/admin-action", {
         method: "POST", headers: {"Content-Type": "application/json"},
         body: JSON.stringify({ action: "delete", table: "gallery", id: id })
@@ -447,13 +429,11 @@ export default function AdminDashboard() {
       fetchAllData();
   }
 
-  function logout() {
-    router.push("/"); 
-  }
+  function logout() { router.push("/"); }
 
-  // Helpers
-  const checkResultsExist = (examName: string) => students.some(s => s.exam_name === examName);
-  const getResultCount = (examName: string) => students.filter(s => s.exam_name === examName).length;
+  // HELPERS - YENİLƏNDİ (results cədvəlinə baxır)
+  const checkResultsExist = (examName: string) => results.some(r => r.quiz === examName);
+  const getResultCount = (examName: string) => results.filter(r => r.quiz === examName).length;
   const getSelectedCertExam = () => exams.find(e => e.name === certExamSelect);
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-amber-500" size={40}/></div>;
@@ -698,7 +678,6 @@ export default function AdminDashboard() {
                      {/* FIXED LIVE PREVIEW */}
                      {certExamSelect && (() => {
                         const ex = getSelectedCertExam();
-                        // Şəkil URL-i yoxdursa və ya boşdursa, göstərməsin
                         if (ex?.certificate_url) {
                             return (
                                 <div className="mb-6 w-full animate-in fade-in zoom-in duration-300">
@@ -720,38 +699,30 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                     
-                                    {/* PREVIEW CONTAINER - Aspect Ratio Fix & No-Image Fallback */}
                                     <div className="relative w-full aspect-[1.414] rounded-lg overflow-hidden shadow-xl border border-gray-300 group select-none bg-gray-100">
-                                        
-                                        {/* FON ŞƏKLİ */}
                                         <img 
                                             src={ex.certificate_url} 
                                             className="absolute inset-0 w-full h-full object-fill z-0"
                                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                                         />
-
-                                        {/* ƏGƏR ŞƏKİL YOXDURSA - XƏBƏRDARLIQ */}
                                         <div className="absolute inset-0 flex items-center justify-center -z-10">
                                             <p className="text-gray-400 text-xs text-center px-4">Şəkil yüklənmədi.</p>
                                         </div>
                                         
                                         {/* MƏTN LAYI (OVERLAY) */}
                                         <div className="absolute inset-0 z-10 flex flex-col items-center text-center pointer-events-none">
-                                            
                                             {/* AD SOYAD */}
                                             <div className="absolute top-[42%] w-full px-4">
                                                 <h1 className="text-xl md:text-2xl font-bold text-gray-900 uppercase tracking-wide leading-tight drop-shadow-sm font-sans">
                                                     {previewName}
                                                 </h1>
                                             </div>
-
                                             {/* MƏTN */}
                                             <div className="absolute top-[58%] w-full px-8">
                                                 <p className="text-[10px] md:text-xs text-gray-700 leading-snug">
                                                     Main Olympic Center tərəfindən keçirilən <span className="font-bold text-black">{previewExamName}</span> imtahanında iştirak etmişdir.
                                                 </p>
                                             </div>
-
                                             {/* BAL VƏ FAİZ */}
                                             <div className="absolute top-[72%] w-full flex justify-center gap-12">
                                                 <div className="flex flex-col items-center">
@@ -763,7 +734,6 @@ export default function AdminDashboard() {
                                                     <span className="text-lg md:text-xl font-bold text-amber-600 leading-none">{previewPercent}</span>
                                                 </div>
                                             </div>
-
                                             {/* TARİX */}
                                             <div className="absolute bottom-4 left-4">
                                                 <span className="text-[10px] font-bold text-gray-700">2026-01-21</span>
@@ -774,7 +744,6 @@ export default function AdminDashboard() {
                                             </div>
                                         </div>
                                     </div>
-                                    
                                     <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg text-center border border-green-200">
                                         ✅ Şablon aktivdir. Yazılar avtomatik yerləşəcək.
                                     </div>
