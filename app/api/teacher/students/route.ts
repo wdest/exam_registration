@@ -37,29 +37,46 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: Yarat, Yenilə, Sil
+// POST: Yarat, Yenilə, Sil, Toplu Sil
 export async function POST(request: Request) {
   try {
     const user = await getUser();
     if (!user) return NextResponse.json({ error: "İcazə yoxdur" }, { status: 401 });
 
     const body = await request.json();
-    const { action, studentData, id } = body;
+    const { action, studentData, id, ids } = body; // ids -> Toplu silmək üçün
 
+    // 1. YENİ ŞAGİRD
     if (action === 'create') {
         const { error } = await supabaseAdmin.from('local_students').insert([{ ...studentData, teacher_id: user.id }]);
         if (error) throw error;
         return NextResponse.json({ success: true });
     }
 
+    // 2. YENİLƏMƏ
     if (action === 'update') {
         const { error } = await supabaseAdmin.from('local_students').update(studentData).eq('id', id).eq('teacher_id', user.id);
         if (error) throw error;
         return NextResponse.json({ success: true });
     }
 
+    // 3. TƏK SİLMƏ
     if (action === 'delete') {
         const { error } = await supabaseAdmin.from('local_students').delete().eq('id', id).eq('teacher_id', user.id);
+        if (error) throw error;
+        return NextResponse.json({ success: true });
+    }
+
+    // 4. 🔥 YENİ: TOPLU SİLMƏ (BULK DELETE)
+    if (action === 'bulk_delete') {
+        if (!ids || ids.length === 0) return NextResponse.json({ error: "Seçim yoxdur" }, { status: 400 });
+        
+        const { error } = await supabaseAdmin
+            .from('local_students')
+            .delete()
+            .in('id', ids) // ID-ləri massivdən yoxlayır
+            .eq('teacher_id', user.id); // Təhlükəsizlik: Yalnız öz şagirdlərini
+
         if (error) throw error;
         return NextResponse.json({ success: true });
     }
