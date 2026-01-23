@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { 
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, Trash2, Pencil, RefreshCcw,
-  BarChart3, TrendingUp, Activity, PieChart
+  BarChart3, TrendingUp, Activity, PieChart, LineChart // LineChart ikonu əlavə olundu
 } from "lucide-react";
 
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
@@ -180,7 +180,6 @@ export default function TeacherCabinet() {
   };
 
   const fetchGroupMembers = async (groupId: number) => { 
-      // Jurnal API-dən üzvləri çəkirik
       try {
           const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
           if (res.ok) {
@@ -263,7 +262,7 @@ export default function TeacherCabinet() {
     if (!groupId) return;
     setAnalyticsGroupId(groupId);
 
-    // 1. Üzvləri gətir (API)
+    // 1. Üzvləri gətir
     let studentsInGroup = [];
     try {
         const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
@@ -274,7 +273,7 @@ export default function TeacherCabinet() {
         }
     } catch(e) { console.error(e); return; }
 
-    // 2. Bütün qiymətləri gətir (API)
+    // 2. Bütün qiymətləri gətir
     let allGrades = [];
     try {
         const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`);
@@ -316,7 +315,6 @@ export default function TeacherCabinet() {
     updateChart(allGrades, 'group', null, 'lessons4');
   };
 
-  // --- CHART GENERATOR (Frontend-də qalır, çünki data artıq var) ---
   const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => {
       let filteredData = [...data];
       if (mode === 'individual' && studentId) {
@@ -367,6 +365,30 @@ export default function TeacherCabinet() {
       }
   }, [analysisMode, selectedStudentForChart, chartInterval, rawGradesForChart]);
 
+  // --- YENİ: VİZUAL HESABLANMA ---
+  // Bu funksiya kartlarda nəyi göstərəcəyimizi təyin edir
+  const getDisplayStats = () => {
+    if (analysisMode === 'individual' && selectedStudentForChart) {
+        const studentStat = analyticsData.find(s => s.id.toString() === selectedStudentForChart.toString());
+        if (studentStat) {
+            return {
+                title: "Şagird Ortalaması",
+                score: studentStat.avgScore,
+                attendance: studentStat.attendanceRate,
+                isIndividual: true
+            };
+        }
+    }
+    return {
+        title: "Qrup Ortalaması",
+        score: groupStats.avgScore,
+        attendance: groupStats.avgAttendance,
+        isIndividual: false
+    };
+  };
+
+  const displayStats = getDisplayStats();
+
   // ÇIXIŞ
   const handleLogout = async () => { 
       try {
@@ -401,14 +423,6 @@ export default function TeacherCabinet() {
             <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
         </div>
 
-        {/* --- UI HİSSƏLƏRİ EYNİ QALIR --- */}
-        {/* Dashboard, Students, Groups, Analytics UI kodları əvvəlki kimi qalır, çünki state-lər dəyişməyib */}
-        {/* Sadəcə sən bu kodu bütöv kopyala, mənim yuxarıda UI hissələrini saxladığım kimi sən də tam yerləşdir */}
-        
-        {/* QISA OLSUN DEYƏ UI HİSSƏLƏRİNİ TƏKRAR YAZMIRAM, ÇÜNKİ ƏVVƏLKİ CAVABDAKI UI 100% DÜZDÜR */}
-        {/* SƏN SADƏCƏ return (...) hissəsini əvvəlki koddan götürüb bura qoya bilərsən və ya */}
-        {/* ƏGƏR İSTƏYİRSƏNSƏ MƏN TAM KODU BÜTÖV VERƏ BİLƏRƏM. DEYƏSƏN BÜTÖV İSTƏYİRSƏN. */}
-        
         {/* --- DASHBOARD UI --- */}
         {activeTab === 'dashboard' && (
             <div className="animate-in fade-in duration-500">
@@ -534,8 +548,8 @@ export default function TeacherCabinet() {
                                 <div><h2 className="text-2xl font-bold">{selectedGroup.name}</h2><p className="text-gray-500 text-sm mt-1">{selectedGroup.schedule}</p></div>
                                 <div className="flex gap-2">
                                     <select className="p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}>
-                                        <option value="">Şagird seç...</option>
-                                        {students.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                                            <option value="">Şagird seç...</option>
+                                            {students.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
                                     </select>
                                     <button onClick={addStudentToGroup} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Əlavə Et</button>
                                 </div>
@@ -552,30 +566,30 @@ export default function TeacherCabinet() {
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm border-collapse">
                                     <thead>
-                                        <tr className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-b dark:border-gray-600">
-                                            <th className="p-3 border dark:border-gray-600">#</th><th className="p-3 border dark:border-gray-600 w-1/3">Şagird</th><th className="p-3 border dark:border-gray-600 text-center">İştirak</th><th className="p-3 border dark:border-gray-600 text-center">Bal (0-10)</th>
-                                        </tr>
+                                            <tr className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-b dark:border-gray-600">
+                                                <th className="p-3 border dark:border-gray-600">#</th><th className="p-3 border dark:border-gray-600 w-1/3">Şagird</th><th className="p-3 border dark:border-gray-600 text-center">İştirak</th><th className="p-3 border dark:border-gray-600 text-center">Bal (0-10)</th>
+                                            </tr>
                                     </thead>
                                     <tbody>
-                                        {groupStudents.map((s, index) => (
-                                            <tr key={s.id} className="border-b dark:border-gray-600">
-                                                <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
-                                                <td className="p-3 border dark:border-gray-600 font-medium">{s.first_name} {s.last_name}</td>
-                                                <td className="p-3 border dark:border-gray-600 text-center">
-                                                    <button onClick={() => toggleAttendance(s.id)}>
-                                                        {attendance[s.id] !== false ? <CheckCircle className="text-green-500 mx-auto" size={24} /> : <XCircle className="text-red-500 mx-auto" size={24} />}
-                                                    </button>
-                                                </td>
-                                                <td className="p-3 border dark:border-gray-600">
-                                                    <input 
-                                                        type="number" min="0" max="10" placeholder="-" 
-                                                        className="w-full p-2 bg-blue-50/50 dark:bg-blue-900 rounded-md outline-none text-center font-bold text-blue-700 dark:text-blue-300" 
-                                                        value={grades[s.id] || ""} 
-                                                        onChange={(e) => { let val = e.target.value; if(Number(val) > 10) val = "10"; setGrades({...grades, [s.id]: val}); }} 
-                                                    />
-                                                </td>
-                                            </tr>
-                                        ))}
+                                            {groupStudents.map((s, index) => (
+                                                <tr key={s.id} className="border-b dark:border-gray-600">
+                                                    <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
+                                                    <td className="p-3 border dark:border-gray-600 font-medium">{s.first_name} {s.last_name}</td>
+                                                    <td className="p-3 border dark:border-gray-600 text-center">
+                                                        <button onClick={() => toggleAttendance(s.id)}>
+                                                            {attendance[s.id] !== false ? <CheckCircle className="text-green-500 mx-auto" size={24} /> : <XCircle className="text-red-500 mx-auto" size={24} />}
+                                                        </button>
+                                                    </td>
+                                                    <td className="p-3 border dark:border-gray-600">
+                                                        <input 
+                                                            type="number" min="0" max="10" placeholder="-" 
+                                                            className="w-full p-2 bg-blue-50/50 dark:bg-blue-900 rounded-md outline-none text-center font-bold text-blue-700 dark:text-blue-300" 
+                                                            value={grades[s.id] || ""} 
+                                                            onChange={(e) => { let val = e.target.value; if(Number(val) > 10) val = "10"; setGrades({...grades, [s.id]: val}); }} 
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -629,44 +643,104 @@ export default function TeacherCabinet() {
 
                 {analyticsGroupId && (
                     <div className="space-y-8">
+                        {/* KARTLAR - DİNAMİK */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div><p className="text-gray-500 text-sm font-bold">Ortalama Bal (10-luq)</p><h3 className="text-4xl font-bold text-blue-600">{groupStats.avgScore}</h3></div>
+                                <div>
+                                    {/* BAŞLIQ DƏYİŞİR: Qrup və ya Şagird adı */}
+                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Bal</p>
+                                    <h3 className="text-4xl font-bold text-blue-600">{displayStats.score}</h3>
+                                    {displayStats.isIndividual && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Fərdi</span>}
+                                </div>
                                 <div className="p-4 bg-blue-50 rounded-full text-blue-600"><TrendingUp size={32}/></div>
                             </div>
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div><p className="text-gray-500 text-sm font-bold">Davamiyyət Faizi</p><h3 className="text-4xl font-bold text-green-600">{groupStats.avgAttendance}%</h3></div>
+                                <div>
+                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Davamiyyət</p>
+                                    <h3 className="text-4xl font-bold text-green-600">{displayStats.attendance}%</h3>
+                                    {displayStats.isIndividual && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Fərdi</span>}
+                                </div>
                                 <div className="p-4 bg-green-50 rounded-full text-green-600"><PieChart size={32}/></div>
                             </div>
                         </div>
 
                         {chartData.length > 0 && (
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
-                                <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                    <Activity size={20} className="text-purple-600"/> 
-                                    {analysisMode === 'group' ? 'Qrup Trendi' : 'Fərdi İnkişaf'} 
-                                    <span className="text-sm font-normal text-gray-400 ml-2">
-                                        ({chartInterval === 'lessons4' ? 'Günlük' : chartInterval === 'weeks4' ? 'Həftəlik' : 'Aylıq'})
-                                    </span>
-                                </h3>
-                                
-                                <div className="h-64 flex items-end justify-around gap-4 px-2 border-b dark:border-gray-700 pb-2">
-                                    {chartData.map((d, i) => (
-                                        <div key={i} className="flex flex-col items-center flex-1 group relative h-full justify-end">
-                                            <div className="absolute -top-10 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition z-10 whitespace-nowrap">
-                                                {d.label}: <strong>{d.avg}</strong> Bal
+                            <>
+                                {/* BAR CHART */}
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                                        <Activity size={20} className="text-purple-600"/> 
+                                        {analysisMode === 'group' ? 'Qrup Trendi' : 'Fərdi İnkişaf'} 
+                                        <span className="text-sm font-normal text-gray-400 ml-2">
+                                            ({chartInterval === 'lessons4' ? 'Günlük' : chartInterval === 'weeks4' ? 'Həftəlik' : 'Aylıq'})
+                                        </span>
+                                    </h3>
+                                    
+                                    <div className="h-64 flex items-end justify-around gap-4 px-2 border-b dark:border-gray-700 pb-2">
+                                        {chartData.map((d, i) => (
+                                            <div key={i} className="flex flex-col items-center flex-1 group relative h-full justify-end">
+                                                <div className="absolute -top-10 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition z-10 whitespace-nowrap">
+                                                    {d.label}: <strong>{d.avg}</strong> Bal
+                                                </div>
+                                                <div 
+                                                    className={`w-full max-w-[50px] rounded-t-md transition-all relative ${d.avg >= 9 ? 'bg-green-500' : d.avg >= 6 ? 'bg-blue-500' : 'bg-orange-500'} hover:opacity-80`}
+                                                    style={{ height: `${Math.max(d.avg * 10, 5)}%` }} 
+                                                ></div>
+                                                <span className="text-[10px] text-gray-400 mt-3 font-medium truncate w-full text-center">
+                                                    {chartInterval === 'lessons4' ? d.label.slice(5) : d.label}
+                                                </span>
                                             </div>
-                                            <div 
-                                                className={`w-full max-w-[50px] rounded-t-md transition-all relative ${d.avg >= 9 ? 'bg-green-500' : d.avg >= 6 ? 'bg-blue-500' : 'bg-orange-500'} hover:opacity-80`}
-                                                style={{ height: `${Math.max(d.avg * 10, 5)}%` }} 
-                                            ></div>
-                                            <span className="text-[10px] text-gray-400 mt-3 font-medium truncate w-full text-center">
-                                                {chartInterval === 'lessons4' ? d.label.slice(5) : d.label}
-                                            </span>
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+
+                                {/* YENİ: LINE CHART (SVG) */}
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 mt-6">
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                                        <LineChart size={20} className="text-blue-500"/> İnkişaf Dinamikası (Line)
+                                    </h3>
+                                    <div className="h-64 w-full relative">
+                                        {/* SVG Chart */}
+                                        <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible" preserveAspectRatio="none">
+                                            {/* Grid Lines */}
+                                            <line x1="0" y1="0" x2="100" y2="0" stroke="#eee" strokeWidth="0.2" />
+                                            <line x1="0" y1="25" x2="100" y2="25" stroke="#eee" strokeWidth="0.2" />
+                                            <line x1="0" y1="50" x2="100" y2="50" stroke="#eee" strokeWidth="0.2" />
+
+                                            {/* Path */}
+                                            <path
+                                                d={`M ${chartData.map((d, i) => {
+                                                    const x = (i / (chartData.length - 1 || 1)) * 100;
+                                                    // Y: 50 is bottom (0 score), 0 is top (10 score). So: 50 - (score * 5)
+                                                    const y = 50 - (d.avg * 5); 
+                                                    return `${x},${y}`;
+                                                }).join(" L ")}`}
+                                                fill="none"
+                                                stroke="#3b82f6"
+                                                strokeWidth="0.8"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            />
+
+                                            {/* Dots */}
+                                            {chartData.map((d, i) => {
+                                                const x = (i / (chartData.length - 1 || 1)) * 100;
+                                                const y = 50 - (d.avg * 5);
+                                                return (
+                                                    <circle key={i} cx={x} cy={y} r="1.5" fill="#fff" stroke="#3b82f6" strokeWidth="0.5" className="hover:r-2 transition-all cursor-pointer">
+                                                        <title>{d.label}: {d.avg}</title>
+                                                    </circle>
+                                                );
+                                            })}
+                                        </svg>
+                                        <div className="flex justify-between text-[10px] text-gray-400 mt-2">
+                                            {chartData.map((d, i) => (
+                                                <span key={i}>{chartInterval === 'lessons4' ? d.label.slice(5) : d.label}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
                         )}
 
                         {/* REYTİNQ */}
