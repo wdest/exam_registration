@@ -247,12 +247,16 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (GÜCLƏNDİRİLMİŞ LOGGING) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (GÜCLƏNDİRİLMİŞ LOGGING & FIX) ---
 
-  // A. Nəticə Yüklə (Excel)
+  // A. Nəticə Yüklə (Excel) - UPDATED FOR ZIPGRADE FIX
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
-    if (!uploadExamSelect) { alert("İmtahan seçin!"); e.target.value=""; return;}
+    if (!uploadExamSelect) { 
+        alert("Zəhmət olmasa, əvvəlcə siyahıdan İmtahanı seçin!"); 
+        e.target.value = ""; 
+        return;
+    }
     
     setUploading(true); 
     setUploadMessage("");
@@ -264,47 +268,38 @@ export default function AdminDashboard() {
         try {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
-            const rawData: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
             
+            // İlk vərəqi oxuyuruq
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            
+            // Excel-i birbaşa JSON-a çeviririk (başlıqlar olduğu kimi qalır)
+            const rawData: any[] = XLSX.utils.sheet_to_json(ws);
+            
+            // API-yə göndəririk (Raw Data + Exam Name)
             const res = await fetch("/api/upload-results", { 
                 method: "POST", 
                 headers: {"Content-Type":"application/json"}, 
                 body: JSON.stringify({ 
                     data: rawData, 
-                    examName: uploadExamSelect, 
-                    pointsPerQuestion: 4 
+                    examName: uploadExamSelect
                 }) 
             });
 
-            // 1. Mətn kimi oxuyuruq ki, HTML gəlsə partlamasın
-            const responseText = await res.text();
-            let resultJson;
+            const resultJson = await res.json();
             
-            try {
-                // 2. JSON-a çevirməyə çalışırıq
-                resultJson = responseText ? JSON.parse(responseText) : {};
-            } catch (e) {
-                // 3. Əgər JSON deyilsə (məsələn Vercel 500 HTML səhifəsi), konsola yazırıq
-                console.error("Serverdən gələn xətalı cavab (HTML):", responseText);
-                throw new Error("Server xətası: Cavab formatı düzgün deyil (F12 konsola baxın).");
-            }
-            
-            // 4. Əgər JSON-da xəta varsa
-            if (!res.ok || resultJson.success === false) {
-                console.log("Server Xətası (JSON):", resultJson);
-                throw new Error(resultJson.error || resultJson.message || "Bilinməyən xəta");
+            if (!res.ok || !resultJson.success) {
+                throw new Error(resultJson.message || resultJson.error || "Server xətası");
             }
 
-            const count = resultJson.processed_count || 0;
-            setUploadMessage(`✅ ${count} nəfər uğurla yükləndi!`);
-            
+            setUploadMessage(`✅ ${resultJson.processed_count} nəfər uğurla yükləndi!`);
             fetchAllData(); 
         } catch (err:any) { 
-            // Xətanı ekrana çıxarırıq
-            setUploadMessage("❌ " + err.message); 
+            console.error(err);
+            setUploadMessage("❌ Xəta: " + err.message); 
         } finally { 
             setUploading(false); 
-            e.target.value=""; 
+            e.target.value = ""; 
         }
     };
     reader.readAsBinaryString(file);
@@ -491,7 +486,7 @@ export default function AdminDashboard() {
                             value={filterExam}
                             onChange={(e) => setFilterExam(e.target.value)}
                             className="pl-9 pr-8 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 bg-white w-48 appearance-none cursor-pointer"
-                         >
+                          >
                             <option value="">Bütün İmtahanlar</option>
                             {Array.from(new Set(exams.map(e => e.name))).map((name, i) => (
                                 <option key={i} value={name}>{name}</option>
