@@ -7,13 +7,13 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    // 1. Service Key Yoxlanışı (Ən vacib!)
+    // 1. Service Role Key Yoxlanışı
+    // Bu açar RLS (Policies) qaydalarından yan keçmək üçün lazımdır.
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        console.error("❌ SƏHV: SUPABASE_SERVICE_ROLE_KEY tapılmadı (.env faylını yoxlayın)");
-        return NextResponse.json({ error: "Serverdə açar tapılmadı. .env faylını yoxlayın." }, { status: 500 });
+        return NextResponse.json({ error: "Server Xətası: SUPABASE_SERVICE_ROLE_KEY tapılmadı." }, { status: 500 });
     }
 
-    // 2. Admin yoxlanışı
+    // 2. Admin Yoxlanışı
     const isAdmin = await checkAdminAuth();
     if (!isAdmin) return NextResponse.json({ error: "İcazəsiz giriş!" }, { status: 401 });
 
@@ -29,47 +29,57 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "İmtahan adı seçilməyib." }, { status: 400 });
     }
 
-    // 3. DATA EMALI (Sənin Excel Sütunlarına uyğun)
+    // 3. DEBUG: Sütun adlarını konsola yazırıq (Vercel Log-da görmək üçün)
+    const headers = Object.keys(rawExcelData[0]);
+    console.log("Excel Headers:", headers);
+
+    // 4. DATA EMALI
     const processedData = rawExcelData
-      // "StudentID" sütunu varsa götürürük
+      // "StudentID" və ya "ZipGrade ID" olan sətirləri götürürük
       .filter((row: any) => row['StudentID'] || row['ZipGrade ID']) 
       .map((row: any) => {
         
-        // Şəkil 5-dəki başlıqlar: StudentID, Earned Points, Possible Points
+        // Şəkil 5-dəki başlıqlara uyğun oxuyuruq
         const studentCode = row['StudentID'] || row['ZipGrade ID']; 
         
-        // Rəqəmləri təmizləyirik
-        const earnedPoints = Number(row['Earned Points']) || 0;     // Düzgün bal
-        const possiblePoints = Number(row['Possible Points']) || 0; // Maksimum bal
+        // Rəqəmləri təmizləyirik (Vergül varsa nöqtə ilə əvəz edirik)
+        const parseNum = (val: any) => {
+            if (!val) return 0;
+            if (typeof val === 'number') return val;
+            return Number(String(val).replace(',', '.')) || 0;
+        };
+
+        const earnedPoints = parseNum(row['Earned Points']);
+        const possiblePoints = parseNum(row['Possible Points']);
         
-        // Sənin Exceldə "Num Incorrect" yoxdur, ona görə hesablayırıq:
-        // Səhv = Ümumi - Düzgün (boş qalanları da səhv saya bilərik və ya ayrıca)
-        // Sadəlik üçün: Toplanmayan hər balı "wrong" kimi yazırıq.
+        // Səhv sayını hesablayırıq: (Maksimum - Düzgün)
         const numIncorrect = possiblePoints - earnedPoints; 
+        
+        // Düzgün cavab sayı = Bal (əgər 1 sual 1 baldırsa)
         const numCorrect = earnedPoints; 
 
-        // Faiz Hesablanması (Exceldə PercentCorrect var, amma özümüz dəqiq hesablayaq)
+        // Faizi hesablayırıq
         let calculatedPercent = 0;
         if (possiblePoints > 0) {
             calculatedPercent = Number(((earnedPoints / possiblePoints) * 100).toFixed(1));
         }
 
         return {
-           student_id: String(studentCode).trim(),
+           student_id: String(studentCode).trim(), // ID-ni mətnə çeviririk
            quiz: examName,
            score: earnedPoints,
            total: possiblePoints,
            percent: calculatedPercent,
-           wrong_count: numIncorrect,   // Hesabladığımız səhv sayı
-           correct_count: numCorrect    // Hesabladığımız düz sayı
+           wrong_count: numIncorrect,
+           correct_count: numCorrect
         };
       });
 
     if (processedData.length === 0) {
-        return NextResponse.json({ success: false, message: "StudentID tapılmadı. Excel formatını yoxlayın." });
+        return NextResponse.json({ success: false, message: "StudentID tapılmadı. Excel faylını yoxlayın." });
     }
 
-    // 4. BAZA İLƏ ƏLAQƏ (Service Role ilə)
+    // 5. BAZA İLƏ ƏLAQƏ (Admin Açarı ilə)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!, 
@@ -81,18 +91,19 @@ export async function POST(req: Request) {
       }
     );
 
-    // 5. YAZMAQ (Upsert)
-    // Addım 1-dəki SQL-i işlətməsən, bura XƏTA verəcək!
+    // 6. BAZAYA YAZMAQ (Upsert)
+    // Addım 1-dəki SQL kodunu işlətməsən, bura xəta verəcək!
     const { error } = await supabase
       .from("results")
       .upsert(processedData, { 
-          onConflict: "student_id,quiz",
+          onConflict: "student_id,quiz", // Bu constraint bazada olmalıdır
           ignoreDuplicates: false 
       });
 
     if (error) {
         console.error("Supabase Error:", error);
-        return NextResponse.json({ error: "Bazaya yazarkən xəta: " + error.message }, { status: 500 });
+        // Xətanı dəqiq qaytarırıq ki, "Bilinməyən xəta" olmasın
+        return NextResponse.json({ error: "Baza Xətası: " + error.message + " (Constraint yoxdur?)" }, { status: 500 });
     }
 
     return NextResponse.json({ 
@@ -102,6 +113,6 @@ export async function POST(req: Request) {
 
   } catch (e: any) {
     console.error("API Error:", e);
-    return NextResponse.json({ error: "Server xətası: " + e.message }, { status: 500 });
+    return NextResponse.json({ error: "Server Xətası: " + e.message }, { status: 500 });
   }
 }
