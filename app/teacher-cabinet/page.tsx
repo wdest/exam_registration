@@ -15,6 +15,10 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 // --- SABITLƏR ---
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
+
+// 🛑 DÜZƏLİŞ: Bu hissə əlavə olundu (Xətanın səbəbi bu idi)
+const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
+
 const DAY_INDEX_MAP: { [key: string]: number } = { 
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
@@ -74,7 +78,7 @@ export default function TeacherCabinet() {
   const [attendance, setAttendance] = useState<{[key: string]: boolean}>({});
   const [isValidDay, setIsValidDay] = useState(true); 
 
-  // --- ANALİZ STATE (GERİ QAYTARILDI) ---
+  // --- ANALİZ STATE ---
   const [analyticsGroupId, setAnalyticsGroupId] = useState<string>("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState({ avgScore: 0, avgAttendance: 0 });
@@ -342,6 +346,8 @@ export default function TeacherCabinet() {
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
   const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); } catch (e: any) { alert(e.message); } };
+  
+  // 🛑 DÜZƏLİŞ: DAY_MAP aşağıda istifadə olunur
   const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates }) }); if (!res.ok) throw new Error("Xəta"); alert("Saxlanıldı!"); } catch (e: any) { alert(e.message); } };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
   const checkScheduleValidity = () => { if (!selectedGroup || !gradingDate) return; const parts = gradingDate.split('-'); const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()])); };
@@ -366,7 +372,6 @@ export default function TeacherCabinet() {
             <button onClick={() => setActiveTab('schedule')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'schedule' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Clock size={20} /> Cədvəl</button>
             <button onClick={() => setActiveTab('students')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'students' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><GraduationCap size={20} /> Şagird</button>
             <button onClick={() => setActiveTab('groups')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'groups' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BookOpen size={20} /> Jurnal</button>
-            {/* ANALIZ TABI */}
             <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
         </div>
 
