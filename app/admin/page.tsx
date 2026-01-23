@@ -247,9 +247,9 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (GÜCLƏNDİRİLMİŞ LOGGING & FIX) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (FIXED & ROBUST) ---
 
-  // A. Nəticə Yüklə (Excel) - UPDATED FOR ZIPGRADE FIX
+  // A. Nəticə Yüklə (Excel) - DÜZƏLDİLMİŞ VERSİYA
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     if (!uploadExamSelect) { 
@@ -273,10 +273,10 @@ export default function AdminDashboard() {
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
             
-            // Excel-i birbaşa JSON-a çeviririk (başlıqlar olduğu kimi qalır)
+            // Excel-i birbaşa JSON-a çeviririk
             const rawData: any[] = XLSX.utils.sheet_to_json(ws);
             
-            // API-yə göndəririk (Raw Data + Exam Name)
+            // Data-nı göndəririk
             const res = await fetch("/api/upload-results", { 
                 method: "POST", 
                 headers: {"Content-Type":"application/json"}, 
@@ -286,10 +286,22 @@ export default function AdminDashboard() {
                 }) 
             });
 
-            const resultJson = await res.json();
+            // "Unexpected end of JSON" xətasının qarşısını almaq üçün:
+            // Əvvəlcə cavabı mətn (text) kimi oxuyuruq
+            const responseText = await res.text();
             
+            let resultJson;
+            try {
+                // Sonra JSON-a çevirməyə çalışırıq
+                resultJson = JSON.parse(responseText);
+            } catch (jsonError) {
+                // Əgər JSON deyilsə (məsələn HTML xətasıdırsa), mətni göstəririk
+                console.error("Server Cavabı (Raw):", responseText);
+                throw new Error(`Server Xətası: ${responseText.slice(0, 150)}...`);
+            }
+
             if (!res.ok || !resultJson.success) {
-                throw new Error(resultJson.message || resultJson.error || "Server xətası");
+                throw new Error(resultJson.message || resultJson.error || "Bilinməyən xəta");
             }
 
             setUploadMessage(`✅ ${resultJson.processed_count} nəfər uğurla yükləndi!`);
