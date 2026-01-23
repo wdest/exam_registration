@@ -26,7 +26,7 @@ const itemVariants = {
 export default function LandingPage() {
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-   
+    
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [siteInfo, setSiteInfo] = useState({
@@ -61,12 +61,12 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-orange-50/30 font-sans text-gray-800 overflow-x-hidden">
-       
+        
       {/* --- 1. NAVBAR --- */}
       <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md shadow-sm border-b border-orange-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20 md:h-24">
-             
+              
             {/* Logo */}
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
@@ -126,9 +126,10 @@ export default function LandingPage() {
                 <a href="#services" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700">Xidmətlər</a>
                 <a href="#contact" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700">Əlaqə</a>
                 <Link href="/netice" onClick={() => setIsMobileMenuOpen(false)} className="text-lg font-medium text-gray-700 flex items-center gap-2"><span>📊</span> Nəticələr</Link>
-                 
+                  
+                {/* DÜZƏLİŞ: Mobil menyuda da /login-ə gedir */}
                 <Link 
-                    href="/student-login" 
+                    href="/login" 
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="flex items-center gap-2 w-full text-lg font-bold text-gray-800 bg-gray-50 p-3 rounded-xl hover:bg-amber-50"
                 >
@@ -174,6 +175,7 @@ export default function LandingPage() {
           >
              {/* 1. ÜST SIRA */}
              <div className="flex flex-col sm:flex-row justify-center gap-4 w-full sm:w-auto">
+                 {/* DÜZƏLİŞ: İmtahana Başla -> /redirect */}
                  <Link 
                    href="/redirect" 
                    className="w-full sm:w-auto px-6 py-3 bg-white text-gray-600 font-bold rounded-xl border-2 border-gray-100 shadow-sm hover:border-blue-500 hover:text-blue-600 transition duration-200 text-center flex items-center justify-center gap-2"
@@ -199,7 +201,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 3. XİDMƏTLƏRİMİZ (DƏYİŞİKLİK BURADA: SMM) --- */}
+      {/* --- 3. XİDMƏTLƏRİMİZ --- */}
       <section id="services" className="py-16 md:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div 
@@ -226,7 +228,7 @@ export default function LandingPage() {
               <p className="text-sm md:text-base text-gray-600">Güclü məntiqi təfəkkür formalaşdıran xüsusi proqramlar.</p>
             </motion.div>
             
-            {/* 2. SMM (DƏYİŞDİRİLDİ) */}
+            {/* 2. SMM */}
             <motion.div variants={itemVariants} className="p-6 md:p-8 bg-white rounded-3xl border border-gray-100 shadow-lg hover:shadow-2xl transition duration-300 group">
               <div className="w-12 h-12 md:w-14 md:h-14 bg-teal-100 text-teal-600 rounded-2xl flex items-center justify-center text-2xl md:text-3xl mb-4 md:mb-6 group-hover:scale-110 transition">📢</div>
               <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-2 md:mb-3">SMM və Marketinq</h3>
@@ -243,7 +245,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* --- 4. QALEREYA (YENİLƏNMİŞ DİZAYN) --- */}
+      {/* --- 4. QALEREYA --- */}
       <section id="gallery" className="py-16 md:py-24 bg-gradient-to-r from-orange-50 via-white to-orange-50 overflow-hidden relative">
         <div className="max-w-7xl mx-auto px-4 mb-10 text-center relative z-10">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Mərkəzimizdən Görüntülər</h2>
@@ -256,30 +258,23 @@ export default function LandingPage() {
           <div className="text-center text-gray-400">Şəkil yoxdur.</div>
         ) : (
           <div className="relative w-full py-10">
-            {/* Gradient Mask for Smooth Edges */}
             <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-white via-white/80 to-transparent z-20 pointer-events-none" />
             <div className="absolute right-0 top-0 bottom-0 w-24 bg-gradient-to-l from-white via-white/80 to-transparent z-20 pointer-events-none" />
 
-            {/* Sonsuz Fırlanan Hissə */}
             <motion.div 
               className="flex gap-8 w-max px-8"
               animate={{ x: ["0%", "-50%"] }} 
               transition={{ 
                 ease: "linear", 
-                duration: 100, // DƏYİŞİKLİK 1: Sürət azaldıldı (50 -> 100)
+                duration: 100, 
                 repeat: Infinity 
               }}
-              // Mouse üzərinə gələndə axını dayandırır ki, rahat baxılsın
               whileHover={{ animationPlayState: "paused" }}
             >
               {[...galleryImages, ...galleryImages, ...galleryImages].map((item, index) => (
                 <motion.div 
                   key={index} 
-                  // DƏYİŞİKLİK 2: 'h-52' və 'md:h-64' silindi, əvəzinə 'aspect-square' əlavə olundu.
-                  // 'w-72' və 'md:w-80' ölçüləri kvadrat yaratmaq üçün istifadə olunur.
                   className="relative w-72 md:w-80 aspect-square flex-shrink-0 rounded-3xl overflow-hidden shadow-xl border-4 border-white bg-gray-100 cursor-pointer"
-                  
-                  // Hover effektləri
                   whileHover={{ 
                     scale: 1.05, 
                     rotate: index % 2 === 0 ? 1 : -1, 
@@ -289,8 +284,6 @@ export default function LandingPage() {
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
                   <img src={item.image_url} alt="Gallery" className="w-full h-full object-cover"/>
-                  
-                  {/* Şəkil üzərinə gələndə yaranan parıltı layı */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
                       <span className="text-white font-medium text-sm">MOC Gallery</span>
                   </div>
@@ -300,6 +293,7 @@ export default function LandingPage() {
           </div>
         )}
       </section>
+
       {/* --- 5. FOOTER --- */}
       <section id="contact" className="bg-white border-t border-gray-200 pt-16 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-16">
@@ -333,7 +327,7 @@ export default function LandingPage() {
              }
           </div>
         </div>
-         
+          
         <div className="max-w-7xl mx-auto px-4 mt-12 pt-6 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center text-gray-500 text-xs md:text-sm">
           <p>© 2025 Main Olympic Center. Bütün hüquqlar qorunur.</p>
           <p className="mt-2 md:mt-0">Created by DestTex </p>
