@@ -269,9 +269,22 @@ export default function AdminDashboard() {
                 }) 
             });
 
-            const resultJson = await res.json();
+            // --- DÜZƏLİŞ BURADADIR ---
+            // Əvvəlcə text kimi oxuyuruq ki, JSON xətası verməsin
+            const responseText = await res.text();
+            let resultJson;
+            try {
+                // Əgər boşdursa boş obyekt qaytar, doludursa parse et
+                resultJson = responseText ? JSON.parse(responseText) : {};
+            } catch (e) {
+                console.error("Serverdən gələn cavab JSON deyil. Gələn cavab:", responseText);
+                throw new Error("Server xətası: Cavab JSON formatında deyil. (Server çökmüş ola bilər, F12 Konsola baxın).");
+            }
+            // ---------------------------
             
-            if (!res.ok) throw new Error(resultJson.error || "Xəta baş verdi");
+            if (!res.ok || resultJson.success === false) {
+                throw new Error(resultJson.error || resultJson.message || "Bilinməyən xəta baş verdi");
+            }
 
             const count = resultJson.processed_count || 0;
             const skipped = resultJson.skipped_count || 0;
