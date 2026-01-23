@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, PenTool, CheckCircle, 
-  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown, Medal
+  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -13,19 +13,24 @@ const AVATARS = [
   "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"
 ];
 
-// FAKE RANKING DATA (API hazir olana qeder)
+// FAKE DATA (Sıralama üçün nümunə məlumatlar)
+// Bu datada həm 3-cü sinif var, həm 9, həm 11. Kateqoriyanı yoxlamaq üçün.
 const FAKE_RANKINGS = [
-    { id: 101, name: "Əli Məmmədov", score: 9.8, avatar: "🦸‍♂️", class: "9" },
-    { id: 102, name: "Ayan Kərimova", score: 9.7, avatar: "👩‍🚀", class: "10" },
-    { id: 103, name: "Murad Həsənov", score: 9.5, avatar: "🧑‍💻", class: "9" },
-    { id: 104, name: "Leyla Quliyeva", score: 9.2, avatar: "👩‍🎓", class: "11" },
-    { id: 105, name: "Samir Əliyev", score: 8.9, avatar: "👨‍🎨", class: "8" },
-    { id: 106, name: "Fidan Rzayeva", score: 8.7, avatar: "👩‍🔬", class: "9" },
-    { id: 107, name: "Orxan Vəliyev", score: 8.5, avatar: "🕵️‍♂️", class: "10" },
-    { id: 108, name: "Nigar Səfərova", score: 8.4, avatar: "🧝‍♀️", class: "11" },
-    { id: 109, name: "Tural Abbasov", score: 8.1, avatar: "🧙‍♂️", class: "8" },
-    { id: 110, name: "Zəhra Məmmədli", score: 7.9, avatar: "👩‍🎓", class: "9" },
-    // ... daha cox sagird ola biler
+    { id: 101, name: "Əli Məmmədov", score: 9.9, avatar: "🦸‍♂️", class: "9" },
+    { id: 102, name: "Ayan Kərimova", score: 9.8, avatar: "👩‍🚀", class: "10" },
+    { id: 103, name: "Murad Həsənov", score: 9.7, avatar: "🧑‍💻", class: "9" },
+    { id: 104, name: "Leyla Quliyeva", score: 9.6, avatar: "👩‍🎓", class: "11" },
+    { id: 105, name: "Samir Əliyev", score: 9.5, avatar: "👨‍🎨", class: "4" }, // Category 1
+    { id: 106, name: "Fidan Rzayeva", score: 9.4, avatar: "👩‍🔬", class: "9" },
+    { id: 107, name: "Orxan Vəliyev", score: 9.3, avatar: "🕵️‍♂️", class: "10" },
+    { id: 108, name: "Nigar Səfərova", score: 9.2, avatar: "🧝‍♀️", class: "11" },
+    { id: 109, name: "Tural Abbasov", score: 9.1, avatar: "🧙‍♂️", class: "2" }, // Kids
+    { id: 110, name: "Zəhra Məmmədli", score: 9.0, avatar: "👩‍🎓", class: "9" },
+    { id: 111, name: "Rəsul İsayev", score: 8.9, avatar: "👨‍🎓", class: "6" }, // Category 2
+    { id: 112, name: "Kənan Orucov", score: 8.8, avatar: "🧑‍💻", class: "9" },
+    { id: 113, name: "Lalə Babayeva", score: 8.7, avatar: "👩‍🚀", class: "10" },
+    { id: 114, name: "Elvin Mirzəyev", score: 8.6, avatar: "🦸‍♂️", class: "11" },
+    { id: 115, name: "Günay Hacıyeva", score: 8.5, avatar: "👩‍🔬", class: "5" }, // Category 2
 ];
 
 export default function StudentCabinet() {
@@ -46,7 +51,8 @@ export default function StudentCabinet() {
   
   // SIRALAMA STATES
   const [rankFilter, setRankFilter] = useState<'all' | 'category'>('all');
-  const [rankings, setRankings] = useState<any[]>(FAKE_RANKINGS); // Ilkin olaraq fake data
+  const [filteredRankings, setFilteredRankings] = useState<any[]>(FAKE_RANKINGS); 
+  const [myCalculatedRank, setMyCalculatedRank] = useState<number>(0); // Sənin yerin
 
   // UI States
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -58,16 +64,56 @@ export default function StudentCabinet() {
     fetchData();
   }, []);
 
-  // Filter deyisende datani filterle (Simulyasiya)
+  // --- KATEQORIYA MƏNTİQİ ---
+  const getCategoryName = (grade: string | number) => {
+      const g = Number(grade);
+      if (g >= 1 && g <= 2) return "Kids";
+      if (g >= 3 && g <= 4) return "Category 1";
+      if (g >= 5 && g <= 6) return "Category 2";
+      if (g >= 7 && g <= 8) return "Category 3";
+      if (g >= 9 && g <= 10) return "Category 4";
+      if (g >= 11 && g <= 12) return "Category 5";
+      return "Digər";
+  };
+
+  // --- RANKING HESABLAMA ---
   useEffect(() => {
-      if (rankFilter === 'all') {
-          setRankings(FAKE_RANKINGS);
-      } else {
-          // Meselen, sadece oz sinifini goster (burada student.grade olmalidir)
-          // Hazirda fake oldugu ucun random filter edirik
-          setRankings(FAKE_RANKINGS.filter(r => r.class === (student?.grade || "9")));
+      if (!student) return;
+
+      let currentList = [...FAKE_RANKINGS];
+
+      // 1. KATEQORIYA FİLTRİ
+      if (rankFilter === 'category') {
+          const myCategory = getCategoryName(student.grade || "9"); // Default 9 qoyuruq əgər yoxdursa
+          currentList = currentList.filter(r => getCategoryName(r.class) === myCategory);
       }
-  }, [rankFilter, student]);
+
+      // 2. MƏNİM YERİMİ HESABLA (Əgər siyahıda yoxamsa, xəyali olaraq əlavə edib yerimi tapır)
+      // Mənim balım: stats.avgScore
+      const myScore = parseFloat(stats.avgScore) || 0;
+      const myName = `${student.first_name} ${student.last_name}`;
+
+      // Mövcud siyahıya özümüzü əlavə edirik (müqayisə üçün)
+      // Əgər siyahıda artıq varsansa təkrarlamamaq lazımdır, amma fake data olduğu üçün
+      // sadəcə "mən" adlı bir obyekt yaradıb sort edirik.
+      const listWithMe = [
+          ...currentList, 
+          { id: 9999, name: myName, score: myScore, class: student.grade }
+      ];
+
+      // Balı çoxdan aza düzürük
+      listWithMe.sort((a, b) => b.score - a.score);
+
+      // İndexi tapırıq (0-dan başlayır deyə +1 edirik)
+      const rank = listWithMe.findIndex(r => r.id === 9999) + 1;
+      setMyCalculatedRank(rank);
+
+      // Ekrana çıxan siyahı (Məni oradan çıxarırıq ki, listdə dublikat görünməsin, yalnız yapışqan barda görünüm)
+      // Amma istəsən listin içində də görünə bilərsən. Gəl hələlik fake datanı olduğu kimi saxlayaq.
+      setFilteredRankings(currentList.sort((a, b) => b.score - a.score));
+
+  }, [rankFilter, student, stats.avgScore]);
+
 
   const fetchData = async () => {
     try {
@@ -134,9 +180,8 @@ export default function StudentCabinet() {
     );
   }
 
-  // Oz yerini tapmaq ucun (Fake datada yoxdursa sonuncu atiriq)
-  const myRank = rankings.findIndex(r => r.name === `${student.first_name} ${student.last_name}`) + 1;
-  const amIInTop = myRank > 0 && myRank <= 15;
+  // Top 15-də varamsa, sticky barı gizlət (Opsional: həmişə göstərə də bilərsən)
+  const amIInTopList = myCalculatedRank <= 15;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
@@ -202,7 +247,6 @@ export default function StudentCabinet() {
                 <PenTool size={20} /> İmtahanlar 
                 {activeExams.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-pulse">{activeExams.length}</span>}
             </button>
-            {/* 🔥 YENİ: SIRALAMA TABI */}
             <button onClick={() => setActiveTab('rankings')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'rankings' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><Trophy size={20} /> Sıralama</button>
         </div>
 
@@ -279,8 +323,6 @@ export default function StudentCabinet() {
         {/* --- 3. İMTAHANLAR --- */}
         {activeTab === 'exams' && (
             <div className="space-y-10 animate-in fade-in duration-500">
-                
-                {/* A. AKTİV İMTAHANLAR */}
                 <div>
                     <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <div className="w-2 h-8 bg-indigo-600 rounded-full"></div>
@@ -320,7 +362,6 @@ export default function StudentCabinet() {
                     )}
                 </div>
 
-                {/* B. İMTAHAN NƏTİCƏLƏRİ (TARİXÇƏ) */}
                 <div>
                     <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <div className="w-2 h-8 bg-green-500 rounded-full"></div>
@@ -354,7 +395,6 @@ export default function StudentCabinet() {
                                                 <button onClick={() => setSelectedResult(res)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition" title="Nəticə Kartı">
                                                     <FileText size={18}/>
                                                 </button>
-                                                {/* Əgər sertifikat varsa yüklə */}
                                                 {res.certificate_url && (
                                                     <a href={res.certificate_url} download className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition" title="Sertifikatı Yüklə">
                                                         <Download size={18}/>
@@ -372,11 +412,10 @@ export default function StudentCabinet() {
                         </div>
                     )}
                 </div>
-
             </div>
         )}
 
-        {/* --- 4. SIRALAMA (YENİ) --- */}
+        {/* --- 4. SIRALAMA (YENİLƏNMİŞ MƏNTİQ) --- */}
         {activeTab === 'rankings' && (
             <div className="animate-in fade-in duration-500">
                 <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
@@ -399,7 +438,7 @@ export default function StudentCabinet() {
                             onClick={() => setRankFilter('category')} 
                             className={`px-4 py-2 rounded-lg text-sm font-bold transition ${rankFilter === 'category' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
                         >
-                            Sinif Üzrə ({student?.grade || "?"}-ci sinif)
+                            {getCategoryName(student?.grade || "9")} Üzrə
                         </button>
                     </div>
                 </div>
@@ -409,12 +448,12 @@ export default function StudentCabinet() {
                     {/* 2-ci YER */}
                     <div className="order-1 flex flex-col items-center">
                         <div className="relative">
-                            <div className="text-5xl mb-2">{rankings[1]?.avatar || "🥈"}</div>
+                            <div className="text-5xl mb-2">{filteredRankings[1]?.avatar || "🥈"}</div>
                             <div className="absolute -top-3 -right-2 bg-gray-300 text-gray-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#2</div>
                         </div>
                         <div className="w-full bg-gradient-to-t from-gray-200 to-gray-100 rounded-t-2xl p-4 text-center border-t-4 border-gray-300 shadow-lg h-32 md:h-40 flex flex-col justify-center">
-                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{rankings[1]?.name}</p>
-                            <p className="text-gray-500 text-xs font-bold">{rankings[1]?.score} Bal</p>
+                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[1]?.name}</p>
+                            <p className="text-gray-500 text-xs font-bold">{filteredRankings[1]?.score} Bal</p>
                         </div>
                     </div>
 
@@ -422,41 +461,40 @@ export default function StudentCabinet() {
                     <div className="order-2 flex flex-col items-center z-10 -mt-8">
                         <div className="relative animate-bounce-slow">
                             <Crown className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-500 fill-yellow-500" size={32}/>
-                            <div className="text-6xl mb-2">{rankings[0]?.avatar || "🥇"}</div>
+                            <div className="text-6xl mb-2">{filteredRankings[0]?.avatar || "🥇"}</div>
                         </div>
                         <div className="w-full bg-gradient-to-t from-yellow-200 to-yellow-50 rounded-t-2xl p-4 text-center border-t-4 border-yellow-400 shadow-xl h-40 md:h-52 flex flex-col justify-center">
-                            <p className="font-black text-gray-900 text-base md:text-lg line-clamp-1">{rankings[0]?.name}</p>
-                            <p className="text-yellow-700 font-bold text-sm bg-yellow-300/50 px-3 py-1 rounded-full mx-auto w-fit mt-1">{rankings[0]?.score} Bal</p>
+                            <p className="font-black text-gray-900 text-base md:text-lg line-clamp-1">{filteredRankings[0]?.name}</p>
+                            <p className="text-yellow-700 font-bold text-sm bg-yellow-300/50 px-3 py-1 rounded-full mx-auto w-fit mt-1">{filteredRankings[0]?.score} Bal</p>
                         </div>
                     </div>
 
                     {/* 3-cü YER */}
                     <div className="order-3 flex flex-col items-center">
                         <div className="relative">
-                            <div className="text-5xl mb-2">{rankings[2]?.avatar || "🥉"}</div>
+                            <div className="text-5xl mb-2">{filteredRankings[2]?.avatar || "🥉"}</div>
                             <div className="absolute -top-3 -right-2 bg-orange-200 text-orange-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#3</div>
                         </div>
                         <div className="w-full bg-gradient-to-t from-orange-100 to-orange-50 rounded-t-2xl p-4 text-center border-t-4 border-orange-300 shadow-lg h-28 md:h-36 flex flex-col justify-center">
-                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{rankings[2]?.name}</p>
-                            <p className="text-gray-500 text-xs font-bold">{rankings[2]?.score} Bal</p>
+                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[2]?.name}</p>
+                            <p className="text-gray-500 text-xs font-bold">{filteredRankings[2]?.score} Bal</p>
                         </div>
                     </div>
                 </div>
 
                 {/* SİYAHI (4-15) */}
                 <div className="bg-white rounded-2xl shadow-sm border overflow-hidden mb-20">
-                    {rankings.slice(3, 15).map((r, i) => {
+                    {filteredRankings.slice(3, 15).map((r, i) => {
                         const rank = i + 4;
-                        const isMe = r.name === `${student.first_name} ${student.last_name}`; // Fake data ucun yoxlama
+                        // Fake data ilə işlədiyimiz üçün burada "isMe" məntiqini yoxlaya bilmirik, 
+                        // amma əsl datada "r.id === student.id" yoxlanacaq.
                         return (
-                            <div key={r.id} className={`flex items-center p-4 border-b last:border-0 hover:bg-gray-50 transition ${isMe ? 'bg-indigo-50 hover:bg-indigo-100' : ''}`}>
+                            <div key={r.id} className="flex items-center p-4 border-b last:border-0 hover:bg-gray-50 transition">
                                 <div className="w-10 text-center font-black text-gray-400 text-lg mr-4">{rank}</div>
                                 <div className="text-2xl mr-4">{r.avatar}</div>
                                 <div className="flex-1">
-                                    <p className={`font-bold ${isMe ? 'text-indigo-700' : 'text-gray-800'}`}>
-                                        {r.name} {isMe && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full ml-2">SƏN</span>}
-                                    </p>
-                                    <p className="text-xs text-gray-400">{r.class}-ci Sinif</p>
+                                    <p className="font-bold text-gray-800">{r.name}</p>
+                                    <p className="text-xs text-gray-400">{getCategoryName(r.class)}</p>
                                 </div>
                                 <div className="font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded-lg">{r.score}</div>
                             </div>
@@ -464,23 +502,21 @@ export default function StudentCabinet() {
                     })}
                 </div>
 
-                {/* SƏNİN YERİN (STICKY BOTTOM) */}
-                {/* Eger sen top 15-de deyilsense, bu gorunur */}
-                {!amIInTop && (
-                    <div className="fixed bottom-4 left-0 w-full px-4 z-40 md:pl-20"> {/* md:pl-20 sidebar nezere alinib */}
-                        <div className="max-w-6xl mx-auto bg-indigo-600 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between border-t-4 border-indigo-400 transform hover:translate-y-[-5px] transition cursor-pointer">
-                            <div className="flex items-center gap-4">
-                                <div className="font-black text-2xl text-indigo-200">#{myRank > 0 ? myRank : "?"}</div>
-                                <div className="text-3xl">{selectedAvatar}</div>
-                                <div>
-                                    <p className="font-bold text-lg">{student.first_name} {student.last_name}</p>
-                                    <p className="text-xs text-indigo-200">Sənin mövqeyin</p>
-                                </div>
+                {/* SƏNİN YERİN (STICKY BOTTOM - ƏSL YERİN) */}
+                <div className="fixed bottom-4 left-0 w-full px-4 z-40 md:pl-20">
+                    <div className="max-w-6xl mx-auto bg-indigo-600 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between border-t-4 border-indigo-400 transform hover:translate-y-[-5px] transition cursor-pointer">
+                        <div className="flex items-center gap-4">
+                            {/* DƏQİQ HESABLANMIŞ RANK */}
+                            <div className="font-black text-2xl text-indigo-200">#{myCalculatedRank}</div>
+                            <div className="text-3xl">{selectedAvatar}</div>
+                            <div>
+                                <p className="font-bold text-lg">{student.first_name} {student.last_name}</p>
+                                <p className="text-xs text-indigo-200">Sənin mövqeyin</p>
                             </div>
-                            <div className="text-2xl font-black bg-indigo-500 px-4 py-2 rounded-lg">{stats.avgScore}</div>
                         </div>
+                        <div className="text-2xl font-black bg-indigo-500 px-4 py-2 rounded-lg">{stats.avgScore}</div>
                     </div>
-                )}
+                </div>
 
             </div>
         )}
