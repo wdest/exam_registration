@@ -5,15 +5,27 @@ import { useRouter } from "next/navigation";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, PenTool, CheckCircle, 
-  Clock, DollarSign, ExternalLink, Download, FileText, X
+  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown, Medal
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// Bayaq verdiyim ResultCard komponentini bura import edirik (və ya eyni faylın altına ata bilərsən)
-// Mən sadəlik üçün aşağıda ResultCard-ı birbaşa daxil edəcəm.
-
 const AVATARS = [
   "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"
+];
+
+// FAKE RANKING DATA (API hazir olana qeder)
+const FAKE_RANKINGS = [
+    { id: 101, name: "Əli Məmmədov", score: 9.8, avatar: "🦸‍♂️", class: "9" },
+    { id: 102, name: "Ayan Kərimova", score: 9.7, avatar: "👩‍🚀", class: "10" },
+    { id: 103, name: "Murad Həsənov", score: 9.5, avatar: "🧑‍💻", class: "9" },
+    { id: 104, name: "Leyla Quliyeva", score: 9.2, avatar: "👩‍🎓", class: "11" },
+    { id: 105, name: "Samir Əliyev", score: 8.9, avatar: "👨‍🎨", class: "8" },
+    { id: 106, name: "Fidan Rzayeva", score: 8.7, avatar: "👩‍🔬", class: "9" },
+    { id: 107, name: "Orxan Vəliyev", score: 8.5, avatar: "🕵️‍♂️", class: "10" },
+    { id: 108, name: "Nigar Səfərova", score: 8.4, avatar: "🧝‍♀️", class: "11" },
+    { id: 109, name: "Tural Abbasov", score: 8.1, avatar: "🧙‍♂️", class: "8" },
+    { id: 110, name: "Zəhra Məmmədli", score: 7.9, avatar: "👩‍🎓", class: "9" },
+    // ... daha cox sagird ola biler
 ];
 
 export default function StudentCabinet() {
@@ -28,19 +40,34 @@ export default function StudentCabinet() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentGrades, setRecentGrades] = useState<any[]>([]);
   
-  // 🔥 YENİ DATALAR: Aktiv İmtahanlar və Nəticələr
+  // Imtahanlar
   const [activeExams, setActiveExams] = useState<any[]>([]);
   const [examResults, setExamResults] = useState<any[]>([]);
   
+  // SIRALAMA STATES
+  const [rankFilter, setRankFilter] = useState<'all' | 'category'>('all');
+  const [rankings, setRankings] = useState<any[]>(FAKE_RANKINGS); // Ilkin olaraq fake data
+
   // UI States
   const [activeTab, setActiveTab] = useState("dashboard");
   const [selectedAvatar, setSelectedAvatar] = useState("👨‍🎓");
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
-  const [selectedResult, setSelectedResult] = useState<any>(null); // Modal üçün
+  const [selectedResult, setSelectedResult] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Filter deyisende datani filterle (Simulyasiya)
+  useEffect(() => {
+      if (rankFilter === 'all') {
+          setRankings(FAKE_RANKINGS);
+      } else {
+          // Meselen, sadece oz sinifini goster (burada student.grade olmalidir)
+          // Hazirda fake oldugu ucun random filter edirik
+          setRankings(FAKE_RANKINGS.filter(r => r.class === (student?.grade || "9")));
+      }
+  }, [rankFilter, student]);
 
   const fetchData = async () => {
     try {
@@ -60,16 +87,13 @@ export default function StudentCabinet() {
         setStats(data.stats);
         setChartData(data.chartData);
         setRecentGrades(data.recentGrades);
+        setActiveExams(data.activeExams || []);
+        setExamResults(data.examResults || []);
         
-        // 🔥 YENİ: İmtahan datalarını set edirik
-        setActiveExams(data.activeExams || []); // Adminin yaratdığı linklər
-        setExamResults(data.examResults || []); // Şagirdin nəticələri
-        
-        // Avatar
+        // Avatar Load
         const savedAvatar = localStorage.getItem(`avatar_${data.student.id}`);
-        if (savedAvatar) {
-            setSelectedAvatar(savedAvatar);
-        } else {
+        if (savedAvatar) setSelectedAvatar(savedAvatar);
+        else {
             const randomAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
             setSelectedAvatar(randomAvatar);
             localStorage.setItem(`avatar_${data.student.id}`, randomAvatar);
@@ -109,6 +133,10 @@ export default function StudentCabinet() {
       </div>
     );
   }
+
+  // Oz yerini tapmaq ucun (Fake datada yoxdursa sonuncu atiriq)
+  const myRank = rankings.findIndex(r => r.name === `${student.first_name} ${student.last_name}`) + 1;
+  const amIInTop = myRank > 0 && myRank <= 15;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
@@ -174,6 +202,8 @@ export default function StudentCabinet() {
                 <PenTool size={20} /> İmtahanlar 
                 {activeExams.length > 0 && <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full animate-pulse">{activeExams.length}</span>}
             </button>
+            {/* 🔥 YENİ: SIRALAMA TABI */}
+            <button onClick={() => setActiveTab('rankings')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'rankings' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><Trophy size={20} /> Sıralama</button>
         </div>
 
         {/* --- 1. DASHBOARD (ANALİZ) --- */}
@@ -246,7 +276,7 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 3. İMTAHANLAR (YENİLƏNMİŞ) --- */}
+        {/* --- 3. İMTAHANLAR --- */}
         {activeTab === 'exams' && (
             <div className="space-y-10 animate-in fade-in duration-500">
                 
@@ -346,6 +376,115 @@ export default function StudentCabinet() {
             </div>
         )}
 
+        {/* --- 4. SIRALAMA (YENİ) --- */}
+        {activeTab === 'rankings' && (
+            <div className="animate-in fade-in duration-500">
+                <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+                    <div>
+                        <h2 className="text-3xl font-black text-gray-800 flex items-center gap-2">
+                            <Trophy className="text-yellow-500 fill-yellow-500" size={32}/> Liderlər Lövhəsi
+                        </h2>
+                        <p className="text-gray-500 mt-1">MOC-un ən güclü tələbələri</p>
+                    </div>
+                    
+                    {/* FILTER BUTTONS */}
+                    <div className="bg-white p-1 rounded-xl shadow-sm border flex gap-1">
+                        <button 
+                            onClick={() => setRankFilter('all')} 
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${rankFilter === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            Ümumi Sıralama
+                        </button>
+                        <button 
+                            onClick={() => setRankFilter('category')} 
+                            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${rankFilter === 'category' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                            Sinif Üzrə ({student?.grade || "?"}-ci sinif)
+                        </button>
+                    </div>
+                </div>
+
+                {/* PODIUM (TOP 3) */}
+                <div className="grid grid-cols-3 gap-2 md:gap-6 mb-12 items-end px-2 md:px-12">
+                    {/* 2-ci YER */}
+                    <div className="order-1 flex flex-col items-center">
+                        <div className="relative">
+                            <div className="text-5xl mb-2">{rankings[1]?.avatar || "🥈"}</div>
+                            <div className="absolute -top-3 -right-2 bg-gray-300 text-gray-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#2</div>
+                        </div>
+                        <div className="w-full bg-gradient-to-t from-gray-200 to-gray-100 rounded-t-2xl p-4 text-center border-t-4 border-gray-300 shadow-lg h-32 md:h-40 flex flex-col justify-center">
+                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{rankings[1]?.name}</p>
+                            <p className="text-gray-500 text-xs font-bold">{rankings[1]?.score} Bal</p>
+                        </div>
+                    </div>
+
+                    {/* 1-ci YER */}
+                    <div className="order-2 flex flex-col items-center z-10 -mt-8">
+                        <div className="relative animate-bounce-slow">
+                            <Crown className="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-500 fill-yellow-500" size={32}/>
+                            <div className="text-6xl mb-2">{rankings[0]?.avatar || "🥇"}</div>
+                        </div>
+                        <div className="w-full bg-gradient-to-t from-yellow-200 to-yellow-50 rounded-t-2xl p-4 text-center border-t-4 border-yellow-400 shadow-xl h-40 md:h-52 flex flex-col justify-center">
+                            <p className="font-black text-gray-900 text-base md:text-lg line-clamp-1">{rankings[0]?.name}</p>
+                            <p className="text-yellow-700 font-bold text-sm bg-yellow-300/50 px-3 py-1 rounded-full mx-auto w-fit mt-1">{rankings[0]?.score} Bal</p>
+                        </div>
+                    </div>
+
+                    {/* 3-cü YER */}
+                    <div className="order-3 flex flex-col items-center">
+                        <div className="relative">
+                            <div className="text-5xl mb-2">{rankings[2]?.avatar || "🥉"}</div>
+                            <div className="absolute -top-3 -right-2 bg-orange-200 text-orange-800 font-bold text-xs px-2 py-0.5 rounded-full border border-white">#3</div>
+                        </div>
+                        <div className="w-full bg-gradient-to-t from-orange-100 to-orange-50 rounded-t-2xl p-4 text-center border-t-4 border-orange-300 shadow-lg h-28 md:h-36 flex flex-col justify-center">
+                            <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{rankings[2]?.name}</p>
+                            <p className="text-gray-500 text-xs font-bold">{rankings[2]?.score} Bal</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SİYAHI (4-15) */}
+                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden mb-20">
+                    {rankings.slice(3, 15).map((r, i) => {
+                        const rank = i + 4;
+                        const isMe = r.name === `${student.first_name} ${student.last_name}`; // Fake data ucun yoxlama
+                        return (
+                            <div key={r.id} className={`flex items-center p-4 border-b last:border-0 hover:bg-gray-50 transition ${isMe ? 'bg-indigo-50 hover:bg-indigo-100' : ''}`}>
+                                <div className="w-10 text-center font-black text-gray-400 text-lg mr-4">{rank}</div>
+                                <div className="text-2xl mr-4">{r.avatar}</div>
+                                <div className="flex-1">
+                                    <p className={`font-bold ${isMe ? 'text-indigo-700' : 'text-gray-800'}`}>
+                                        {r.name} {isMe && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full ml-2">SƏN</span>}
+                                    </p>
+                                    <p className="text-xs text-gray-400">{r.class}-ci Sinif</p>
+                                </div>
+                                <div className="font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded-lg">{r.score}</div>
+                            </div>
+                        )
+                    })}
+                </div>
+
+                {/* SƏNİN YERİN (STICKY BOTTOM) */}
+                {/* Eger sen top 15-de deyilsense, bu gorunur */}
+                {!amIInTop && (
+                    <div className="fixed bottom-4 left-0 w-full px-4 z-40 md:pl-20"> {/* md:pl-20 sidebar nezere alinib */}
+                        <div className="max-w-6xl mx-auto bg-indigo-600 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between border-t-4 border-indigo-400 transform hover:translate-y-[-5px] transition cursor-pointer">
+                            <div className="flex items-center gap-4">
+                                <div className="font-black text-2xl text-indigo-200">#{myRank > 0 ? myRank : "?"}</div>
+                                <div className="text-3xl">{selectedAvatar}</div>
+                                <div>
+                                    <p className="font-bold text-lg">{student.first_name} {student.last_name}</p>
+                                    <p className="text-xs text-indigo-200">Sənin mövqeyin</p>
+                                </div>
+                            </div>
+                            <div className="text-2xl font-black bg-indigo-500 px-4 py-2 rounded-lg">{stats.avgScore}</div>
+                        </div>
+                    </div>
+                )}
+
+            </div>
+        )}
+
       </main>
 
       {/* --- RESULT CARD MODAL --- */}
@@ -363,7 +502,6 @@ export default function StudentCabinet() {
                       total={selectedResult.total}
                       percent={selectedResult.percent}
                       date={new Date(selectedResult.created_at).toLocaleDateString()}
-                      // Logonu bura əlavə et (Public qovluqda varsa)
                       logoUrl="https://cdn-icons-png.flaticon.com/512/2997/2997300.png" 
                   />
               </div>
@@ -374,7 +512,7 @@ export default function StudentCabinet() {
   );
 }
 
-// --- RESULT CARD KOMPONENTİ (BAYAQKİ KOD) ---
+// --- RESULT CARD KOMPONENTİ ---
 function ResultCard({ studentName, studentId, quizName, score, total, percent, date, logoUrl }: any) {
   const isPass = percent >= 50;
   const statusColor = isPass ? "text-green-600" : "text-red-600";
