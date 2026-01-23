@@ -32,7 +32,7 @@ interface Student {
 }
 
 interface Result {
-  id: number; // və ya string (uuid)
+  id: number; 
   student_id: string;
   quiz: string;
   score: number;
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
     
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
-  const [results, setResults] = useState<Result[]>([]); // YENİ: Nəticələri tutmaq üçün
+  const [results, setResults] = useState<Result[]>([]); 
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
@@ -110,23 +110,18 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
-      // 1. Tələbələr
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
       
-      // 2. YENİ: Nəticələr (Bu lazımdır ki, yaşıl tik görünsün)
       const { data: resData } = await supabase.from("results").select("*");
       if (resData) setResults(resData as any);
 
-      // 3. İmtahanlar
       const { data: examData } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
       if (examData) setExams(examData as any);
       
-      // 4. Qalereya
       const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
       if (galData) setGallery(galData as any);
       
-      // 5. Tənzimləmələr
       const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
       if (setData) setSiteSettings(setData as any);
 
@@ -246,7 +241,7 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (DÜZƏLDİLMİŞ ERROR LOGGING) ---
 
   // A. Nəticə Yüklə (Excel)
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -263,7 +258,6 @@ export default function AdminDashboard() {
         try {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
-            
             const rawData: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
             
             const res = await fetch("/api/upload-results", { 
@@ -276,25 +270,30 @@ export default function AdminDashboard() {
                 }) 
             });
 
+            // Cavabı mətn kimi alırıq (JSON xətası verməsin deyə)
             const responseText = await res.text();
             let resultJson;
             try {
                 resultJson = responseText ? JSON.parse(responseText) : {};
             } catch (e) {
-                console.error("JSON Error:", responseText);
-                throw new Error("Server xətası: Cavab JSON formatında deyil.");
+                console.error("Serverdən gələn cavab JSON deyil:", responseText);
+                throw new Error("Server xətası: Cavab formatı düzgün deyil. F12 Konsola baxın.");
             }
             
+            // Xəta varsa, səbəbini dəqiq göstər
             if (!res.ok || resultJson.success === false) {
-                throw new Error(resultJson.error || resultJson.message || "Bilinməyən xəta");
+                console.log("Server Cavabı (Xəta):", resultJson);
+                // Burada serverdən gələn bütün mümkün xəta mesajlarını yoxlayırıq
+                const errorMessage = resultJson.error || resultJson.message || JSON.stringify(resultJson);
+                throw new Error(errorMessage || "Naməlum server xətası");
             }
 
             const count = resultJson.processed_count || 0;
-            const skipped = 0; // Backend-də filtr ləğv olunduğu üçün
             setUploadMessage(`✅ ${count} nəfər uğurla yükləndi!`);
             
             fetchAllData(); 
         } catch (err:any) { 
+            // Ekrana tam xətanı yazırıq
             setUploadMessage("❌ Xəta: " + err.message); 
         } finally { 
             setUploading(false); 
@@ -370,7 +369,7 @@ export default function AdminDashboard() {
      }
   }
 
-  // D. Nəticələri Silmək (DÜZƏLDİLDİ: Artıq Results cədvəlindən silir)
+  // D. Nəticələri Silmək
   async function deleteExamResults() {
      if(!uploadExamSelect) return alert("İmtahan seçin!");
      const count = getResultCount(uploadExamSelect);
@@ -380,15 +379,11 @@ export default function AdminDashboard() {
 
      setUploading(true);
      try {
-         // YENİ: results cədvəlindən həmin imtahana aid olanları tapırıq
          const resultsToDelete = results.filter(r => r.quiz === uploadExamSelect);
          
          for (const resItem of resultsToDelete) {
              await fetch("/api/admin-action", {
                 method: "POST", headers: { "Content-Type": "application/json" },
-                // DİQQƏT: Burda table "results" olmalıdır, əgər admin-action icazə verirsə.
-                // Əgər admin-action ancaq students/exams üçün yazılıbsa, onu da dəyişmək lazım ola bilər.
-                // Amma hələlik 'results' göndəririk.
                 body: JSON.stringify({ action: "delete", table: "results", id: resItem.id })
             });
          }
@@ -431,7 +426,7 @@ export default function AdminDashboard() {
 
   function logout() { router.push("/"); }
 
-  // HELPERS - YENİLƏNDİ (results cədvəlinə baxır)
+  // HELPERS
   const checkResultsExist = (examName: string) => results.some(r => r.quiz === examName);
   const getResultCount = (examName: string) => results.filter(r => r.quiz === examName).length;
   const getSelectedCertExam = () => exams.find(e => e.name === certExamSelect);
@@ -440,7 +435,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-        
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2">
@@ -474,8 +468,7 @@ export default function AdminDashboard() {
 
         {/* MAIN CONTENT */}
         <main className="flex-1 p-8 overflow-y-auto">
-            
-          {/* 1. TƏLƏBƏLƏR */}
+          {/* TABLARA UYĞUN KODLAR BURADA (Eynidir) */}
           {activeTab === "students" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
                <div className="p-6 border-b flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
@@ -545,7 +538,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* 2. İMTAHANLAR */}
           {activeTab === "exams" && (
              <div className="max-w-4xl mx-auto space-y-8">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
@@ -616,7 +608,6 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* 3. UPLOAD RESULTS & CERTIFICATES */}
           {activeTab === "results" && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
                  
@@ -635,7 +626,6 @@ export default function AdminDashboard() {
                          ))}
                      </select>
                      
-                     {/* İNDİKATOR + SİLMƏ DÜYMƏSİ */}
                      {uploadExamSelect && checkResultsExist(uploadExamSelect) && (
                          <div className="mb-4 w-full">
                              <div className="bg-green-50 text-green-700 text-sm font-bold px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-2">
@@ -657,7 +647,7 @@ export default function AdminDashboard() {
                      {uploadMessage && <p className={`mt-4 font-bold text-sm ${uploadMessage.includes("Xəta") ? "text-red-500" : "text-green-600"}`}>{uploadMessage}</p>}
                  </div>
 
-                 {/* B. CERTIFICATE SECTION (FIXED PREVIEW) */}
+                 {/* B. CERTIFICATE SECTION */}
                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center flex flex-col items-center">
                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-4"><ImageIcon size={24}/></div>
                      <h2 className="text-xl font-bold mb-2">Sertifikat Şablonu</h2>
@@ -675,7 +665,6 @@ export default function AdminDashboard() {
                          })}
                      </select>
 
-                     {/* FIXED LIVE PREVIEW */}
                      {certExamSelect && (() => {
                         const ex = getSelectedCertExam();
                         if (ex?.certificate_url) {
@@ -709,21 +698,17 @@ export default function AdminDashboard() {
                                             <p className="text-gray-400 text-xs text-center px-4">Şəkil yüklənmədi.</p>
                                         </div>
                                         
-                                        {/* MƏTN LAYI (OVERLAY) */}
                                         <div className="absolute inset-0 z-10 flex flex-col items-center text-center pointer-events-none">
-                                            {/* AD SOYAD */}
                                             <div className="absolute top-[42%] w-full px-4">
                                                 <h1 className="text-xl md:text-2xl font-bold text-gray-900 uppercase tracking-wide leading-tight drop-shadow-sm font-sans">
                                                     {previewName}
                                                 </h1>
                                             </div>
-                                            {/* MƏTN */}
                                             <div className="absolute top-[58%] w-full px-8">
                                                 <p className="text-[10px] md:text-xs text-gray-700 leading-snug">
                                                     Main Olympic Center tərəfindən keçirilən <span className="font-bold text-black">{previewExamName}</span> imtahanında iştirak etmişdir.
                                                 </p>
                                             </div>
-                                            {/* BAL VƏ FAİZ */}
                                             <div className="absolute top-[72%] w-full flex justify-center gap-12">
                                                 <div className="flex flex-col items-center">
                                                     <span className="text-[8px] md:text-[10px] font-bold text-gray-600 uppercase">BAL</span>
@@ -734,16 +719,15 @@ export default function AdminDashboard() {
                                                     <span className="text-lg md:text-xl font-bold text-amber-600 leading-none">{previewPercent}</span>
                                                 </div>
                                             </div>
-                                            {/* TARİX */}
                                             <div className="absolute bottom-4 left-4">
                                                 <span className="text-[10px] font-bold text-gray-700">2026-01-21</span>
                                             </div>
-                                             {/* SİNİF */}
                                             <div className="absolute bottom-4 right-4">
                                                 <span className="text-[10px] font-bold text-gray-700">9-cu Sinif</span>
                                             </div>
                                         </div>
                                     </div>
+                                    
                                     <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg text-center border border-green-200">
                                         ✅ Şablon aktivdir. Yazılar avtomatik yerləşəcək.
                                     </div>
@@ -765,7 +749,6 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* 4. SETTINGS */}
           {activeTab === "settings" && (
              <div className="max-w-3xl mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2"><Settings className="text-amber-500"/> Digər Tənzimləmələr</h2>
@@ -784,7 +767,6 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* 5. GALLERY */}
           {activeTab === "gallery" && (
              <div className="max-w-6xl mx-auto">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex justify-between items-center mb-6">
