@@ -11,13 +11,12 @@ import {
   Loader2, Filter, DollarSign, Lock, Eye 
 } from "lucide-react";
 
-// --- SUPABASE CLIENT ---
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// --- TİPLƏR (INTERFACES) ---
+// --- TİPLƏR ---
 interface Student {
   id: number;
   exam_id: string;
@@ -87,7 +86,6 @@ export default function AdminDashboard() {
   const [isPaid, setIsPaid] = useState(false); 
   const [examPrice, setExamPrice] = useState("0");
 
-  // Edit State
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   // Upload Selection States
@@ -96,7 +94,6 @@ export default function AdminDashboard() {
   const [certExamSelect, setCertExamSelect] = useState("");
   const [certMessage, setCertMessage] = useState("");
 
-  // Preview Data
   const [previewName, setPreviewName] = useState("ABULFAZL GASIMZADA");
   const [previewExamName, setPreviewExamName] = useState("Almaniya");
   const [previewScore, setPreviewScore] = useState("650");
@@ -132,21 +129,14 @@ export default function AdminDashboard() {
     }
   }
 
-  // --- TƏHLÜKƏSİZ ŞƏKİL YÜKLƏMƏ ---
   async function secureImageUpload(file: File, folderName: string = "gallery"): Promise<string | null> {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("folder", folderName);
-
     try {
-        const res = await fetch("/api/upload-image", {
-            method: "POST",
-            body: formData,
-        });
-
+        const res = await fetch("/api/upload-image", { method: "POST", body: formData });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Yükləmə xətası");
-        
         return data.url; 
     } catch (err: any) {
         alert("Yükləmə xətası: " + err.message);
@@ -155,53 +145,40 @@ export default function AdminDashboard() {
   }
 
   // --- API AKSİYALARI (CRUD) ---
-
   async function addExam(e: React.FormEvent) {
     e.preventDefault();
     if (!newExamName || !newExamUrl || !newExamClass) return alert("Bütün xanaları doldurun.");
-
-    const { error } = await supabase.from("exams").insert({
-        name: newExamName, url: newExamUrl, class_grade: newExamClass,
-        is_paid: isPaid, price: isPaid ? parseFloat(examPrice) : 0
+    const res = await fetch("/api/admin-action", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "insert", table: "exams", data: { name: newExamName, url: newExamUrl, class_grade: newExamClass, is_paid: isPaid, price: isPaid ? parseFloat(examPrice) : 0 } })
     });
-
-    if (!error) {
-        alert("İmtahan yaradıldı! ✅");
-        setNewExamName(""); setNewExamUrl(""); setIsPaid(false); setExamPrice("0");
-        fetchAllData();
-    } else { alert("Xəta: " + error.message); }
+    if (res.ok) { alert("İmtahan yaradıldı! ✅"); setNewExamName(""); setNewExamUrl(""); setIsPaid(false); setExamPrice("0"); fetchAllData(); } else { alert("Xəta!"); }
   }
 
   async function deleteExam(id: number) {
     if(!confirm("Bu imtahanı silmək istəyirsiniz?")) return;
-    const { error } = await supabase.from("exams").delete().eq('id', id);
-    if (!error) fetchAllData(); else alert("Xəta: " + error.message);
+    const res = await fetch("/api/admin-action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", table: "exams", id: id }) });
+    if (res.ok) fetchAllData(); else alert("Xəta!");
   }
 
   async function deleteStudent(id: number) {
     if(!confirm("Tələbəni silmək istəyirsiniz?")) return;
-    const { error } = await supabase.from("students").delete().eq('id', id);
-    if (!error) fetchAllData(); else alert("Xəta: " + error.message);
+    const res = await fetch("/api/admin-action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", table: "students", id: id }) });
+    if (res.ok) fetchAllData(); else alert("Xəta!");
   }
 
   async function handleSaveStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!editingStudent) return;
-    const { error } = await supabase.from("students").update({
-        first_name: editingStudent.first_name, last_name: editingStudent.last_name,
-        parent_name: editingStudent.parent_name, class: editingStudent.class,
-        phone1: editingStudent.phone1, phone2: editingStudent.phone2,
-        exam_id: editingStudent.exam_id
-    }).eq('id', editingStudent.id);
-
-    if (!error) { setEditingStudent(null); fetchAllData(); } else { alert("Xəta: " + error.message); }
+    const res = await fetch("/api/admin-action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update", table: "students", id: editingStudent.id, data: { first_name: editingStudent.first_name, last_name: editingStudent.last_name, parent_name: editingStudent.parent_name, class: editingStudent.class, phone1: editingStudent.phone1, phone2: editingStudent.phone2, exam_id: editingStudent.exam_id } }) });
+    if (res.ok) { setEditingStudent(null); fetchAllData(); } else { alert("Xəta!"); }
   }
 
   async function updateSetting(key: string, val: string) {
       const settingItem = siteSettings.find(s => s.key === key);
       if(settingItem) {
-          const { error } = await supabase.from("settings").update({ value: val }).eq('id', settingItem.id);
-          if(!error) alert("Yadda saxlandı!"); else alert("Xəta!");
+          const res = await fetch("/api/admin-action", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update", table: "settings", id: settingItem.id, data: { value: val } }) });
+          if(res.ok) alert("Yadda saxlandı!"); else alert("Xəta!");
       }
   }
 
@@ -212,8 +189,7 @@ export default function AdminDashboard() {
         return matchesSearch && matchesExam;
     });
     const rows = filteredForExport.map((s) => ({
-      ID: s.exam_id, İmtahan: s.exam_name || "-", Ad: s.first_name, Soyad: s.last_name,
-      Valideyn: s.parent_name, Sinif: s.class, Tel1: s.phone1, Tel2: s.phone2, Tarix: s.created_at,
+      ID: s.exam_id, İmtahan: s.exam_name || "-", Ad: s.first_name, Soyad: s.last_name, Valideyn: s.parent_name, Sinif: s.class, Tel1: s.phone1, Tel2: s.phone2, Tarix: s.created_at,
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -221,16 +197,12 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (VALIDATION UPDATE) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (API İLƏ) ---
 
-  // A. Nəticə Yüklə (Excel) - QEYDİYYAT YOXLAMASI İLƏ
+  // A. Nəticə Yüklə (Excel)
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
-    if (!uploadExamSelect) { 
-        alert("Zəhmət olmasa, əvvəlcə siyahıdan İmtahanı seçin!"); 
-        e.target.value = ""; 
-        return;
-    }
+    if (!uploadExamSelect) { alert("Zəhmət olmasa, əvvəlcə siyahıdan İmtahanı seçin!"); e.target.value = ""; return; }
     
     setUploading(true); 
     setUploadMessage("");
@@ -242,64 +214,27 @@ export default function AdminDashboard() {
         try {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
-            
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
             const rawData: any[] = XLSX.utils.sheet_to_json(ws);
             
-            // 1. Valid ID-ləri 'students' cədvəlindən götürürük (Sürətli axtarış üçün Set edirik)
-            const validStudentIds = new Set(students.map(s => String(s.exam_id).trim()));
-
-            let ignoredCount = 0;
-
-            // 2. Datanı Formatlaşdırırıq və Filtrləyirik
-            const formattedData = rawData.map((row: any) => {
-                let rawPercent = row["Percent Correct"];
-                if(rawPercent && rawPercent <= 1) {
-                    rawPercent = rawPercent * 100;
-                }
-                return {
-                    student_id: String(row["ZipGrade ID"] || row["External Id"] || "").trim(),
-                    quiz: uploadExamSelect,
-                    score: Number(row["Num Correct"]) || 0,
-                    total: Number(row["Num Questions"]) || 0,
-                    percent: Number(rawPercent) || 0
-                };
-            }).filter(item => {
-                // Əgər ID boşdursa, silinsin
-                if (item.student_id === "") return false;
-
-                // YOXLA: Tələbə bizim bazada varmı?
-                if (validStudentIds.has(item.student_id)) {
-                    return true; // Var, saxla
-                } else {
-                    ignoredCount++; // Yoxdur, sayğacı artır və sil
-                    return false;
-                }
+            // Düzgün API url: /api/upload-result
+            const res = await fetch("/api/upload-result", { 
+                method: "POST", 
+                headers: {"Content-Type":"application/json"}, 
+                body: JSON.stringify({ data: rawData, examName: uploadExamSelect }) 
             });
 
-            if(formattedData.length === 0 && ignoredCount === 0) {
-                throw new Error("Excel faylında uyğun məlumat tapılmadı.");
-            }
+            const responseText = await res.text();
+            let resultJson;
+            try { resultJson = JSON.parse(responseText); } catch (e) { throw new Error(`Server Xətası: ${responseText.slice(0, 100)}...`); }
 
-            if(formattedData.length === 0 && ignoredCount > 0) {
-                throw new Error(`Fayldakı ${ignoredCount} tələbənin heç biri qeydiyyatda yoxdur.`);
-            }
+            if (!res.ok || !resultJson.success) throw new Error(resultJson.message || resultJson.error || "Bilinməyən xəta");
 
-            // 3. Birbaşa Supabase-ə yazırıq
-            const { error } = await supabase.from("results").insert(formattedData);
-
-            if (error) {
-                console.error("Supabase Error:", error);
-                throw new Error("Bazaya yazılarkən xəta: " + error.message);
-            }
-
-            // Mesajda neçəsinin yükləndiyini və neçəsinin kənarlaşdırıldığını göstəririk
-            setUploadMessage(`✅ ${formattedData.length} nəfər yükləndi. (⚠️ ${ignoredCount} nəfər qeydiyyatsız olduğu üçün yüklənmədi)`);
+            setUploadMessage(`✅ ${resultJson.processed_count} nəfər yükləndi. (⚠️ ${resultJson.ignored_count} nəfər kənarlaşdırıldı)`);
             fetchAllData(); 
-
         } catch (err:any) { 
-            console.error(err);
+            console.error("Upload Xətası:", err);
             setUploadMessage("❌ Xəta: " + err.message); 
         } finally { 
             setUploading(false); 
@@ -312,10 +247,8 @@ export default function AdminDashboard() {
   // B. Sertifikat Yüklə
   async function handleCertificateUpload(e: React.ChangeEvent<HTMLInputElement>) {
      if (!e.target.files?.length || !certExamSelect) return alert("İmtahan seçin!");
-     
      setUploading(true);
      setCertMessage("");
-
      try {
         const file = e.target.files[0];
         const uploadedUrl = await secureImageUpload(file, "certificates");
@@ -324,42 +257,34 @@ export default function AdminDashboard() {
         const exam = exams.find(e => e.name === certExamSelect);
         if(!exam) throw new Error("İmtahan tapılmadı");
 
-        const { error } = await supabase.from("exams").update({ certificate_url: uploadedUrl }).eq('id', exam.id);
-
-        if(error) throw new Error(error.message);
+        const res = await fetch("/api/admin-action", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "update", table: "exams", id: exam.id, data: { certificate_url: uploadedUrl } })
+        });
+        if(!res.ok) throw new Error("Bazaya yazıla bilmədi");
 
         setCertMessage("✅ Sertifikat yükləndi!");
         setPreviewExamName(certExamSelect);
         fetchAllData(); 
-     } catch (err:any) { 
-         setCertMessage("❌ " + err.message); 
-     } finally { 
-         setUploading(false); 
-         e.target.value=""; 
-     }
+     } catch (err:any) { setCertMessage("❌ " + err.message); } finally { setUploading(false); e.target.value=""; }
   }
 
   // C. Şablonu Silmək
   async function deleteCertificate() {
      if(!certExamSelect) return alert("İmtahan seçin!");
      if(!confirm("Bu şablonu silmək istəyirsiniz?")) return;
-
      setUploading(true);
      try {
          const exam = exams.find(e => e.name === certExamSelect);
          if(!exam) throw new Error("İmtahan tapılmadı");
-
-         const { error } = await supabase.from("exams").update({ certificate_url: null }).eq('id', exam.id);
-
-        if(error) throw new Error(error.message);
-         
+         const res = await fetch("/api/admin-action", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "update", table: "exams", id: exam.id, data: { certificate_url: null } })
+        });
+        if(!res.ok) throw new Error("Silinmədi");
          setCertMessage("🗑️ Şablon silindi.");
          fetchAllData();
-     } catch (err:any) {
-         setCertMessage("❌ Xəta: " + err.message);
-     } finally {
-         setUploading(false);
-     }
+     } catch (err:any) { setCertMessage("❌ Xəta: " + err.message); } finally { setUploading(false); }
   }
 
   // D. Nəticələri Silmək
@@ -367,14 +292,15 @@ export default function AdminDashboard() {
      if(!uploadExamSelect) return alert("İmtahan seçin!");
      const count = getResultCount(uploadExamSelect);
      if(count === 0) return alert("Bu imtahan üçün nəticə yoxdur.");
-
      if(!confirm(`DİQQƏT: "${uploadExamSelect}" imtahanının BÜTÜN nəticələrini (${count} nəfər) silmək istəyirsiniz?`)) return;
-
      setUploading(true);
      try {
-         // Birbaşa Supabase-dən silirik
+         // Silmək üçün əvvəlki kimi students filter lazım deyil, sadəcə delete sorğusu
+         // Amma burda API action istifadə edə bilərik, yaxud logic əlavə edə bilərik.
+         // Sənin mövcud deleteExamResults funksiyan API action-la işləyirdi, onu saxlayıram.
+         // Əslində toplu silmək üçün ayrıca API yazmaq daha yaxşı olardı, amma hələlik dövr ilə silirik (və ya admin-action delete ilə).
+         // Optimize edilmiş silmə (birbaşa Supabase ilə):
          const { error } = await supabase.from("results").delete().eq('quiz', uploadExamSelect);
-
          if(error) throw new Error(error.message);
 
          setUploadMessage("🗑️ Bütün nəticələr silindi.");
@@ -394,8 +320,10 @@ export default function AdminDashboard() {
         const file = e.target.files[0];
         const uploadedUrl = await secureImageUpload(file, "gallery");
         if (!uploadedUrl) throw new Error("Şəkil yüklənmədi");
-
-        await supabase.from("gallery").insert({ image_url: uploadedUrl });
+        await fetch("/api/admin-action", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ action: "insert", table: "gallery", data: { image_url: uploadedUrl } })
+        });
         fetchAllData();
      } catch(e:any) { alert("Xəta: " + e.message); } finally { setUploading(false); e.target.value = ""; }
   }
@@ -403,7 +331,10 @@ export default function AdminDashboard() {
   // F. Qalereya Sil
   async function deleteImage(id: number, url: string) {
       if(!confirm("Silinsin?")) return;
-      await supabase.from("gallery").delete().eq('id', id);
+      await fetch("/api/admin-action", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ action: "delete", table: "gallery", id: id })
+      });
       fetchAllData();
   }
 
@@ -417,8 +348,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
-      
-      {/* HEADER */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2">
            <div className="bg-amber-500 text-white p-2 rounded-lg"><Lock size={20}/></div>
@@ -433,7 +362,6 @@ export default function AdminDashboard() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR */}
         <aside className="w-64 bg-white border-r border-gray-200 flex flex-col p-4 space-y-2 hidden md:flex">
             {['students','exams','results','settings','gallery'].map(tab => (
                 <button key={tab} onClick={() => setActiveTab(tab)} 
@@ -449,10 +377,7 @@ export default function AdminDashboard() {
             ))}
         </aside>
 
-        {/* MAIN CONTENT */}
         <main className="flex-1 p-8 overflow-y-auto">
-            
-          {/* 1. TƏLƏBƏLƏR */}
           {activeTab === "students" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
                <div className="p-6 border-b flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
@@ -460,15 +385,9 @@ export default function AdminDashboard() {
                   <div className="flex flex-wrap gap-2">
                       <div className="relative">
                          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                         <select 
-                            value={filterExam}
-                            onChange={(e) => setFilterExam(e.target.value)}
-                            className="pl-9 pr-8 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 bg-white w-48 appearance-none cursor-pointer"
-                          >
+                         <select value={filterExam} onChange={(e) => setFilterExam(e.target.value)} className="pl-9 pr-8 py-2 border rounded-xl text-sm outline-none focus:border-amber-500 bg-white w-48 appearance-none cursor-pointer">
                             <option value="">Bütün İmtahanlar</option>
-                            {Array.from(new Set(exams.map(e => e.name))).map((name, i) => (
-                                <option key={i} value={name}>{name}</option>
-                            ))}
+                            {Array.from(new Set(exams.map(e => e.name))).map((name, i) => (<option key={i} value={name}>{name}</option>))}
                          </select>
                       </div>
                       <div className="relative">
@@ -478,7 +397,6 @@ export default function AdminDashboard() {
                       <button onClick={exportExcel} className="bg-green-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-green-700 transition"><Download size={16}/> Excel</button>
                   </div>
                </div>
-               
                <div className="overflow-auto flex-1">
                   <table className="w-full text-left text-sm text-gray-600 min-w-[1000px]">
                     <thead className="bg-gray-50 text-xs uppercase font-bold text-gray-700 sticky top-0 z-10 shadow-sm">
@@ -522,7 +440,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* 2. İMTAHANLAR */}
           {activeTab === "exams" && (
              <div className="max-w-4xl mx-auto space-y-8">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
@@ -593,11 +510,8 @@ export default function AdminDashboard() {
              </div>
           )}
 
-          {/* 3. UPLOAD RESULTS & CERTIFICATES */}
           {activeTab === "results" && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
-                 
-                 {/* A. RESULTS SECTION */}
                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center flex flex-col items-center">
                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-4"><FileText size={24}/></div>
                      <h2 className="text-xl font-bold mb-2">Nəticələri Yüklə</h2>
@@ -612,7 +526,6 @@ export default function AdminDashboard() {
                          ))}
                      </select>
                      
-                     {/* İNDİKATOR + SİLMƏ DÜYMƏSİ */}
                      {uploadExamSelect && checkResultsExist(uploadExamSelect) && (
                          <div className="mb-4 w-full">
                              <div className="bg-green-50 text-green-700 text-sm font-bold px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-2">
@@ -631,10 +544,9 @@ export default function AdminDashboard() {
                              <span>{uploading ? "Yüklənir..." : "Faylı bura atın"}</span>
                          </div>
                      </div>
-                     {uploadMessage && <p className={`mt-4 font-bold text-sm ${uploadMessage.includes("Xəta") || uploadMessage.includes("⚠️") ? "text-amber-600" : "text-green-600"}`}>{uploadMessage}</p>}
+                     {uploadMessage && <p className={`mt-4 font-bold text-sm ${uploadMessage.includes("Xəta") ? "text-red-500" : "text-green-600"}`}>{uploadMessage}</p>}
                  </div>
 
-                 {/* B. CERTIFICATE SECTION */}
                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center flex flex-col items-center">
                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 mb-4"><ImageIcon size={24}/></div>
                      <h2 className="text-xl font-bold mb-2">Sertifikat Şablonu</h2>
@@ -644,15 +556,10 @@ export default function AdminDashboard() {
                          <option value="">İmtahan Seç...</option>
                          {Array.from(new Set(exams.map(e=>e.name))).map(n => {
                              const ex = exams.find(x => x.name === n);
-                             return (
-                                 <option key={n} value={n}>
-                                     {n} {ex?.certificate_url ? " (✅ Yüklənib)" : ""}
-                                 </option>
-                             );
+                             return (<option key={n} value={n}>{n} {ex?.certificate_url ? " (✅ Yüklənib)" : ""}</option>);
                          })}
                      </select>
 
-                     {/* FIXED LIVE PREVIEW */}
                      {certExamSelect && (() => {
                         const ex = getSelectedCertExam();
                         if (ex?.certificate_url) {
@@ -661,63 +568,25 @@ export default function AdminDashboard() {
                                     <div className="flex justify-between items-end mb-2">
                                         <p className="text-left text-xs font-bold text-gray-500 flex items-center gap-1"><Eye size={12}/> LIVE PREVIEW</p>
                                         <div className="flex gap-2">
-                                            <button 
-                                                onClick={(e) => { e.preventDefault(); setPreviewName("Tələbə " + Math.floor(Math.random()*100)); setPreviewScore(String(Math.floor(Math.random()*700))); }} 
-                                                className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1 transition"
-                                            >
-                                                <RefreshCw size={10}/> Data
-                                            </button>
-                                            <button 
-                                                onClick={(e) => { e.preventDefault(); deleteCertificate(); }} 
-                                                className="text-xs bg-red-100 hover:bg-red-200 px-2 py-1 rounded text-red-600 flex items-center gap-1 transition font-bold"
-                                            >
-                                                <Trash2 size={10}/> Şablonu Sil
-                                            </button>
+                                            <button onClick={(e) => { e.preventDefault(); setPreviewName("Tələbə " + Math.floor(Math.random()*100)); setPreviewScore(String(Math.floor(Math.random()*700))); }} className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1 transition"><RefreshCw size={10}/> Data</button>
+                                            <button onClick={(e) => { e.preventDefault(); deleteCertificate(); }} className="text-xs bg-red-100 hover:bg-red-200 px-2 py-1 rounded text-red-600 flex items-center gap-1 transition font-bold"><Trash2 size={10}/> Şablonu Sil</button>
                                         </div>
                                     </div>
-                                    
                                     <div className="relative w-full aspect-[1.414] rounded-lg overflow-hidden shadow-xl border border-gray-300 group select-none bg-gray-100">
-                                        <img 
-                                            src={ex.certificate_url} 
-                                            className="absolute inset-0 w-full h-full object-fill z-0"
-                                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                        />
-                                        <div className="absolute inset-0 flex items-center justify-center -z-10">
-                                            <p className="text-gray-400 text-xs text-center px-4">Şəkil yüklənmədi.</p>
-                                        </div>
-                                        
+                                        <img src={ex.certificate_url} className="absolute inset-0 w-full h-full object-fill z-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}/>
+                                        <div className="absolute inset-0 flex items-center justify-center -z-10"><p className="text-gray-400 text-xs text-center px-4">Şəkil yüklənmədi.</p></div>
                                         <div className="absolute inset-0 z-10 flex flex-col items-center text-center pointer-events-none">
-                                            <div className="absolute top-[42%] w-full px-4">
-                                                <h1 className="text-xl md:text-2xl font-bold text-gray-900 uppercase tracking-wide leading-tight drop-shadow-sm font-sans">
-                                                    {previewName}
-                                                </h1>
-                                            </div>
-                                            <div className="absolute top-[58%] w-full px-8">
-                                                <p className="text-[10px] md:text-xs text-gray-700 leading-snug">
-                                                    Main Olympic Center tərəfindən keçirilən <span className="font-bold text-black">{previewExamName}</span> imtahanında iştirak etmişdir.
-                                                </p>
-                                            </div>
+                                            <div className="absolute top-[42%] w-full px-4"><h1 className="text-xl md:text-2xl font-bold text-gray-900 uppercase tracking-wide leading-tight drop-shadow-sm font-sans">{previewName}</h1></div>
+                                            <div className="absolute top-[58%] w-full px-8"><p className="text-[10px] md:text-xs text-gray-700 leading-snug">Main Olympic Center tərəfindən keçirilən <span className="font-bold text-black">{previewExamName}</span> imtahanında iştirak etmişdir.</p></div>
                                             <div className="absolute top-[72%] w-full flex justify-center gap-12">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-[8px] md:text-[10px] font-bold text-gray-600 uppercase">BAL</span>
-                                                    <span className="text-lg md:text-xl font-bold text-amber-600 leading-none">{previewScore}</span>
-                                                </div>
-                                                <div className="flex flex-col items-center">
-                                                    <span className="text-[8px] md:text-[10px] font-bold text-gray-600 uppercase">FAİZ</span>
-                                                    <span className="text-lg md:text-xl font-bold text-amber-600 leading-none">{previewPercent}</span>
-                                                </div>
+                                                <div className="flex flex-col items-center"><span className="text-[8px] md:text-[10px] font-bold text-gray-600 uppercase">BAL</span><span className="text-lg md:text-xl font-bold text-amber-600 leading-none">{previewScore}</span></div>
+                                                <div className="flex flex-col items-center"><span className="text-[8px] md:text-[10px] font-bold text-gray-600 uppercase">FAİZ</span><span className="text-lg md:text-xl font-bold text-amber-600 leading-none">{previewPercent}</span></div>
                                             </div>
-                                            <div className="absolute bottom-4 left-4">
-                                                <span className="text-[10px] font-bold text-gray-700">2026-01-21</span>
-                                            </div>
-                                            <div className="absolute bottom-4 right-4">
-                                                <span className="text-[10px] font-bold text-gray-700">9-cu Sinif</span>
-                                            </div>
+                                            <div className="absolute bottom-4 left-4"><span className="text-[10px] font-bold text-gray-700">2026-01-21</span></div>
+                                            <div className="absolute bottom-4 right-4"><span className="text-[10px] font-bold text-gray-700">9-cu Sinif</span></div>
                                         </div>
                                     </div>
-                                    <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg text-center border border-green-200">
-                                        ✅ Şablon aktivdir. Yazılar avtomatik yerləşəcək.
-                                    </div>
+                                    <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg text-center border border-green-200">✅ Şablon aktivdir. Yazılar avtomatik yerləşəcək.</div>
                                 </div>
                             )
                         }
@@ -759,9 +628,7 @@ export default function AdminDashboard() {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex justify-between items-center mb-6">
                   <h2 className="text-lg font-bold flex items-center gap-2"><ImageIcon className="text-amber-500" /> Qalereya</h2>
                   <div className="relative overflow-hidden">
-                    <button className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-md">
-                        {uploading ? <Loader2 className="animate-spin" size={20}/> : <PlusCircle size={20} />} Yeni Şəkil
-                    </button>
+                    <button className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-6 py-3 rounded-xl font-bold transition shadow-md">{uploading ? <Loader2 className="animate-spin" size={20}/> : <PlusCircle size={20} />} Yeni Şəkil</button>
                     <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploading} className="absolute inset-0 opacity-0 cursor-pointer"/>
                   </div>
                 </div>
@@ -778,11 +645,9 @@ export default function AdminDashboard() {
                 </div>
              </div>
           )}
-
         </main>
       </div>
 
-      {/* EDIT MODAL */}
       {editingStudent && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
