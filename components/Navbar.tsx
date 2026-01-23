@@ -16,7 +16,7 @@ export default function Navbar() {
     pathname === "/" ||                   // 1. Ana Səhifədə gizlət
     // pathname === "/login" ||           // Logində görünür
     pathname === "/student-login" ||      // (Köhnə login varsa, orada da gizlət)
-    pathname === "/redirect" ||           // Redirect səhifəsində gizlət
+    // pathname === "/redirect" ||        // <-- BU SƏTRİ SİLDİM (Artıq redirect səhifəsində Navbar görünəcək)
     pathname.startsWith("/student") ||    // 3. Şagird kabinetinin içində hər yerdə gizlət
     pathname.startsWith("/teacher-cabinet") // 4. Müəllim kabinetinin içində hər yerdə gizlət
   ) {
@@ -75,14 +75,16 @@ export default function Navbar() {
               </Link>
             )}
 
-            {/* DÜZƏLDİLDİ: İmtahana Başla -> /redirect */}
-            <Link 
-              href="/redirect" 
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 transition border border-amber-200"
-            >
-              <Zap size={18} className="text-amber-500" />
-              <span>İmtahana Başla</span>
-            </Link>
+            {/* İmtahana Başla - Əgər /redirect səhifəsindəyiksə GİZLƏNİR (!isActive sayəsində) */}
+            {!isActive("/redirect") && (
+              <Link 
+                href="/redirect" 
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 transition border border-amber-200"
+              >
+                <Zap size={18} className="text-amber-500" />
+                <span>İmtahana Başla</span>
+              </Link>
+            )}
 
           </div>
 
@@ -117,7 +119,7 @@ export default function Navbar() {
                     <ClipboardList size={20} /> Nəticələr
                 </Link>
                 
-                {/* DÜZƏLDİLDİ: Kabinetə Giriş -> /login */}
+                {/* Kabinetə Giriş */}
                 <Link 
                     href="/login" 
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -126,10 +128,12 @@ export default function Navbar() {
                     <UserCircle size={20}/> Kabinetə Giriş
                 </Link>
 
-                {/* DÜZƏLDİLDİ: İmtahana Başla -> /redirect */}
-                <Link href="/redirect" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center bg-amber-500 text-white py-4 rounded-xl font-bold shadow-md text-lg">
-                  ⚡ İmtahana Başla
-                </Link>
+                {/* İmtahana Başla - Mobil menyuda da əgər redirect səhifəsindəyiksə göstərməsin */}
+                {!isActive("/redirect") && (
+                  <Link href="/redirect" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center bg-amber-500 text-white py-4 rounded-xl font-bold shadow-md text-lg">
+                    ⚡ İmtahana Başla
+                  </Link>
+                )}
               </div>
             </motion.div>
           )}
