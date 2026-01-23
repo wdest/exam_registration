@@ -19,45 +19,59 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Excel boşdur." }, { status: 400 });
     }
 
-    // Əgər imtahan adı seçilməyibsə, xəta verək
     if (!examName) {
         return NextResponse.json({ error: "İmtahan adı seçilməyib." }, { status: 400 });
     }
 
-    // 2. DATA EMALI (Sənin istədiyin məntiqlə)
+    // 2. DATA EMALI (Şəkillərdəki sütun adlarına uyğun)
     const processedData = rawExcelData
-      // Yalnız ID-si olan sətirləri götürürük
-      .filter((row: any) => row['ZipGrade ID'] || row['Student ID']) 
+      // Şəkil 6-da görünür ki, başlıq "StudentID"-dir. Hər ehtimala qarşı "ZipGrade ID"-ni də yoxlayırıq.
+      .filter((row: any) => row['StudentID'] || row['ZipGrade ID']) 
       .map((row: any) => {
         
-        // A. Dəyərləri oxuyuruq (ZipGrade standart başlıqları)
-        const studentCode = row['ZipGrade ID'] || row['Student ID']; // ID
-        const earnedPoints = Number(row['Earned Points']) || 0;      // Topladığı bal (Score)
-        const possiblePoints = Number(row['Possible Points']) || 0;  // Maksimum bal (Total)
-        const numIncorrect = Number(row['Num Incorrect']) || 0;      // Səhv sayı
-        const numCorrect = Number(row['Num Correct']) || 0;          // Düz sayı (Lazım olsa)
+        // A. Dəyərləri oxuyuruq
+        // Şəkil 6-ya əsasən: StudentID, Earned Points, Possible Points
+        const studentCode = row['StudentID'] || row['ZipGrade ID']; 
+        const earnedPoints = Number(row['Earned Points']) || 0;      // Score
+        const possiblePoints = Number(row['Possible Points']) || 0;  // Total
+        
+        // ZipGrade bəzən "Num Incorrect" sütunu verir, vermirsə hesablayırıq
+        // (Maksimum bal - Topladığı bal = Səhv sayı + Boş sayı)
+        // Əgər Excel-də "Num Incorrect" varsa onu götür, yoxdursa fərqi yaz.
+        let numIncorrect = Number(row['Num Incorrect']);
+        if (isNaN(numIncorrect)) {
+            numIncorrect = possiblePoints - earnedPoints;
+        }
 
-        // B. Faizi hesablayırıq (Özümüz)
-        // (Topladığı / Maksimum) * 100. Nöqtədən sonra 1 rəqəm saxlayırıq.
+        // Düzgün cavab sayı (adətən bala bərabərdir, amma yenə də varsa götürək)
+        let numCorrect = Number(row['Num Correct']);
+        if (isNaN(numCorrect)) {
+            numCorrect = earnedPoints; // Sadə məntiqlə: 1 sual = 1 baldırsa
+        }
+
+        // B. Faizi hesablayırıq
+        // Şəkil 6-da "PercentCorrect" var, amma sən dedin özümüz hesablayaq.
+        // (Score / Total) * 100
         let calculatedPercent = 0;
         if (possiblePoints > 0) {
-            calculatedPercent = parseFloat(((earnedPoints / possiblePoints) * 100).toFixed(1));
+            // Nöqtədən sonra 1 rəqəm saxlayırıq (məs: 92.5)
+            calculatedPercent = Number(((earnedPoints / possiblePoints) * 100).toFixed(1));
         }
 
         // C. Obyekti hazırlayırıq (Supabase sütunlarına uyğun)
         return {
            student_id: String(studentCode).trim(), // ID String kimi
            quiz: examName,                         // Frontdan gələn imtahan adı
-           score: earnedPoints,                    // Earned Points -> Score
-           total: possiblePoints,                  // Possible Points -> Total
-           percent: calculatedPercent,             // Hesabladığımız faiz
-           wrong_count: numIncorrect,              // Səhv sayı
-           correct_count: numCorrect               // Düz sayı (əlavə olaraq yazırıq)
+           score: earnedPoints,                    // Earned Points
+           total: possiblePoints,                  // Possible Points
+           percent: calculatedPercent,             // Bizim hesabladığımız faiz
+           wrong_count: numIncorrect,              // Hesabladığımız səhv sayı
+           correct_count: numCorrect               // Düz sayı
         };
       });
 
     if (processedData.length === 0) {
-        return NextResponse.json({ success: false, message: "ZipGrade ID-si olan heç bir sətir tapılmadı. Excel başlıqlarını yoxlayın." });
+        return NextResponse.json({ success: false, message: "StudentID olan heç bir sətir tapılmadı. Excel faylını yoxlayın." });
     }
 
     // 3. BAZA İLƏ ƏLAQƏ
@@ -67,7 +81,7 @@ export async function POST(req: Request) {
     );
 
     // 4. BAZAYA YAZMAQ (Upsert)
-    // 'student_id' və 'quiz' cütlüyü təkrarlanarsa, məlumatı yeniləyir.
+    // DİQQƏT: Bazada (student_id, quiz) cütlüyü üçün constraint olmalıdır!
     const { error } = await supabase
       .from("results")
       .upsert(processedData, { 
