@@ -2,22 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import * as XLSX from "xlsx"; // XLSX Kitabxanası
+import * as XLSX from "xlsx";
 import { 
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
-  LineChart, Upload 
+  LineChart, Upload, Clock
 } from "lucide-react";
 
 // --- SABITLƏR ---
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
-const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
+// Həftənin günlərini indeksləyirik (0 = B.e, 6 = Baz)
+const DAY_INDEX_MAP: { [key: string]: number } = { 
+  "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
+};
+
+// Cədvəl üçün saat aralığı (08:00 - 22:00)
+const START_HOUR = 8;
+const END_HOUR = 22;
+const TOTAL_HOURS = END_HOUR - START_HOUR;
+const PIXELS_PER_HOUR = 60; // Hər saatın hündürlüyü (px)
+
 const PHONE_PREFIXES = ["050", "051", "055", "070", "077", "099", "010", "060"]; 
 const GRADES = Array.from({ length: 11 }, (_, i) => i + 1); 
 const SECTORS = ["Az", "Ru", "Eng"];
 
-// 24 Saatlıq Siyahı
 const TIME_SLOTS: string[] = [];
 for (let i = 8; i <= 22; i++) {
   const hour = i.toString().padStart(2, '0');
@@ -28,7 +37,7 @@ for (let i = 8; i <= 22; i++) {
 export default function TeacherCabinet() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false); // Upload statusu
+  const [uploading, setUploading] = useState(false);
   const [teacher, setTeacher] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -36,22 +45,23 @@ export default function TeacherCabinet() {
   const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   
-  // EDIT STATE
-  const [editingId, setEditingId] = useState<number | null>(null);
+  // CƏDVƏL ÜÇÜN PARSED DATA
+  const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
+  const [currentTimePosition, setCurrentTimePosition] = useState<number | null>(null);
 
-  // FORM STATE
+  // EDIT & FORM STATES
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [phonePrefix, setPhonePrefix] = useState("050");
   const [newStudent, setNewStudent] = useState({
     first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0]
   });
   
-  // GROUP FORM STATE
   const [newGroupName, setNewGroupName] = useState("");
   const [tempDay, setTempDay] = useState("B.e"); 
   const [tempTime, setTempTime] = useState("09:00"); 
   const [scheduleSlots, setScheduleSlots] = useState<{day: string, time: string}[]>([]);
 
-  // JURNAL STATE
+  // JURNAL STATES
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupStudents, setGroupStudents] = useState<any[]>([]);
   const [studentToAdd, setStudentToAdd] = useState("");
@@ -81,213 +91,148 @@ export default function TeacherCabinet() {
         }
     };
     initData();
+
+    // Qırmızı xəttin yerini hesabla (Hər dəqiqə yenilə)
+    const updateTimeLine = () => {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMin = now.getMinutes();
+        
+        // Əgər iş saatları daxilindədirsə (08:00 - 22:00)
+        if (currentHour >= START_HOUR && currentHour < END_HOUR) {
+            const hoursPassed = currentHour - START_HOUR;
+            const minutesPixel = (currentMin / 60) * PIXELS_PER_HOUR;
+            const totalTop = (hoursPassed * PIXELS_PER_HOUR) + minutesPixel;
+            setCurrentTimePosition(totalTop);
+        } else {
+            setCurrentTimePosition(null);
+        }
+    };
+
+    updateTimeLine();
+    const interval = setInterval(updateTimeLine, 60000); // 1 dəqiqədən bir
+    return () => clearInterval(interval);
+
   }, [router]);
 
-  // --- FETCH DATA ---
+  // --- CƏDVƏL DATASINI HAZIRLAMAQ ---
+  useEffect(() => {
+      // Qruplar gələndə cədvəli parse edirik
+      // Format: "B.e 10:00, Ç.a 14:00"
+      const events: any[] = [];
+      
+      groups.forEach(group => {
+          if(!group.schedule) return;
+          const slots = group.schedule.split(", ");
+          
+          slots.forEach((slot: string) => {
+              const parts = slot.split(" "); // ["B.e", "10:00"]
+              if(parts.length === 2) {
+                  const dayName = parts[0];
+                  const time = parts[1];
+                  const dayIndex = DAY_INDEX_MAP[dayName];
+                  
+                  if (dayIndex !== undefined) {
+                      const [h, m] = time.split(":").map(Number);
+                      // Dərs müddətini standart 90 dəqiqə (1.5 saat) götürürük
+                      const duration = 1.5; 
+                      
+                      // Top (Yuxarıdan məsafə)
+                      const top = ((h - START_HOUR) * PIXELS_PER_HOUR) + ((m / 60) * PIXELS_PER_HOUR);
+                      // Height (Hündürlük)
+                      const height = duration * PIXELS_PER_HOUR;
+
+                      events.push({
+                          id: group.id + slot,
+                          groupName: group.name,
+                          dayIndex,
+                          top,
+                          height,
+                          timeStr: time,
+                          color: getRandomColor(group.id) // Hər qrupa fərqli rəng
+                      });
+                  }
+              }
+          });
+      });
+      setScheduleEvents(events);
+  }, [groups]);
+
+  // Random rəng generatoru (Qruplar üçün)
+  const getRandomColor = (id: number) => {
+      const colors = ["bg-blue-500", "bg-green-500", "bg-purple-500", "bg-orange-500", "bg-indigo-500", "bg-pink-500", "bg-teal-500"];
+      return colors[id % colors.length];
+  };
+
   const fetchData = async (teacherId: number) => {
     try {
         const res = await fetch("/api/teacher/students");
-        if (res.ok) {
-            const data = await res.json();
-            setStudents(data.students || []);
-        }
+        if (res.ok) { const data = await res.json(); setStudents(data.students || []); }
+        
         const resG = await fetch("/api/teacher/groups");
-        if (resG.ok) {
-            const dataG = await resG.json();
-            setGroups(dataG.groups || []);
-        }
+        if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); }
     } catch (e) { console.error(e); }
   };
 
-  // --- 1. CSV/EXCEL UPLOAD FUNKSİYASI ---
+  // ... (UPLOAD FUNKSİYASI - Bayaq yazdığım eynidir) ...
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
-    
     setUploading(true);
     const file = e.target.files[0];
     const reader = new FileReader();
-
     reader.onload = async (evt) => {
         try {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
-            const data = XLSX.utils.sheet_to_json(ws); // Excel -> JSON
-
-            // API-yə göndər
+            const data = XLSX.utils.sheet_to_json(ws);
             const res = await fetch("/api/teacher/students/upload", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ students: data })
             });
-
             const result = await res.json();
             if (!res.ok) throw new Error(result.error || "Yükləmə xətası");
-
             alert(`✅ Uğurla yükləndi! ${result.count} şagird əlavə olundu/yeniləndi.`);
             if(teacher) fetchData(teacher.id);
-
-        } catch (error: any) {
-            alert("❌ Xəta: " + error.message);
-        } finally {
-            setUploading(false);
-            e.target.value = ""; 
-        }
+        } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; }
     };
     reader.readAsBinaryString(file);
   };
 
-  // --- MANUAL CRUD ---
+  // ... (CRUD FUNKSİYALARI - Bayaq yazdığım eynidir) ...
   const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`;
     const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 };
-
     try {
-        const res = await fetch("/api/teacher/students", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload })
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error);
-        alert(editingId ? "Yeniləndi!" : "Əlavə edildi!");
-        resetForm();
-        if(teacher) fetchData(teacher.id);
+        const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) });
+        const result = await res.json(); if (!res.ok) throw new Error(result.error);
+        alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); resetForm(); if(teacher) fetchData(teacher.id);
     } catch (error: any) { alert("Xəta: " + error.message); }
   };
-
-  const deleteStudent = async (id: number) => { 
-      if (!confirm("Silinsin?")) return;
-      try {
-        const res = await fetch("/api/teacher/students", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: 'delete', id: id })
-        });
-        if (!res.ok) throw new Error("Silinmə xətası");
-        if(teacher) fetchData(teacher.id);
-      } catch (error: any) { alert(error.message); }
-  };
-
+  const deleteStudent = async (id: number) => { if (!confirm("Silinsin?")) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); if (!res.ok) throw new Error("Silinmə xətası"); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
-  
   const startEdit = (student: any) => {
       const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = "";
       if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); }
       setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
   };
-
-  // --- QRUP MƏNTİQİ ---
   const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
-  
-  const handleCreateGroup = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      if (scheduleSlots.length === 0) return; 
-      const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); 
-      try {
-          const res = await fetch("/api/teacher/groups", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: newGroupName, schedule: finalSchedule })
-          });
-          if (!res.ok) throw new Error("Qrup yaradılmadı");
-          alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); 
-          if(teacher) fetchData(teacher.id); 
-      } catch (e: any) { alert(e.message); }
-  };
-
-  // --- JURNAL MƏNTİQİ ---
-  const openGroup = (group: any) => { 
-      setSelectedGroup(group); 
-      fetchGroupMembers(group.id); 
-      setGradingDate(new Date().toISOString().split('T')[0]); 
-  };
-
-  const fetchGroupMembers = async (groupId: number) => { 
-      try {
-          const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
-          if (res.ok) {
-              const data = await res.json();
-              setGroupStudents(data.students || []);
-          }
-      } catch (e) { console.error(e); }
-  };
-
-  const fetchGradesForDate = async () => { 
-      if (!selectedGroup) return; 
-      setGrades({}); setAttendance({}); 
-      try {
-          const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`);
-          if (res.ok) {
-              const data = await res.json();
-              const nG: any = {}, nA: any = {}; 
-              if (data.grades) {
-                  data.grades.forEach((r: any) => { 
-                      if (r.score !== null) nG[r.student_id] = r.score; 
-                      nA[r.student_id] = r.attendance; 
-                  }); 
-                  setGrades(nG); setAttendance(nA);
-              }
-          }
-      } catch (e) { console.error(e); }
-  };
-
-  const addStudentToGroup = async () => { 
-      if (!studentToAdd || !selectedGroup) return; 
-      try {
-          const res = await fetch("/api/teacher/jurnal", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd })
-          });
-          if (!res.ok) throw new Error("Əlavə edilmədi");
-          alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); 
-      } catch (e: any) { alert(e.message); }
-  };
-
-  const saveGrades = async () => { 
-      if (!selectedGroup) return; 
-      if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; 
-      const updates = groupStudents.map(student => ({ 
-          group_id: selectedGroup.id, 
-          student_id: student.id, 
-          grade_date: gradingDate, 
-          score: grades[student.id] ? parseInt(grades[student.id]) : null, 
-          attendance: attendance[student.id] !== false 
-      })); 
-      try {
-          const res = await fetch("/api/teacher/jurnal", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates })
-          });
-          if (!res.ok) throw new Error("Xəta");
-          alert("Saxlanıldı!");
-      } catch (e: any) { alert(e.message); }
-  };
-
+  const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); try { const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); if (!res.ok) throw new Error("Qrup yaradılmadı"); alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); if(teacher) fetchData(teacher.id); } catch (e: any) { alert(e.message); } };
+  const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
+  const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
+  const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
+  const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); } catch (e: any) { alert(e.message); } };
+  const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates }) }); if (!res.ok) throw new Error("Xəta"); alert("Saxlanıldı!"); } catch (e: any) { alert(e.message); } };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
-  const checkScheduleValidity = () => {
-    if (!selectedGroup || !gradingDate) return;
-    const parts = gradingDate.split('-'); 
-    const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-    setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()]));
-  };
+  const checkScheduleValidity = () => { if (!selectedGroup || !gradingDate) return; const parts = gradingDate.split('-'); const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()])); };
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
+  const handleLogout = async () => { try { await fetch("/api/logout", { method: "POST" }); router.push("/login"); router.refresh(); } catch { router.push("/login"); } };
 
-  const handleLogout = async () => { 
-      try { await fetch("/api/logout", { method: "POST" }); router.push("/login"); router.refresh(); } catch { router.push("/login"); }
-  };
-
-  if (loading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-        <p className="text-blue-600 font-bold text-lg animate-pulse">Kabinet Yüklənir...</p>
-    </div>
-  );
+  if (loading) return ( <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50"> <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div> <p className="text-blue-600 font-bold text-lg animate-pulse">Kabinet Yüklənir...</p> </div> );
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans">
@@ -302,6 +247,7 @@ export default function TeacherCabinet() {
       <main className="p-4 md:p-8 max-w-7xl mx-auto">
         <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
             <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Users size={20} /> Dashboard</button>
+            <button onClick={() => setActiveTab('schedule')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'schedule' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Clock size={20} /> Cədvəl</button>
             <button onClick={() => setActiveTab('students')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'students' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><GraduationCap size={20} /> Şagird</button>
             <button onClick={() => setActiveTab('groups')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'groups' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BookOpen size={20} /> Jurnal</button>
         </div>
@@ -315,6 +261,10 @@ export default function TeacherCabinet() {
                     <p className="opacity-90 relative z-10">Bu gün: {new Date().toLocaleDateString('az-AZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div onClick={() => setActiveTab('schedule')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4">
+                        <div className="p-4 bg-orange-50 text-orange-600 rounded-xl"><Clock size={32} /></div>
+                        <div><h3 className="text-xl font-bold">Dərs Cədvəli</h3><p className="text-gray-500 text-sm">Həftəlik plan</p></div>
+                    </div>
                     <div onClick={() => setActiveTab('students')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4">
                         <div className="p-4 bg-blue-50 text-blue-600 rounded-xl"><Users size={32} /></div>
                         <div><h3 className="text-xl font-bold">Şagirdlər</h3><p className="text-gray-500 text-sm">Ümumi: {students.length}</p></div>
@@ -327,12 +277,88 @@ export default function TeacherCabinet() {
             </div>
         )}
 
+        {/* --- 🔥 CƏDVƏL (SCHEDULE) TABI --- */}
+        {activeTab === 'schedule' && (
+            <div className="animate-in fade-in">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
+                    <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                        <h3 className="text-lg font-bold flex items-center gap-2"><Clock /> Həftəlik Dərs Cədvəli</h3>
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div> Hazırki zaman
+                        </div>
+                    </div>
+                    
+                    <div className="relative overflow-x-auto">
+                        <div className="min-w-[800px] relative" style={{ height: `${TOTAL_HOURS * PIXELS_PER_HOUR + 50}px` }}>
+                            
+                            {/* 1. BAŞLIQ (GÜNLƏR) */}
+                            <div className="flex border-b dark:border-gray-700 absolute top-0 left-0 right-0 h-10 bg-gray-50 dark:bg-gray-900 z-10">
+                                <div className="w-16 border-r dark:border-gray-700"></div> {/* Saat sütunu üçün boşluq */}
+                                {WEEK_DAYS.map((day, i) => (
+                                    <div key={day} className={`flex-1 text-center font-bold text-sm py-2 border-r dark:border-gray-700 ${new Date().getDay() === (i+1)%7 ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-600 dark:text-gray-300'}`}>
+                                        {day}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 2. SAAT SÜTUNU VƏ GRID XƏTTLƏRİ */}
+                            <div className="absolute top-10 left-0 right-0 bottom-0 flex">
+                                {/* Saatlar */}
+                                <div className="w-16 border-r dark:border-gray-700 bg-white dark:bg-gray-800 z-10">
+                                    {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
+                                        <div key={i} className="h-[60px] text-xs text-gray-400 text-right pr-2 pt-1 border-b dark:border-gray-700">
+                                            {START_HOUR + i}:00
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Gün sütunları */}
+                                {WEEK_DAYS.map((day, i) => (
+                                    <div key={i} className="flex-1 border-r dark:border-gray-700 relative">
+                                        {/* Hər saat üçün xətt */}
+                                        {Array.from({ length: TOTAL_HOURS }).map((_, h) => (
+                                            <div key={h} className="h-[60px] border-b dark:border-gray-700 border-dashed border-gray-100"></div>
+                                        ))}
+
+                                        {/* DƏRSLƏR (EVENTS) */}
+                                        {scheduleEvents.filter(ev => ev.dayIndex === i).map((ev, idx) => (
+                                            <div 
+                                                key={idx}
+                                                className={`absolute left-1 right-1 rounded-lg p-2 text-white text-xs shadow-md ${ev.color} hover:opacity-90 transition cursor-pointer z-10`}
+                                                style={{ 
+                                                    top: `${ev.top}px`, 
+                                                    height: `${ev.height}px`
+                                                }}
+                                                title={`${ev.groupName} (${ev.timeStr})`}
+                                            >
+                                                <p className="font-bold truncate">{ev.groupName}</p>
+                                                <p className="opacity-90">{ev.timeStr}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 3. QIRMIZI HAZIRKİ ZAMAN XƏTTİ */}
+                            {currentTimePosition !== null && (
+                                <div 
+                                    className="absolute left-16 right-0 border-t-2 border-red-500 z-20 pointer-events-none flex items-center"
+                                    style={{ top: `${currentTimePosition + 40}px` }} // +40 header hündürlüyü
+                                >
+                                    <div className="w-3 h-3 bg-red-500 rounded-full -ml-1.5 shadow-sm"></div>
+                                </div>
+                            )}
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* --- STUDENTS UI --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-fit sticky top-24">
-                    
-                    {/* YENİ: UPLOAD BUTTON */}
                     <div className="mb-6 pb-6 border-b dark:border-gray-700">
                         <label className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-green-300 bg-green-50 text-green-700 cursor-pointer hover:bg-green-100 transition ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             <Upload size={20} />
@@ -341,14 +367,12 @@ export default function TeacherCabinet() {
                         </label>
                         <p className="text-xs text-gray-400 mt-2 text-center">Format: ZipGrade ID, First Name, Last Name, External ID, Access Code, Classes</p>
                     </div>
-
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold flex items-center gap-2">
                             {editingId ? <><Pencil size={18} className="text-orange-500"/> Redaktə Et</> : <><Plus size={18}/> Yeni Şagird</>}
                         </h3>
                         {editingId && <button onClick={resetForm} className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><RefreshCcw size={12}/> Ləğv et</button>}
                     </div>
-                    
                     <form onSubmit={handleAddOrUpdateStudent} className="space-y-4">
                         <input required placeholder="Ad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.first_name} onChange={e => setNewStudent({...newStudent, first_name: e.target.value})} />
                         <input required placeholder="Soyad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
@@ -366,20 +390,13 @@ export default function TeacherCabinet() {
                         <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold transition ${editingId ? "bg-orange-500" : "bg-blue-600"}`}>{editingId ? "Yadda Saxla" : "Əlavə Et"}</button>
                     </form>
                 </div>
-
                 <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
                     <h3 className="text-lg font-bold mb-4 flex justify-between items-center">Şagirdlərin Siyahısı <span className="text-sm font-normal text-gray-500">Cəmi: {students.length}</span></h3>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold border-b dark:border-gray-600">
                                 <tr>
-                                    <th className="p-3">ID</th>
-                                    <th className="p-3">Kod</th>
-                                    <th className="p-3">Ad Soyad</th>
-                                    <th className="p-3">Ata adı</th>
-                                    <th className="p-3">Sinif</th>
-                                    <th className="p-3">Sektor</th>
-                                    <th className="p-3 text-right">Əməliyyatlar</th>
+                                    <th className="p-3">ID</th><th className="p-3">Kod</th><th className="p-3">Ad Soyad</th><th className="p-3">Ata adı</th><th className="p-3">Sinif</th><th className="p-3">Sektor</th><th className="p-3 text-right">Əməliyyatlar</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -459,8 +476,7 @@ export default function TeacherCabinet() {
                             <div className="flex items-center gap-4 mb-4 flex-wrap">
                                 <h3 className="text-lg font-bold">Jurnal</h3>
                                 <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
-                                    <Calendar size={18} className="text-gray-500"/>
-                                    <input type="date" value={gradingDate} onChange={e => setGradingDate(e.target.value)} className="bg-transparent outline-none text-sm font-medium"/>
+                                    <Calendar size={18} className="text-gray-500"/><br>                                    <input type="date" value={gradingDate} onChange={e => setGradingDate(e.target.value)} className="bg-transparent outline-none text-sm font-medium"/>
                                 </div>
                                 {!isValidDay && (<div className="flex items-center gap-2 text-orange-600 text-sm font-bold bg-orange-50 px-3 py-1 rounded-full border border-orange-200"><AlertTriangle size={16}/> Bu gün dərs günü deyil!</div>)}
                                 <button onClick={saveGrades} className="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition"><Save size={18}/> Yadda Saxla</button>
