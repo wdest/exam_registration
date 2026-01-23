@@ -31,6 +31,7 @@ interface Student {
   created_at?: string;
 }
 
+// YENİ: Nəticələr üçün tip
 interface Result {
   id: number; 
   student_id: string;
@@ -70,7 +71,7 @@ export default function AdminDashboard() {
     
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
-  const [results, setResults] = useState<Result[]>([]); 
+  const [results, setResults] = useState<Result[]>([]); // YENİ: Nəticələr burda saxlanacaq
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
@@ -96,7 +97,7 @@ export default function AdminDashboard() {
   const [certExamSelect, setCertExamSelect] = useState("");
   const [certMessage, setCertMessage] = useState("");
 
-  // Preview Data (Random Defaults)
+  // Preview Data
   const [previewName, setPreviewName] = useState("ABULFAZL GASIMZADA");
   const [previewExamName, setPreviewExamName] = useState("Almaniya");
   const [previewScore, setPreviewScore] = useState("650");
@@ -110,18 +111,23 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
+      // 1. Tələbələr
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
       
+      // 2. YENİ: Nəticələr (Bu lazımdır ki, yaşıl tik görünsün)
       const { data: resData } = await supabase.from("results").select("*");
       if (resData) setResults(resData as any);
 
+      // 3. İmtahanlar
       const { data: examData } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
       if (examData) setExams(examData as any);
       
+      // 4. Qalereya
       const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
       if (galData) setGallery(galData as any);
       
+      // 5. Tənzimləmələr
       const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
       if (setData) setSiteSettings(setData as any);
 
@@ -241,7 +247,7 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (DÜZƏLDİLMİŞ ERROR LOGGING) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (GÜCLƏNDİRİLMİŞ LOGGING) ---
 
   // A. Nəticə Yüklə (Excel)
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -270,22 +276,23 @@ export default function AdminDashboard() {
                 }) 
             });
 
-            // Cavabı mətn kimi alırıq (JSON xətası verməsin deyə)
+            // 1. Mətn kimi oxuyuruq ki, HTML gəlsə partlamasın
             const responseText = await res.text();
             let resultJson;
+            
             try {
+                // 2. JSON-a çevirməyə çalışırıq
                 resultJson = responseText ? JSON.parse(responseText) : {};
             } catch (e) {
-                console.error("Serverdən gələn cavab JSON deyil:", responseText);
-                throw new Error("Server xətası: Cavab formatı düzgün deyil. F12 Konsola baxın.");
+                // 3. Əgər JSON deyilsə (məsələn Vercel 500 HTML səhifəsi), konsola yazırıq
+                console.error("Serverdən gələn xətalı cavab (HTML):", responseText);
+                throw new Error("Server xətası: Cavab formatı düzgün deyil (F12 konsola baxın).");
             }
             
-            // Xəta varsa, səbəbini dəqiq göstər
+            // 4. Əgər JSON-da xəta varsa
             if (!res.ok || resultJson.success === false) {
-                console.log("Server Cavabı (Xəta):", resultJson);
-                // Burada serverdən gələn bütün mümkün xəta mesajlarını yoxlayırıq
-                const errorMessage = resultJson.error || resultJson.message || JSON.stringify(resultJson);
-                throw new Error(errorMessage || "Naməlum server xətası");
+                console.log("Server Xətası (JSON):", resultJson);
+                throw new Error(resultJson.error || resultJson.message || "Bilinməyən xəta");
             }
 
             const count = resultJson.processed_count || 0;
@@ -293,8 +300,8 @@ export default function AdminDashboard() {
             
             fetchAllData(); 
         } catch (err:any) { 
-            // Ekrana tam xətanı yazırıq
-            setUploadMessage("❌ Xəta: " + err.message); 
+            // Xətanı ekrana çıxarırıq
+            setUploadMessage("❌ " + err.message); 
         } finally { 
             setUploading(false); 
             e.target.value=""; 
@@ -369,7 +376,7 @@ export default function AdminDashboard() {
      }
   }
 
-  // D. Nəticələri Silmək
+  // D. Nəticələri Silmək (Results cədvəlindən)
   async function deleteExamResults() {
      if(!uploadExamSelect) return alert("İmtahan seçin!");
      const count = getResultCount(uploadExamSelect);
@@ -379,11 +386,13 @@ export default function AdminDashboard() {
 
      setUploading(true);
      try {
+         // YENİ: results cədvəlindən həmin imtahana aid olanları tapırıq
          const resultsToDelete = results.filter(r => r.quiz === uploadExamSelect);
          
          for (const resItem of resultsToDelete) {
              await fetch("/api/admin-action", {
                 method: "POST", headers: { "Content-Type": "application/json" },
+                // DİQQƏT: table 'results' olaraq dəyişdirildi
                 body: JSON.stringify({ action: "delete", table: "results", id: resItem.id })
             });
          }
@@ -426,7 +435,7 @@ export default function AdminDashboard() {
 
   function logout() { router.push("/"); }
 
-  // HELPERS
+  // HELPERS - YENİLƏNDİ (results cədvəlinə baxır)
   const checkResultsExist = (examName: string) => results.some(r => r.quiz === examName);
   const getResultCount = (examName: string) => results.filter(r => r.quiz === examName).length;
   const getSelectedCertExam = () => exams.find(e => e.name === certExamSelect);
@@ -435,6 +444,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans text-gray-800">
+      
       {/* HEADER */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
         <div className="flex items-center gap-2">
@@ -468,7 +478,8 @@ export default function AdminDashboard() {
 
         {/* MAIN CONTENT */}
         <main className="flex-1 p-8 overflow-y-auto">
-          {/* TABLARA UYĞUN KODLAR BURADA (Eynidir) */}
+            
+          {/* 1. TƏLƏBƏLƏR */}
           {activeTab === "students" && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
                <div className="p-6 border-b flex flex-col md:flex-row justify-between items-center bg-gray-50/50 gap-4">
@@ -538,6 +549,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {/* 2. İMTAHANLAR */}
           {activeTab === "exams" && (
              <div className="max-w-4xl mx-auto space-y-8">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
@@ -608,6 +620,7 @@ export default function AdminDashboard() {
              </div>
           )}
 
+          {/* 3. UPLOAD RESULTS & CERTIFICATES */}
           {activeTab === "results" && (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-6xl mx-auto">
                  
@@ -626,6 +639,7 @@ export default function AdminDashboard() {
                          ))}
                      </select>
                      
+                     {/* İNDİKATOR + SİLMƏ DÜYMƏSİ */}
                      {uploadExamSelect && checkResultsExist(uploadExamSelect) && (
                          <div className="mb-4 w-full">
                              <div className="bg-green-50 text-green-700 text-sm font-bold px-4 py-2 rounded-lg flex items-center justify-center gap-2 mb-2">
@@ -665,6 +679,7 @@ export default function AdminDashboard() {
                          })}
                      </select>
 
+                     {/* FIXED LIVE PREVIEW */}
                      {certExamSelect && (() => {
                         const ex = getSelectedCertExam();
                         if (ex?.certificate_url) {
@@ -727,7 +742,6 @@ export default function AdminDashboard() {
                                             </div>
                                         </div>
                                     </div>
-                                    
                                     <div className="mt-2 text-xs text-green-600 font-bold bg-green-50 py-1 px-2 rounded-lg text-center border border-green-200">
                                         ✅ Şablon aktivdir. Yazılar avtomatik yerləşəcək.
                                     </div>
