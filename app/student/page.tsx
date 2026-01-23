@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, PenTool, CheckCircle, 
-  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown
+  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown, Filter
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -13,24 +13,23 @@ const AVATARS = [
   "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"
 ];
 
-// FAKE DATA (Sıralama üçün nümunə məlumatlar)
-// Bu datada həm 3-cü sinif var, həm 9, həm 11. Kateqoriyanı yoxlamaq üçün.
+// FAKE DATA - Hər şagirdin həm Ümumi, həm də Aylıq balı var
 const FAKE_RANKINGS = [
-    { id: 101, name: "Əli Məmmədov", score: 9.9, avatar: "🦸‍♂️", class: "9" },
-    { id: 102, name: "Ayan Kərimova", score: 9.8, avatar: "👩‍🚀", class: "10" },
-    { id: 103, name: "Murad Həsənov", score: 9.7, avatar: "🧑‍💻", class: "9" },
-    { id: 104, name: "Leyla Quliyeva", score: 9.6, avatar: "👩‍🎓", class: "11" },
-    { id: 105, name: "Samir Əliyev", score: 9.5, avatar: "👨‍🎨", class: "4" }, // Category 1
-    { id: 106, name: "Fidan Rzayeva", score: 9.4, avatar: "👩‍🔬", class: "9" },
-    { id: 107, name: "Orxan Vəliyev", score: 9.3, avatar: "🕵️‍♂️", class: "10" },
-    { id: 108, name: "Nigar Səfərova", score: 9.2, avatar: "🧝‍♀️", class: "11" },
-    { id: 109, name: "Tural Abbasov", score: 9.1, avatar: "🧙‍♂️", class: "2" }, // Kids
-    { id: 110, name: "Zəhra Məmmədli", score: 9.0, avatar: "👩‍🎓", class: "9" },
-    { id: 111, name: "Rəsul İsayev", score: 8.9, avatar: "👨‍🎓", class: "6" }, // Category 2
-    { id: 112, name: "Kənan Orucov", score: 8.8, avatar: "🧑‍💻", class: "9" },
-    { id: 113, name: "Lalə Babayeva", score: 8.7, avatar: "👩‍🚀", class: "10" },
-    { id: 114, name: "Elvin Mirzəyev", score: 8.6, avatar: "🦸‍♂️", class: "11" },
-    { id: 115, name: "Günay Hacıyeva", score: 8.5, avatar: "👩‍🔬", class: "5" }, // Category 2
+    { id: 101, name: "Əli Məmmədov", allTimeScore: 9.9, monthlyScore: 8.5, avatar: "🦸‍♂️", class: "9" },
+    { id: 102, name: "Ayan Kərimova", allTimeScore: 9.8, monthlyScore: 9.9, avatar: "👩‍🚀", class: "10" },
+    { id: 103, name: "Murad Həsənov", allTimeScore: 9.7, monthlyScore: 9.2, avatar: "🧑‍💻", class: "9" },
+    { id: 104, name: "Leyla Quliyeva", allTimeScore: 9.6, monthlyScore: 9.5, avatar: "👩‍🎓", class: "11" },
+    { id: 105, name: "Samir Əliyev", allTimeScore: 9.5, monthlyScore: 7.8, avatar: "👨‍🎨", class: "4" },
+    { id: 106, name: "Fidan Rzayeva", allTimeScore: 9.4, monthlyScore: 9.8, avatar: "👩‍🔬", class: "9" },
+    { id: 107, name: "Orxan Vəliyev", allTimeScore: 9.3, monthlyScore: 8.9, avatar: "🕵️‍♂️", class: "10" },
+    { id: 108, name: "Nigar Səfərova", allTimeScore: 9.2, monthlyScore: 9.1, avatar: "🧝‍♀️", class: "11" },
+    { id: 109, name: "Tural Abbasov", allTimeScore: 9.1, monthlyScore: 8.4, avatar: "🧙‍♂️", class: "2" },
+    { id: 110, name: "Zəhra Məmmədli", allTimeScore: 9.0, monthlyScore: 9.6, avatar: "👩‍🎓", class: "9" },
+    { id: 111, name: "Rəsul İsayev", allTimeScore: 8.9, monthlyScore: 8.2, avatar: "👨‍🎓", class: "6" },
+    { id: 112, name: "Kənan Orucov", allTimeScore: 8.8, monthlyScore: 7.5, avatar: "🧑‍💻", class: "9" },
+    { id: 113, name: "Lalə Babayeva", allTimeScore: 8.7, monthlyScore: 9.0, avatar: "👩‍🚀", class: "10" },
+    { id: 114, name: "Elvin Mirzəyev", allTimeScore: 8.6, monthlyScore: 8.1, avatar: "🦸‍♂️", class: "11" },
+    { id: 115, name: "Günay Hacıyeva", allTimeScore: 8.5, monthlyScore: 9.3, avatar: "👩‍🔬", class: "5" },
 ];
 
 export default function StudentCabinet() {
@@ -50,9 +49,11 @@ export default function StudentCabinet() {
   const [examResults, setExamResults] = useState<any[]>([]);
   
   // SIRALAMA STATES
-  const [rankFilter, setRankFilter] = useState<'all' | 'category'>('all');
-  const [filteredRankings, setFilteredRankings] = useState<any[]>(FAKE_RANKINGS); 
-  const [myCalculatedRank, setMyCalculatedRank] = useState<number>(0); // Sənin yerin
+  const [rankFilter, setRankFilter] = useState<'all' | 'category'>('all'); // Ümumi vs Kategoriya
+  const [timeFilter, setTimeFilter] = useState<'all_time' | 'monthly'>('all_time'); // Zaman Filtri (YENİ)
+  const [filteredRankings, setFilteredRankings] = useState<any[]>([]); 
+  const [myCalculatedRank, setMyCalculatedRank] = useState<number>(0);
+  const [myCurrentScore, setMyCurrentScore] = useState<number>(0); // Ekranda görünəcək bal
 
   // UI States
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -67,65 +68,73 @@ export default function StudentCabinet() {
   // --- KATEQORIYA MƏNTİQİ ---
   const getCategoryName = (grade: string | number) => {
       const g = Number(grade);
-      if (g >= 1 && g <= 2) return "Kids";
-      if (g >= 3 && g <= 4) return "Category 1";
-      if (g >= 5 && g <= 6) return "Category 2";
-      if (g >= 7 && g <= 8) return "Category 3";
-      if (g >= 9 && g <= 10) return "Category 4";
-      if (g >= 11 && g <= 12) return "Category 5";
+      if (g >= 1 && g <= 2) return "Kids (1-2)";
+      if (g >= 3 && g <= 4) return "Category 1 (3-4)";
+      if (g >= 5 && g <= 6) return "Category 2 (5-6)";
+      if (g >= 7 && g <= 8) return "Category 3 (7-8)";
+      if (g >= 9 && g <= 10) return "Category 4 (9-10)";
+      if (g >= 11 && g <= 12) return "Category 5 (11-12)";
       return "Digər";
   };
 
-  // --- RANKING HESABLAMA ---
+  // --- RANKING HESABLAMA (ZAMAN VƏ KATEQORİYA İLƏ) ---
   useEffect(() => {
       if (!student) return;
 
       let currentList = [...FAKE_RANKINGS];
 
-      // 1. KATEQORIYA FİLTRİ
+      // 1. ZAMAN FİLTRİ (Balı seçirik)
+      // Hər bir şagirdin obyektinə 'currentScore' adlı yeni sahə əlavə edirik ki, sıralama asan olsun
+      currentList = currentList.map(item => ({
+          ...item,
+          score: timeFilter === 'all_time' ? item.allTimeScore : item.monthlyScore // Seçimə görə bal dəyişir
+      }));
+
+      // 2. KATEQORIYA FİLTRİ
       if (rankFilter === 'category') {
-          const myCategory = getCategoryName(student.grade || "9"); // Default 9 qoyuruq əgər yoxdursa
+          const myCategory = getCategoryName(student.grade || "9");
           currentList = currentList.filter(r => getCategoryName(r.class) === myCategory);
       }
 
-      // 2. MƏNİM YERİMİ HESABLA (Əgər siyahıda yoxamsa, xəyali olaraq əlavə edib yerimi tapır)
-      // Mənim balım: stats.avgScore
-      const myScore = parseFloat(stats.avgScore) || 0;
+      // 3. MƏNİM BALIM (Simulyasiya)
+      // Real sistemdə bu bal API-dən gəlməlidir. Hazırda demo üçün:
+      // All Time = stats.avgScore
+      // Monthly = stats.avgScore - 0.5 (Sadəcə fərq görünsün deyə bir az azaldırıq)
+      const myScore = timeFilter === 'all_time' 
+          ? (parseFloat(stats.avgScore) || 0) 
+          : (Math.max(0, (parseFloat(stats.avgScore) || 0) - 0.5)); // Demo məqsədli fərqli rəqəm
+      
+      setMyCurrentScore(Number(myScore.toFixed(1)));
       const myName = `${student.first_name} ${student.last_name}`;
 
-      // Mövcud siyahıya özümüzü əlavə edirik (müqayisə üçün)
-      // Əgər siyahıda artıq varsansa təkrarlamamaq lazımdır, amma fake data olduğu üçün
-      // sadəcə "mən" adlı bir obyekt yaradıb sort edirik.
+      // 4. MƏNİM YERİMİ HESABLA (Siyahıya özümüzü qatıb sort edirik)
       const listWithMe = [
           ...currentList, 
-          { id: 9999, name: myName, score: myScore, class: student.grade }
+          { id: 9999, name: myName, score: myScore, class: student.grade, avatar: selectedAvatar }
       ];
 
       // Balı çoxdan aza düzürük
       listWithMe.sort((a, b) => b.score - a.score);
 
-      // İndexi tapırıq (0-dan başlayır deyə +1 edirik)
+      // İndexi tapırıq
       const rank = listWithMe.findIndex(r => r.id === 9999) + 1;
       setMyCalculatedRank(rank);
 
-      // Ekrana çıxan siyahı (Məni oradan çıxarırıq ki, listdə dublikat görünməsin, yalnız yapışqan barda görünüm)
-      // Amma istəsən listin içində də görünə bilərsən. Gəl hələlik fake datanı olduğu kimi saxlayaq.
+      // Ekrana çıxan siyahı (Məni oradan çıxarırıq ki, dublikat olmasın, yalnız sticky barda görünüm)
+      // Amma top listdəyəmsə siyahıda da görünəcəm.
       setFilteredRankings(currentList.sort((a, b) => b.score - a.score));
 
-  }, [rankFilter, student, stats.avgScore]);
+  }, [rankFilter, timeFilter, student, stats.avgScore, selectedAvatar]);
 
 
   const fetchData = async () => {
     try {
       const res = await fetch("/api/student/dashboard");
-      
       if (res.status === 401 || res.status === 403) {
         router.push("/login"); 
         return;
       }
-
       const data = await res.json();
-      
       if (data.student) {
         setStudent(data.student);
         setGroupName(data.groupName);
@@ -136,7 +145,6 @@ export default function StudentCabinet() {
         setActiveExams(data.activeExams || []);
         setExamResults(data.examResults || []);
         
-        // Avatar Load
         const savedAvatar = localStorage.getItem(`avatar_${data.student.id}`);
         if (savedAvatar) setSelectedAvatar(savedAvatar);
         else {
@@ -180,7 +188,7 @@ export default function StudentCabinet() {
     );
   }
 
-  // Top 15-də varamsa, sticky barı gizlət (Opsional: həmişə göstərə də bilərsən)
+  // Mən top 15-dəyəmsə sticky barı gizlət (və ya həmişə göstər, dizayna bağlıdır. Hələlik gizlədirəm)
   const amIInTopList = myCalculatedRank <= 15;
 
   return (
@@ -221,7 +229,6 @@ export default function StudentCabinet() {
         {/* HEADER CARD */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-lg mb-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-            
             <div className="relative z-10">
                 <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, {student?.first_name}! 👋</h2>
                 <div className="opacity-90 flex flex-col gap-1">
@@ -323,6 +330,8 @@ export default function StudentCabinet() {
         {/* --- 3. İMTAHANLAR --- */}
         {activeTab === 'exams' && (
             <div className="space-y-10 animate-in fade-in duration-500">
+                
+                {/* A. AKTİV İMTAHANLAR */}
                 <div>
                     <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <div className="w-2 h-8 bg-indigo-600 rounded-full"></div>
@@ -362,6 +371,7 @@ export default function StudentCabinet() {
                     )}
                 </div>
 
+                {/* B. İMTAHAN NƏTİCƏLƏRİ (TARİXÇƏ) */}
                 <div>
                     <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <div className="w-2 h-8 bg-green-500 rounded-full"></div>
@@ -415,31 +425,50 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 4. SIRALAMA (YENİLƏNMİŞ MƏNTİQ) --- */}
+        {/* --- 4. SIRALAMA (ZAMAN VƏ KATEQORİYA İLƏ) --- */}
         {activeTab === 'rankings' && (
             <div className="animate-in fade-in duration-500">
-                <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
                     <div>
                         <h2 className="text-3xl font-black text-gray-800 flex items-center gap-2">
                             <Trophy className="text-yellow-500 fill-yellow-500" size={32}/> Liderlər Lövhəsi
                         </h2>
-                        <p className="text-gray-500 mt-1">MOC-un ən güclü tələbələri</p>
+                        <p className="text-gray-500 mt-1">Ən yüksək nəticə göstərən tələbələr</p>
                     </div>
                     
-                    {/* FILTER BUTTONS */}
-                    <div className="bg-white p-1 rounded-xl shadow-sm border flex gap-1">
-                        <button 
-                            onClick={() => setRankFilter('all')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${rankFilter === 'all' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                        >
-                            Ümumi Sıralama
-                        </button>
-                        <button 
-                            onClick={() => setRankFilter('category')} 
-                            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${rankFilter === 'category' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-                        >
-                            {getCategoryName(student?.grade || "9")} Üzrə
-                        </button>
+                    {/* FILTERS */}
+                    <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+                        {/* ZAMAN FILTRI */}
+                        <div className="bg-white p-1 rounded-xl shadow-sm border flex">
+                            <button 
+                                onClick={() => setTimeFilter('all_time')} 
+                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${timeFilter === 'all_time' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                Bütün Zamanlar
+                            </button>
+                            <button 
+                                onClick={() => setTimeFilter('monthly')} 
+                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${timeFilter === 'monthly' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                Bu Ay
+                            </button>
+                        </div>
+
+                        {/* KATEQORIYA FILTRI */}
+                        <div className="bg-white p-1 rounded-xl shadow-sm border flex">
+                            <button 
+                                onClick={() => setRankFilter('all')} 
+                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${rankFilter === 'all' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                Ümumi
+                            </button>
+                            <button 
+                                onClick={() => setRankFilter('category')} 
+                                className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${rankFilter === 'category' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
+                            >
+                                {getCategoryName(student?.grade || "9")}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -486,14 +515,15 @@ export default function StudentCabinet() {
                 <div className="bg-white rounded-2xl shadow-sm border overflow-hidden mb-20">
                     {filteredRankings.slice(3, 15).map((r, i) => {
                         const rank = i + 4;
-                        // Fake data ilə işlədiyimiz üçün burada "isMe" məntiqini yoxlaya bilmirik, 
-                        // amma əsl datada "r.id === student.id" yoxlanacaq.
+                        const isMe = r.id === 9999; // Fake datada "mən" id=9999-dur
                         return (
-                            <div key={r.id} className="flex items-center p-4 border-b last:border-0 hover:bg-gray-50 transition">
+                            <div key={r.id} className={`flex items-center p-4 border-b last:border-0 hover:bg-gray-50 transition ${isMe ? 'bg-indigo-50 hover:bg-indigo-100' : ''}`}>
                                 <div className="w-10 text-center font-black text-gray-400 text-lg mr-4">{rank}</div>
                                 <div className="text-2xl mr-4">{r.avatar}</div>
                                 <div className="flex-1">
-                                    <p className="font-bold text-gray-800">{r.name}</p>
+                                    <p className={`font-bold ${isMe ? 'text-indigo-700' : 'text-gray-800'}`}>
+                                        {r.name} {isMe && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full ml-2">SƏN</span>}
+                                    </p>
                                     <p className="text-xs text-gray-400">{getCategoryName(r.class)}</p>
                                 </div>
                                 <div className="font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded-lg">{r.score}</div>
@@ -503,20 +533,21 @@ export default function StudentCabinet() {
                 </div>
 
                 {/* SƏNİN YERİN (STICKY BOTTOM - ƏSL YERİN) */}
-                <div className="fixed bottom-4 left-0 w-full px-4 z-40 md:pl-20">
-                    <div className="max-w-6xl mx-auto bg-indigo-600 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between border-t-4 border-indigo-400 transform hover:translate-y-[-5px] transition cursor-pointer">
-                        <div className="flex items-center gap-4">
-                            {/* DƏQİQ HESABLANMIŞ RANK */}
-                            <div className="font-black text-2xl text-indigo-200">#{myCalculatedRank}</div>
-                            <div className="text-3xl">{selectedAvatar}</div>
-                            <div>
-                                <p className="font-bold text-lg">{student.first_name} {student.last_name}</p>
-                                <p className="text-xs text-indigo-200">Sənin mövqeyin</p>
+                {!amIInTopList && (
+                    <div className="fixed bottom-4 left-0 w-full px-4 z-40 md:pl-20">
+                        <div className="max-w-6xl mx-auto bg-indigo-600 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between border-t-4 border-indigo-400 transform hover:translate-y-[-5px] transition cursor-pointer animate-in slide-in-from-bottom duration-500">
+                            <div className="flex items-center gap-4">
+                                <div className="font-black text-2xl text-indigo-200">#{myCalculatedRank}</div>
+                                <div className="text-3xl">{selectedAvatar}</div>
+                                <div>
+                                    <p className="font-bold text-lg">{student.first_name} {student.last_name}</p>
+                                    <p className="text-xs text-indigo-200">Sənin mövqeyin</p>
+                                </div>
                             </div>
+                            <div className="text-2xl font-black bg-indigo-500 px-4 py-2 rounded-lg">{myCurrentScore}</div>
                         </div>
-                        <div className="text-2xl font-black bg-indigo-500 px-4 py-2 rounded-lg">{stats.avgScore}</div>
                     </div>
-                </div>
+                )}
 
             </div>
         )}
@@ -548,7 +579,7 @@ export default function StudentCabinet() {
   );
 }
 
-// --- RESULT CARD KOMPONENTİ ---
+// ... ResultCard və DetailRow komponentləri eyni qalır ...
 function ResultCard({ studentName, studentId, quizName, score, total, percent, date, logoUrl }: any) {
   const isPass = percent >= 50;
   const statusColor = isPass ? "text-green-600" : "text-red-600";
