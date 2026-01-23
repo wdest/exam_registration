@@ -7,8 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
-    // 1. Service Role Key Yoxlanışı
-    // Bu açar RLS (Policies) qaydalarından yan keçmək üçün lazımdır.
+    // 1. Service Role Key Yoxlanışı (Yazmaq icazəsi üçün)
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
         return NextResponse.json({ error: "Server Xətası: SUPABASE_SERVICE_ROLE_KEY tapılmadı." }, { status: 500 });
     }
@@ -29,57 +28,71 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "İmtahan adı seçilməyib." }, { status: 400 });
     }
 
-    // 3. DEBUG: Sütun adlarını konsola yazırıq (Vercel Log-da görmək üçün)
-    const headers = Object.keys(rawExcelData[0]);
-    console.log("Excel Headers:", headers);
-
-    // 4. DATA EMALI
+    // 3. DATA EMALI (Sənin ZipGrade sütunlarına uyğunlaşdırma)
     const processedData = rawExcelData
-      // "StudentID" və ya "ZipGrade ID" olan sətirləri götürürük
-      .filter((row: any) => row['StudentID'] || row['ZipGrade ID']) 
+      // Şərt: Ya "ZipGrade ID" olsun, ya da "StudentID"
+      .filter((row: any) => row['ZipGrade ID'] || row['StudentID']) 
       .map((row: any) => {
         
-        // Şəkil 5-dəki başlıqlara uyğun oxuyuruq
-        const studentCode = row['StudentID'] || row['ZipGrade ID']; 
-        
-        // Rəqəmləri təmizləyirik (Vergül varsa nöqtə ilə əvəz edirik)
-        const parseNum = (val: any) => {
-            if (!val) return 0;
-            if (typeof val === 'number') return val;
-            return Number(String(val).replace(',', '.')) || 0;
-        };
+        // A. Şagirdin Kodu (ID)
+        const studentCode = row['ZipGrade ID'] || row['StudentID']; 
 
-        const earnedPoints = parseNum(row['Earned Points']);
-        const possiblePoints = parseNum(row['Possible Points']);
-        
-        // Səhv sayını hesablayırıq: (Maksimum - Düzgün)
-        const numIncorrect = possiblePoints - earnedPoints; 
-        
-        // Düzgün cavab sayı = Bal (əgər 1 sual 1 baldırsa)
-        const numCorrect = earnedPoints; 
-
-        // Faizi hesablayırıq
-        let calculatedPercent = 0;
-        if (possiblePoints > 0) {
-            calculatedPercent = Number(((earnedPoints / possiblePoints) * 100).toFixed(1));
+        // B. Düzgün Cavab Sayı (Score)
+        // Bəzi fayllarda "Num Correct", bəzilərində "Earned Points" olur.
+        // Hər ikisini yoxlayırıq.
+        let correctCount = 0;
+        if (row['Num Correct'] !== undefined) {
+            correctCount = Number(row['Num Correct']);
+        } else if (row['Earned Points'] !== undefined) {
+            correctCount = Number(row['Earned Points']);
         }
 
+        // C. Ümumi Sual Sayı (Total)
+        // "Num Questions" və ya "Possible Points"
+        let totalCount = 0;
+        if (row['Num Questions'] !== undefined) {
+            totalCount = Number(row['Num Questions']);
+        } else if (row['Possible Points'] !== undefined) {
+            totalCount = Number(row['Possible Points']);
+        }
+
+        // D. Səhv Sayı (Wrong)
+        // "Num Incorrect" varsa götürürük, yoxdursa hesablayırıq (Total - Düz)
+        let wrongCount = 0;
+        if (row['Num Incorrect'] !== undefined) {
+            wrongCount = Number(row['Num Incorrect']);
+        } else {
+            wrongCount = totalCount - correctCount;
+        }
+
+        // E. Faiz (Percent)
+        // "Percent Correct" sütunu varsa götür, yoxdursa hesabla.
+        // ZipGrade bəzən "85.0" verir, bəzən "85". Biz onu ədədə çeviririk.
+        let percent = 0;
+        if (row['Percent Correct'] !== undefined) {
+             percent = parseFloat(String(row['Percent Correct']).replace('%', ''));
+        } else if (totalCount > 0) {
+             percent = Number(((correctCount / totalCount) * 100).toFixed(1));
+        }
+
+        // F. Baza Obyekti (Supabase sütunlarına yazırıq)
         return {
-           student_id: String(studentCode).trim(), // ID-ni mətnə çeviririk
-           quiz: examName,
-           score: earnedPoints,
-           total: possiblePoints,
-           percent: calculatedPercent,
-           wrong_count: numIncorrect,
-           correct_count: numCorrect
+           student_id: String(studentCode).trim(), // ID
+           quiz: examName,                         // İmtahan adı (Frontdan gələn)
+           score: correctCount,                    // Bal
+           total: totalCount,                      // Ümumi sual
+           percent: percent,                       // Faiz
+           correct_count: correctCount,            // Düz sayı
+           wrong_count: wrongCount,                // Səhv sayı
+           created_at: new Date().toISOString()    // İndiki vaxt
         };
       });
 
     if (processedData.length === 0) {
-        return NextResponse.json({ success: false, message: "StudentID tapılmadı. Excel faylını yoxlayın." });
+        return NextResponse.json({ success: false, message: "ZipGrade ID tapılmadı. Excel faylını yoxlayın." });
     }
 
-    // 5. BAZA İLƏ ƏLAQƏ (Admin Açarı ilə)
+    // 4. BAZA İLƏ ƏLAQƏ (Admin Açarı ilə)
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!, 
@@ -91,7 +104,7 @@ export async function POST(req: Request) {
       }
     );
 
-    // 6. BAZAYA YAZMAQ (Upsert)
+    // 5. BAZAYA YAZMAQ (Upsert)
     // Addım 1-dəki SQL kodunu işlətməsən, bura xəta verəcək!
     const { error } = await supabase
       .from("results")
@@ -102,8 +115,7 @@ export async function POST(req: Request) {
 
     if (error) {
         console.error("Supabase Error:", error);
-        // Xətanı dəqiq qaytarırıq ki, "Bilinməyən xəta" olmasın
-        return NextResponse.json({ error: "Baza Xətası: " + error.message + " (Constraint yoxdur?)" }, { status: 500 });
+        return NextResponse.json({ error: "Baza Xətası: " + error.message }, { status: 500 });
     }
 
     return NextResponse.json({ 
