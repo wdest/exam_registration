@@ -11,7 +11,7 @@ import {
   Loader2, Filter, DollarSign, Lock, Eye 
 } from "lucide-react";
 
-// --- SUPABASE CLIENT (Yalnız oxumaq üçün) ---
+// --- SUPABASE CLIENT ---
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -31,7 +31,6 @@ interface Student {
   created_at?: string;
 }
 
-// YENİ: Nəticələr üçün tip
 interface Result {
   id: number; 
   student_id: string;
@@ -71,7 +70,7 @@ export default function AdminDashboard() {
     
   // Data States
   const [students, setStudents] = useState<Student[]>([]);
-  const [results, setResults] = useState<Result[]>([]); // YENİ: Nəticələr burda saxlanacaq
+  const [results, setResults] = useState<Result[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [exams, setExams] = useState<Exam[]>([]); 
@@ -111,23 +110,18 @@ export default function AdminDashboard() {
   async function fetchAllData() {
     setLoading(true);
     try {
-      // 1. Tələbələr
       const { data: stData } = await supabase.from("students").select("*").order("created_at", { ascending: false });
       if (stData) setStudents(stData as any);
       
-      // 2. YENİ: Nəticələr (Bu lazımdır ki, yaşıl tik görünsün)
       const { data: resData } = await supabase.from("results").select("*");
       if (resData) setResults(resData as any);
 
-      // 3. İmtahanlar
       const { data: examData } = await supabase.from("exams").select("*").order("created_at", { ascending: false });
       if (examData) setExams(examData as any);
       
-      // 4. Qalereya
       const { data: galData } = await supabase.from("gallery").select("*").order("created_at", { ascending: false });
       if (galData) setGallery(galData as any);
       
-      // 5. Tənzimləmələr
       const { data: setData } = await supabase.from("settings").select("*").order("id", { ascending: true });
       if (setData) setSiteSettings(setData as any);
 
@@ -247,9 +241,9 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (FIXED & ROBUST) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (FIXED) ---
 
-  // A. Nəticə Yüklə (Excel) - DÜZƏLDİLMİŞ VERSİYA
+  // A. Nəticə Yüklə (Excel) - URL FIX EDİLDİ
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     if (!uploadExamSelect) { 
@@ -269,15 +263,16 @@ export default function AdminDashboard() {
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: "binary" });
             
-            // İlk vərəqi oxuyuruq
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
             
             // Excel-i birbaşa JSON-a çeviririk
             const rawData: any[] = XLSX.utils.sheet_to_json(ws);
             
-            // Data-nı göndəririk
-            const res = await fetch("/api/upload-results", { 
+            console.log("Göndərilən Data:", rawData); 
+
+            // DİQQƏT: Buranı düzəltdik -> /api/upload-result (s-siz)
+            const res = await fetch("/api/upload-result", { 
                 method: "POST", 
                 headers: {"Content-Type":"application/json"}, 
                 body: JSON.stringify({ 
@@ -286,16 +281,13 @@ export default function AdminDashboard() {
                 }) 
             });
 
-            // "Unexpected end of JSON" xətasının qarşısını almaq üçün:
-            // Əvvəlcə cavabı mətn (text) kimi oxuyuruq
+            // Xətaları tutmaq üçün
             const responseText = await res.text();
             
             let resultJson;
             try {
-                // Sonra JSON-a çevirməyə çalışırıq
                 resultJson = JSON.parse(responseText);
             } catch (jsonError) {
-                // Əgər JSON deyilsə (məsələn HTML xətasıdırsa), mətni göstəririk
                 console.error("Server Cavabı (Raw):", responseText);
                 throw new Error(`Server Xətası: ${responseText.slice(0, 150)}...`);
             }
@@ -307,7 +299,7 @@ export default function AdminDashboard() {
             setUploadMessage(`✅ ${resultJson.processed_count} nəfər uğurla yükləndi!`);
             fetchAllData(); 
         } catch (err:any) { 
-            console.error(err);
+            console.error("Upload Xətası:", err);
             setUploadMessage("❌ Xəta: " + err.message); 
         } finally { 
             setUploading(false); 
