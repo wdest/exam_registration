@@ -55,7 +55,6 @@ export default function StudentCabinet() {
 
   // --- 🔥 REAL-TIME LOGIC ---
   useEffect(() => {
-    // 1. Dərs qiyməti dəyişəndə -> SIRALAMA YENİLƏNİR
     const gradesChannel = supabase
       .channel('grades-changes')
       .on(
@@ -68,7 +67,6 @@ export default function StudentCabinet() {
       )
       .subscribe();
 
-    // 2. İmtahan nəticəsi gələndə -> SADECE DATA YENILENIR (Sıralamaya təsir etmir, amma ekranda görünməlidir)
     const resultsChannel = supabase
       .channel('results-changes')
       .on(
@@ -98,32 +96,26 @@ export default function StudentCabinet() {
       return "Digər";
   };
 
-  // --- RANKING CALCULATION (API-dən gələn hazır datanı filterləyirik) ---
+  // --- RANKING CALCULATION ---
   useEffect(() => {
       if (!student || rankings.length === 0) return;
 
-      // API bizə hazır "allTimeScore" və "monthlyScore" göndərir.
-      // Biz sadəcə "score" sahəsini seçdiyimiz vaxta uyğun təyin edirik.
       let currentList = rankings.map(item => ({
           ...item,
           score: timeFilter === 'all_time' ? item.allTimeScore : item.monthlyScore 
       }));
 
-      // KATEQORIYA FİLTRİ
       if (rankFilter === 'category') {
           const myCategory = getCategoryName(student.grade);
           currentList = currentList.filter(r => getCategoryName(r.class) === myCategory);
       }
 
-      // Mənim real balım (Siyahıdan özümü tapıram)
       const myDataInList = currentList.find(r => r.id === student.id);
       const myScore = myDataInList ? myDataInList.score : 0;
       setMyCurrentScore(myScore);
 
-      // Sıralama (Çoxdan aza)
       currentList.sort((a, b) => b.score - a.score);
 
-      // İndexi tapırıq
       const rank = currentList.findIndex(r => r.id === student.id) + 1;
       setMyCalculatedRank(rank);
 
@@ -155,7 +147,6 @@ export default function StudentCabinet() {
         setActiveExams(data.activeExams || []);
         setExamResults(data.examResults || []);
         
-        // API-dən gələn REAL RANKING data
         if(data.rankings) {
             setRankings(data.rankings);
         }
@@ -465,6 +456,7 @@ export default function StudentCabinet() {
 
                 {filteredRankings.length > 0 && (
                     <>
+                        {/* PODIUM (TOP 3) */}
                         <div className="grid grid-cols-3 gap-2 md:gap-6 mb-12 items-end px-2 md:px-12">
                             {/* 2-ci YER */}
                             {filteredRankings[1] && (
@@ -475,7 +467,8 @@ export default function StudentCabinet() {
                                     </div>
                                     <div className="w-full bg-gradient-to-t from-gray-200 to-gray-100 rounded-t-2xl p-4 text-center border-t-4 border-gray-300 shadow-lg h-32 md:h-40 flex flex-col justify-center">
                                         <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[1].name}</p>
-                                        <p className="text-gray-500 text-xs font-bold">{filteredRankings[1].score} Bal</p>
+                                        <p className="text-[10px] text-gray-500 font-mono mb-1">ID: {filteredRankings[1].displayId}</p>
+                                        <p className="text-gray-600 text-xs font-bold">{filteredRankings[1].score} Bal</p>
                                     </div>
                                 </div>
                             )}
@@ -489,7 +482,8 @@ export default function StudentCabinet() {
                                     </div>
                                     <div className="w-full bg-gradient-to-t from-yellow-200 to-yellow-50 rounded-t-2xl p-4 text-center border-t-4 border-yellow-400 shadow-xl h-40 md:h-52 flex flex-col justify-center">
                                         <p className="font-black text-gray-900 text-base md:text-lg line-clamp-1">{filteredRankings[0].name}</p>
-                                        <p className="text-yellow-700 font-bold text-sm bg-yellow-300/50 px-3 py-1 rounded-full mx-auto w-fit mt-1">{filteredRankings[0].score} Bal</p>
+                                        <p className="text-[10px] text-gray-500 font-mono mb-1">ID: {filteredRankings[0].displayId}</p>
+                                        <p className="text-yellow-700 font-bold text-sm bg-yellow-300/50 px-3 py-1 rounded-full mx-auto w-fit">{filteredRankings[0].score} Bal</p>
                                     </div>
                                 </div>
                             )}
@@ -503,7 +497,8 @@ export default function StudentCabinet() {
                                     </div>
                                     <div className="w-full bg-gradient-to-t from-orange-100 to-orange-50 rounded-t-2xl p-4 text-center border-t-4 border-orange-300 shadow-lg h-28 md:h-36 flex flex-col justify-center">
                                         <p className="font-bold text-gray-800 text-sm md:text-base line-clamp-1">{filteredRankings[2].name}</p>
-                                        <p className="text-gray-500 text-xs font-bold">{filteredRankings[2].score} Bal</p>
+                                        <p className="text-[10px] text-gray-500 font-mono mb-1">ID: {filteredRankings[2].displayId}</p>
+                                        <p className="text-gray-600 text-xs font-bold">{filteredRankings[2].score} Bal</p>
                                     </div>
                                 </div>
                             )}
@@ -519,9 +514,12 @@ export default function StudentCabinet() {
                                         <div className="w-10 text-center font-black text-gray-400 text-lg mr-4">{rank}</div>
                                         <div className="text-2xl mr-4">{r.avatar}</div>
                                         <div className="flex-1">
-                                            <p className={`font-bold ${isMe ? 'text-indigo-700' : 'text-gray-800'}`}>
-                                                {r.name} {isMe && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full ml-2">SƏN</span>}
-                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <p className={`font-bold ${isMe ? 'text-indigo-700' : 'text-gray-800'}`}>
+                                                    {r.name} {isMe && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full ml-1">SƏN</span>}
+                                                </p>
+                                                <span className="text-[10px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">#{r.displayId}</span>
+                                            </div>
                                             <p className="text-xs text-gray-400">{getCategoryName(r.class)}</p>
                                         </div>
                                         <div className="font-bold text-gray-800 bg-gray-100 px-3 py-1 rounded-lg">{r.score}</div>
@@ -540,7 +538,10 @@ export default function StudentCabinet() {
                                 <div className="font-black text-2xl text-indigo-200">#{myCalculatedRank}</div>
                                 <div className="text-3xl">{selectedAvatar}</div>
                                 <div>
-                                    <p className="font-bold text-lg">{student.first_name} {student.last_name}</p>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-bold text-lg">{student.first_name} {student.last_name}</p>
+                                        <span className="text-xs font-mono bg-indigo-500/50 px-2 py-0.5 rounded text-indigo-100">#{student.student_code}</span>
+                                    </div>
                                     <p className="text-xs text-indigo-200">Sənin mövqeyin</p>
                                 </div>
                             </div>
@@ -579,7 +580,7 @@ export default function StudentCabinet() {
   );
 }
 
-// ... ResultCard və DetailRow komponentləri eyni qalır (bu hissəyə dəyməyə ehtiyac yoxdur) ...
+// ResultCard və DetailRow eyni qalır
 function ResultCard({ studentName, studentId, quizName, score, total, percent, date, logoUrl }: any) {
   const isPass = percent >= 50;
   const statusColor = isPass ? "text-green-600" : "text-red-600";
