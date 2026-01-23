@@ -5,14 +5,25 @@ import { useRouter } from "next/navigation";
 import { 
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, Trash2, Pencil, RefreshCcw,
-  BarChart3, TrendingUp, Activity, PieChart, LineChart // LineChart ikonu əlavə olundu
+  BarChart3, TrendingUp, Activity, PieChart
 } from "lucide-react";
+
+// RECHARTS IMPORTLARI
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
 const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
 const PHONE_PREFIXES = ["050", "051", "055", "070", "077", "099", "010", "060"]; 
 const GRADES = Array.from({ length: 11 }, (_, i) => i + 1); 
 const SECTORS = ["Az", "Ru", "Eng"];
+
+// 24 SAATLIQ STATİK SİYAHI (08:00 - 22:00)
+const TIME_SLOTS: string[] = [];
+for (let i = 8; i <= 22; i++) {
+  const hour = i.toString().padStart(2, '0');
+  TIME_SLOTS.push(`${hour}:00`);
+  if (i !== 22) TIME_SLOTS.push(`${hour}:30`);
+}
 
 export default function TeacherCabinet() {
   const router = useRouter();
@@ -36,7 +47,7 @@ export default function TeacherCabinet() {
   // QRUP STATE
   const [newGroupName, setNewGroupName] = useState("");
   const [tempDay, setTempDay] = useState("B.e"); 
-  const [tempTime, setTempTime] = useState("");   
+  const [tempTime, setTempTime] = useState("09:00"); 
   const [scheduleSlots, setScheduleSlots] = useState<{day: string, time: string}[]>([]);
 
   // JURNAL STATE
@@ -68,12 +79,10 @@ export default function TeacherCabinet() {
     const initData = async () => {
         try {
             const res = await fetch("/api/teacher/dashboard");
-            
             if (res.status === 401 || res.status === 403) {
                 router.push("/login");
                 return;
             }
-
             const data = await res.json();
             if (data.teacher) {
                 setTeacher(data.teacher);
@@ -85,13 +94,11 @@ export default function TeacherCabinet() {
             setLoading(false);
         }
     };
-
     initData();
   }, [router]);
 
-  // --- DATA FETCHING (API İLƏ) ---
+  // --- DATA FETCHING ---
   const fetchData = async (teacherId: number) => {
-    // 1. Şagirdləri Gətir
     try {
         const res = await fetch("/api/teacher/students");
         if (res.ok) {
@@ -100,7 +107,6 @@ export default function TeacherCabinet() {
         }
     } catch (e) { console.error(e); }
 
-    // 2. Qrupları Gətir
     try {
         const res = await fetch("/api/teacher/groups");
         if (res.ok) {
@@ -124,7 +130,6 @@ export default function TeacherCabinet() {
         });
         const result = await res.json();
         if (!res.ok) throw new Error(result.error);
-
         alert(editingId ? "Yeniləndi!" : "Əlavə edildi!");
         resetForm();
         fetchData(teacher.id);
@@ -152,14 +157,13 @@ export default function TeacherCabinet() {
   };
 
   // --- QRUPLAR ---
-  const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); setTempTime(""); };
+  const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
   
   const handleCreateGroup = async (e: React.FormEvent) => { 
       e.preventDefault(); 
       if (scheduleSlots.length === 0) return; 
       const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); 
-      
       try {
           const res = await fetch("/api/teacher/groups", {
               method: "POST",
@@ -167,12 +171,11 @@ export default function TeacherCabinet() {
               body: JSON.stringify({ name: newGroupName, schedule: finalSchedule })
           });
           if (!res.ok) throw new Error("Qrup yaradılmadı");
-          
           alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); fetchData(teacher.id); 
       } catch (e: any) { alert(e.message); }
   };
 
-  // --- JURNAL (API İLƏ) ---
+  // --- JURNAL ---
   const openGroup = (group: any) => { 
       setSelectedGroup(group); 
       fetchGroupMembers(group.id); 
@@ -192,7 +195,6 @@ export default function TeacherCabinet() {
   const fetchGradesForDate = async () => { 
       if (!selectedGroup) return; 
       setGrades({}); setAttendance({}); 
-      
       try {
           const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`);
           if (res.ok) {
@@ -218,7 +220,6 @@ export default function TeacherCabinet() {
               body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd })
           });
           if (!res.ok) throw new Error("Əlavə edilmədi (ola bilsin artıq var)");
-          
           alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); 
       } catch (e: any) { alert(e.message); }
   };
@@ -257,12 +258,11 @@ export default function TeacherCabinet() {
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
 
 
-  // --- ANALYTICS (API İLƏ) ---
+  // --- ANALYTICS ---
   const calculateAnalytics = async (groupId: string) => {
     if (!groupId) return;
     setAnalyticsGroupId(groupId);
 
-    // 1. Üzvləri gətir
     let studentsInGroup = [];
     try {
         const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
@@ -273,7 +273,6 @@ export default function TeacherCabinet() {
         }
     } catch(e) { console.error(e); return; }
 
-    // 2. Bütün qiymətləri gətir
     let allGrades = [];
     try {
         const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`);
@@ -365,8 +364,6 @@ export default function TeacherCabinet() {
       }
   }, [analysisMode, selectedStudentForChart, chartInterval, rawGradesForChart]);
 
-  // --- YENİ: VİZUAL HESABLANMA ---
-  // Bu funksiya kartlarda nəyi göstərəcəyimizi təyin edir
   const getDisplayStats = () => {
     if (analysisMode === 'individual' && selectedStudentForChart) {
         const studentStat = analyticsData.find(s => s.id.toString() === selectedStudentForChart.toString());
@@ -389,7 +386,6 @@ export default function TeacherCabinet() {
 
   const displayStats = getDisplayStats();
 
-  // ÇIXIŞ
   const handleLogout = async () => { 
       try {
           await fetch("/api/logout", { method: "POST" });
@@ -423,7 +419,7 @@ export default function TeacherCabinet() {
             <button onClick={() => setActiveTab('analytics')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'analytics' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><BarChart3 size={20} /> Analiz</button>
         </div>
 
-        {/* --- DASHBOARD UI --- */}
+        {/* --- DASHBOARD --- */}
         {activeTab === 'dashboard' && (
             <div className="animate-in fade-in duration-500">
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg mb-8 relative overflow-hidden">
@@ -448,7 +444,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- STUDENTS UI --- */}
+        {/* --- STUDENTS --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-fit sticky top-24">
@@ -502,7 +498,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- GROUPS UI --- */}
+        {/* --- GROUPS --- */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
                 <div className="lg:col-span-1 space-y-6">
@@ -514,7 +510,13 @@ export default function TeacherCabinet() {
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
                                 <div className="flex gap-2 mb-2">
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm flex-1 outline-none" value={tempDay} onChange={(e) => setTempDay(e.target.value)}>{WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
-                                    <input type="time" className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none" value={tempTime} onChange={(e) => setTempTime(e.target.value)} />
+                                    <select 
+                                        className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none w-24" 
+                                        value={tempTime} 
+                                        onChange={(e) => setTempTime(e.target.value)}
+                                    >
+                                        {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
                                     <button type="button" onClick={addScheduleSlot} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"><Plus size={18}/></button>
                                 </div>
                                 <div className="space-y-1 mt-2">
@@ -601,7 +603,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- ANALYTICS UI --- */}
+        {/* --- ANALYTICS --- */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in">
                 <div className="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
@@ -643,11 +645,9 @@ export default function TeacherCabinet() {
 
                 {analyticsGroupId && (
                     <div className="space-y-8">
-                        {/* KARTLAR - DİNAMİK */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
                                 <div>
-                                    {/* BAŞLIQ DƏYİŞİR: Qrup və ya Şagird adı */}
                                     <p className="text-gray-500 text-sm font-bold">{displayStats.title} Bal</p>
                                     <h3 className="text-4xl font-bold text-blue-600">{displayStats.score}</h3>
                                     {displayStats.isIndividual && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Fərdi</span>}
@@ -666,7 +666,7 @@ export default function TeacherCabinet() {
 
                         {chartData.length > 0 && (
                             <>
-                                {/* BAR CHART */}
+                                {/* BAR CHART (RƏNGLƏR YENİLƏNDİ: CANAVAR, YAXŞI, ORTA, ZƏİF) */}
                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                                         <Activity size={20} className="text-purple-600"/> 
@@ -683,7 +683,9 @@ export default function TeacherCabinet() {
                                                     {d.label}: <strong>{d.avg}</strong> Bal
                                                 </div>
                                                 <div 
-                                                    className={`w-full max-w-[50px] rounded-t-md transition-all relative ${d.avg >= 9 ? 'bg-green-500' : d.avg >= 6 ? 'bg-blue-500' : 'bg-orange-500'} hover:opacity-80`}
+                                                    className={`w-full max-w-[50px] rounded-t-md transition-all relative hover:opacity-80 
+                                                      ${d.avg === 10 ? 'bg-purple-600' : d.avg >= 7 ? 'bg-blue-500' : d.avg >= 5 ? 'bg-orange-500' : 'bg-red-500'}
+                                                    `}
                                                     style={{ height: `${Math.max(d.avg * 10, 5)}%` }} 
                                                 ></div>
                                                 <span className="text-[10px] text-gray-400 mt-3 font-medium truncate w-full text-center">
@@ -694,56 +696,37 @@ export default function TeacherCabinet() {
                                     </div>
                                 </div>
 
-                                {/* YENİ: LINE CHART (SVG) */}
+                                {/* YENİ: RECHARTS LINE CHART (ANIMASIYALI) */}
                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 mt-6">
                                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <LineChart size={20} className="text-blue-500"/> İnkişaf Dinamikası (Line)
+                                        <Activity size={20} className="text-blue-500"/> İnkişaf Dinamikası (Line)
                                     </h3>
-                                    <div className="h-64 w-full relative">
-                                        {/* SVG Chart */}
-                                        <svg viewBox="0 0 100 50" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                                            {/* Grid Lines */}
-                                            <line x1="0" y1="0" x2="100" y2="0" stroke="#eee" strokeWidth="0.2" />
-                                            <line x1="0" y1="25" x2="100" y2="25" stroke="#eee" strokeWidth="0.2" />
-                                            <line x1="0" y1="50" x2="100" y2="50" stroke="#eee" strokeWidth="0.2" />
-
-                                            {/* Path */}
-                                            <path
-                                                d={`M ${chartData.map((d, i) => {
-                                                    const x = (i / (chartData.length - 1 || 1)) * 100;
-                                                    // Y: 50 is bottom (0 score), 0 is top (10 score). So: 50 - (score * 5)
-                                                    const y = 50 - (d.avg * 5); 
-                                                    return `${x},${y}`;
-                                                }).join(" L ")}`}
-                                                fill="none"
-                                                stroke="#3b82f6"
-                                                strokeWidth="0.8"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                            />
-
-                                            {/* Dots */}
-                                            {chartData.map((d, i) => {
-                                                const x = (i / (chartData.length - 1 || 1)) * 100;
-                                                const y = 50 - (d.avg * 5);
-                                                return (
-                                                    <circle key={i} cx={x} cy={y} r="1.5" fill="#fff" stroke="#3b82f6" strokeWidth="0.5" className="hover:r-2 transition-all cursor-pointer">
-                                                        <title>{d.label}: {d.avg}</title>
-                                                    </circle>
-                                                );
-                                            })}
-                                        </svg>
-                                        <div className="flex justify-between text-[10px] text-gray-400 mt-2">
-                                            {chartData.map((d, i) => (
-                                                <span key={i}>{chartInterval === 'lessons4' ? d.label.slice(5) : d.label}</span>
-                                            ))}
-                                        </div>
+                                    <div className="h-64 w-full">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={chartData}>
+                                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                          <XAxis dataKey="label" fontSize={12} stroke="#9ca3af" />
+                                          <YAxis domain={[0, 10]} hide /> 
+                                          <Tooltip 
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            formatter={(value: number) => [`${value} Bal`, 'Ortalama']}
+                                          />
+                                          <Line 
+                                            type="monotone" 
+                                            dataKey="avg" 
+                                            stroke="#3b82f6" 
+                                            strokeWidth={3}
+                                            dot={{ fill: '#fff', stroke: '#3b82f6', strokeWidth: 2, r: 4 }}
+                                            activeDot={{ r: 6 }}
+                                          />
+                                        </LineChart>
+                                      </ResponsiveContainer>
                                     </div>
                                 </div>
                             </>
                         )}
 
-                        {/* REYTİNQ */}
+                        {/* REYTİNQ CƏDVƏLİ (STATUSLAR YENİLƏNDİ) */}
                         {analysisMode === 'group' && (
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
                                 <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
@@ -766,9 +749,14 @@ export default function TeacherCabinet() {
                                                     </div>
                                                 </td>
                                                 <td className="p-3">
-                                                    {parseFloat(s.avgScore) >= 9 ? <span className="text-green-600 bg-green-50 px-2 py-1 rounded text-xs font-bold">Əlaçı</span> :
-                                                     parseFloat(s.avgScore) >= 7 ? <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
-                                                     <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>}
+                                                    {parseFloat(s.avgScore) === 10 ? 
+                                                      <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded text-xs font-extrabold border border-purple-200">🦁 Canavar</span> :
+                                                     parseFloat(s.avgScore) >= 7 ? 
+                                                      <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
+                                                     parseFloat(s.avgScore) >= 5 ? 
+                                                      <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded text-xs font-bold">Orta</span> :
+                                                      <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>
+                                                    }
                                                 </td>
                                             </tr>
                                         ))}
