@@ -16,7 +16,7 @@ export async function GET() {
   try {
     const user = JSON.parse(token);
 
-    // 1. ŞAGİRDİ TAPIRIQ
+    // 1. ŞAGİRD
     const { data: student, error } = await supabaseAdmin
       .from("local_students")
       .select("*")
@@ -25,7 +25,7 @@ export async function GET() {
 
     if (error || !student) return NextResponse.json({ error: "Şagird tapılmadı" }, { status: 404 });
 
-    // 2. MÜƏLLİM VƏ QRUP
+    // 2. MÜƏLLİM & QRUP
     let groupName = "Təyin olunmayıb";
     let teacherName = "Təyin olunmayıb";
 
@@ -40,7 +40,7 @@ export async function GET() {
         groupName = groupMember.groups.name;
     }
 
-    // 3. STATİSTİKA VƏ CHART (Şagirdin özü üçün)
+    // 3. STATİSTİKA
     const { data: grades } = await supabaseAdmin
         .from("daily_grades")
         .select("score, attendance, grade_date")
@@ -69,7 +69,7 @@ export async function GET() {
         recentGrades = [...grades].reverse().slice(0, 5);
     }
 
-    // 4. İMTAHANLAR (Sadəcə məlumat üçün, sıralamaya təsir etmir)
+    // 4. İMTAHANLAR
     const { data: activeExams } = await supabaseAdmin
         .from("exams")
         .select("*")
@@ -82,29 +82,26 @@ export async function GET() {
         .eq("student_id", student.student_code)
         .order("created_at", { ascending: false });
 
-    // 5. 🔥 SIRALAMA (YALNIZ DAILY_GRADES İLƏ) 🔥
-    // Bütün şagirdləri və onların gündəlik qiymətlərini çəkirik
+    // 5. SIRALAMA
     const { data: allStudentsRaw } = await supabaseAdmin
         .from("local_students")
-        .select("id, first_name, last_name, grade, daily_grades(score, grade_date)");
+        .select("id, student_code, first_name, last_name, grade, daily_grades(score, grade_date)");
 
     let rankings = [];
 
     if (allStudentsRaw) {
         const now = new Date();
-        const currentMonth = now.getMonth(); // 0-11
+        const currentMonth = now.getMonth(); 
         const currentYear = now.getFullYear();
 
         rankings = allStudentsRaw.map((st: any) => {
             const grades = st.daily_grades || [];
 
-            // A. BÜTÜN ZAMANLAR ÜÇÜN ORTALAMA
             const allScores = grades.filter((g: any) => g.score !== null).map((g: any) => g.score);
             const allTimeAvg = allScores.length > 0 
                 ? allScores.reduce((a: number, b: number) => a + b, 0) / allScores.length 
                 : 0;
 
-            // B. BU AY ÜÇÜN ORTALAMA
             const monthlyScores = grades.filter((g: any) => {
                 if (g.score === null) return false;
                 const d = new Date(g.grade_date);
@@ -113,14 +110,14 @@ export async function GET() {
 
             const monthlyAvg = monthlyScores.length > 0
                 ? monthlyScores.reduce((a: number, b: number) => a + b, 0) / monthlyScores.length
-                : 0; // Əgər bu ay qiymət yoxdursa 0 olur
+                : 0;
 
-            // Avatar (Random)
             const AVATARS = ["👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"];
             const randomAvatar = AVATARS[st.id % AVATARS.length]; 
 
             return {
                 id: st.id,
+                displayId: st.student_code, // 🔥 YENİ: Görünən ID (Student Code)
                 name: `${st.first_name} ${st.last_name}`,
                 allTimeScore: parseFloat(allTimeAvg.toFixed(1)),
                 monthlyScore: parseFloat(monthlyAvg.toFixed(1)),
@@ -129,7 +126,6 @@ export async function GET() {
             };
         });
 
-        // Default olaraq All Time-a görə sıralayıb göndəririk (Front-end yenidən sıralayacaq)
         rankings.sort((a, b) => b.allTimeScore - a.allTimeScore);
     }
 
@@ -142,7 +138,7 @@ export async function GET() {
         recentGrades,
         activeExams: activeExams || [], 
         examResults: examResults || [],
-        rankings: rankings // Hesablanmış təmiz data
+        rankings: rankings
     });
 
   } catch (error) {
