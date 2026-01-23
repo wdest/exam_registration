@@ -160,68 +160,48 @@ export default function AdminDashboard() {
     e.preventDefault();
     if (!newExamName || !newExamUrl || !newExamClass) return alert("Bütün xanaları doldurun.");
 
-    const res = await fetch("/api/admin-action", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            action: "insert", table: "exams",
-            data: {
-                name: newExamName, url: newExamUrl, class_grade: newExamClass,
-                is_paid: isPaid, price: isPaid ? parseFloat(examPrice) : 0
-            }
-        })
+    const { error } = await supabase.from("exams").insert({
+        name: newExamName, url: newExamUrl, class_grade: newExamClass,
+        is_paid: isPaid, price: isPaid ? parseFloat(examPrice) : 0
     });
 
-    if (res.ok) {
+    if (!error) {
         alert("İmtahan yaradıldı! ✅");
         setNewExamName(""); setNewExamUrl(""); setIsPaid(false); setExamPrice("0");
         fetchAllData();
-    } else { alert("Xəta!"); }
+    } else { alert("Xəta: " + error.message); }
   }
 
   async function deleteExam(id: number) {
     if(!confirm("Bu imtahanı silmək istəyirsiniz?")) return;
-    const res = await fetch("/api/admin-action", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", table: "exams", id: id })
-    });
-    if (res.ok) fetchAllData(); else alert("Xəta!");
+    const { error } = await supabase.from("exams").delete().eq('id', id);
+    if (!error) fetchAllData(); else alert("Xəta: " + error.message);
   }
 
   async function deleteStudent(id: number) {
     if(!confirm("Tələbəni silmək istəyirsiniz?")) return;
-    const res = await fetch("/api/admin-action", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", table: "students", id: id })
-    });
-    if (res.ok) fetchAllData(); else alert("Xəta!");
+    const { error } = await supabase.from("students").delete().eq('id', id);
+    if (!error) fetchAllData(); else alert("Xəta: " + error.message);
   }
 
   async function handleSaveStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!editingStudent) return;
-    const res = await fetch("/api/admin-action", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            action: "update", table: "students", id: editingStudent.id,
-            data: {
-                first_name: editingStudent.first_name, last_name: editingStudent.last_name,
-                parent_name: editingStudent.parent_name, class: editingStudent.class,
-                phone1: editingStudent.phone1, phone2: editingStudent.phone2,
-                exam_id: editingStudent.exam_id
-            }
-        })
-    });
-    if (res.ok) { setEditingStudent(null); fetchAllData(); } else { alert("Xəta!"); }
+    const { error } = await supabase.from("students").update({
+        first_name: editingStudent.first_name, last_name: editingStudent.last_name,
+        parent_name: editingStudent.parent_name, class: editingStudent.class,
+        phone1: editingStudent.phone1, phone2: editingStudent.phone2,
+        exam_id: editingStudent.exam_id
+    }).eq('id', editingStudent.id);
+
+    if (!error) { setEditingStudent(null); fetchAllData(); } else { alert("Xəta: " + error.message); }
   }
 
   async function updateSetting(key: string, val: string) {
       const settingItem = siteSettings.find(s => s.key === key);
       if(settingItem) {
-          const res = await fetch("/api/admin-action", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "update", table: "settings", id: settingItem.id, data: { value: val } })
-          });
-          if(res.ok) alert("Yadda saxlandı!"); else alert("Xəta!");
+          const { error } = await supabase.from("settings").update({ value: val }).eq('id', settingItem.id);
+          if(!error) alert("Yadda saxlandı!"); else alert("Xəta!");
       }
   }
 
@@ -241,9 +221,9 @@ export default function AdminDashboard() {
     XLSX.writeFile(wb, "Telebeler.xlsx");
   }
 
-  // --- YÜKLƏMƏ FUNKSİYALARI (FIXED) ---
+  // --- YÜKLƏMƏ FUNKSİYALARI (VALIDATION UPDATE) ---
 
-  // A. Nəticə Yüklə (Excel) - URL FIX EDİLDİ
+  // A. Nəticə Yüklə (Excel) - QEYDİYYAT YOXLAMASI İLƏ
   async function handleResultUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files?.length) return;
     if (!uploadExamSelect) { 
@@ -265,41 +245,61 @@ export default function AdminDashboard() {
             
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
-            
-            // Excel-i birbaşa JSON-a çeviririk
             const rawData: any[] = XLSX.utils.sheet_to_json(ws);
             
-            console.log("Göndərilən Data:", rawData); 
+            // 1. Valid ID-ləri 'students' cədvəlindən götürürük (Sürətli axtarış üçün Set edirik)
+            const validStudentIds = new Set(students.map(s => String(s.exam_id).trim()));
 
-            // DİQQƏT: Buranı düzəltdik -> /api/upload-result (s-siz)
-            const res = await fetch("/api/upload-result", { 
-                method: "POST", 
-                headers: {"Content-Type":"application/json"}, 
-                body: JSON.stringify({ 
-                    data: rawData, 
-                    examName: uploadExamSelect
-                }) 
+            let ignoredCount = 0;
+
+            // 2. Datanı Formatlaşdırırıq və Filtrləyirik
+            const formattedData = rawData.map((row: any) => {
+                let rawPercent = row["Percent Correct"];
+                if(rawPercent && rawPercent <= 1) {
+                    rawPercent = rawPercent * 100;
+                }
+                return {
+                    student_id: String(row["ZipGrade ID"] || row["External Id"] || "").trim(),
+                    quiz: uploadExamSelect,
+                    score: Number(row["Num Correct"]) || 0,
+                    total: Number(row["Num Questions"]) || 0,
+                    percent: Number(rawPercent) || 0
+                };
+            }).filter(item => {
+                // Əgər ID boşdursa, silinsin
+                if (item.student_id === "") return false;
+
+                // YOXLA: Tələbə bizim bazada varmı?
+                if (validStudentIds.has(item.student_id)) {
+                    return true; // Var, saxla
+                } else {
+                    ignoredCount++; // Yoxdur, sayğacı artır və sil
+                    return false;
+                }
             });
 
-            // Xətaları tutmaq üçün
-            const responseText = await res.text();
-            
-            let resultJson;
-            try {
-                resultJson = JSON.parse(responseText);
-            } catch (jsonError) {
-                console.error("Server Cavabı (Raw):", responseText);
-                throw new Error(`Server Xətası: ${responseText.slice(0, 150)}...`);
+            if(formattedData.length === 0 && ignoredCount === 0) {
+                throw new Error("Excel faylında uyğun məlumat tapılmadı.");
             }
 
-            if (!res.ok || !resultJson.success) {
-                throw new Error(resultJson.message || resultJson.error || "Bilinməyən xəta");
+            if(formattedData.length === 0 && ignoredCount > 0) {
+                throw new Error(`Fayldakı ${ignoredCount} tələbənin heç biri qeydiyyatda yoxdur.`);
             }
 
-            setUploadMessage(`✅ ${resultJson.processed_count} nəfər uğurla yükləndi!`);
+            // 3. Birbaşa Supabase-ə yazırıq
+            const { error } = await supabase.from("results").insert(formattedData);
+
+            if (error) {
+                console.error("Supabase Error:", error);
+                throw new Error("Bazaya yazılarkən xəta: " + error.message);
+            }
+
+            // Mesajda neçəsinin yükləndiyini və neçəsinin kənarlaşdırıldığını göstəririk
+            setUploadMessage(`✅ ${formattedData.length} nəfər yükləndi. (⚠️ ${ignoredCount} nəfər qeydiyyatsız olduğu üçün yüklənmədi)`);
             fetchAllData(); 
+
         } catch (err:any) { 
-            console.error("Upload Xətası:", err);
+            console.error(err);
             setUploadMessage("❌ Xəta: " + err.message); 
         } finally { 
             setUploading(false); 
@@ -324,16 +324,9 @@ export default function AdminDashboard() {
         const exam = exams.find(e => e.name === certExamSelect);
         if(!exam) throw new Error("İmtahan tapılmadı");
 
-        const res = await fetch("/api/admin-action", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action: "update", table: "exams", id: exam.id,
-                data: { certificate_url: uploadedUrl }
-            })
-        });
+        const { error } = await supabase.from("exams").update({ certificate_url: uploadedUrl }).eq('id', exam.id);
 
-        if(!res.ok) throw new Error("Bazaya yazıla bilmədi");
+        if(error) throw new Error(error.message);
 
         setCertMessage("✅ Sertifikat yükləndi!");
         setPreviewExamName(certExamSelect);
@@ -356,15 +349,9 @@ export default function AdminDashboard() {
          const exam = exams.find(e => e.name === certExamSelect);
          if(!exam) throw new Error("İmtahan tapılmadı");
 
-         const res = await fetch("/api/admin-action", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action: "update", table: "exams", id: exam.id,
-                data: { certificate_url: null }
-            })
-        });
+         const { error } = await supabase.from("exams").update({ certificate_url: null }).eq('id', exam.id);
 
-        if(!res.ok) throw new Error("Silinmədi");
+        if(error) throw new Error(error.message);
          
          setCertMessage("🗑️ Şablon silindi.");
          fetchAllData();
@@ -375,7 +362,7 @@ export default function AdminDashboard() {
      }
   }
 
-  // D. Nəticələri Silmək (Results cədvəlindən)
+  // D. Nəticələri Silmək
   async function deleteExamResults() {
      if(!uploadExamSelect) return alert("İmtahan seçin!");
      const count = getResultCount(uploadExamSelect);
@@ -385,16 +372,10 @@ export default function AdminDashboard() {
 
      setUploading(true);
      try {
-         // YENİ: results cədvəlindən həmin imtahana aid olanları tapırıq
-         const resultsToDelete = results.filter(r => r.quiz === uploadExamSelect);
-         
-         for (const resItem of resultsToDelete) {
-             await fetch("/api/admin-action", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                // DİQQƏT: table 'results' olaraq dəyişdirildi
-                body: JSON.stringify({ action: "delete", table: "results", id: resItem.id })
-            });
-         }
+         // Birbaşa Supabase-dən silirik
+         const { error } = await supabase.from("results").delete().eq('quiz', uploadExamSelect);
+
+         if(error) throw new Error(error.message);
 
          setUploadMessage("🗑️ Bütün nəticələr silindi.");
          fetchAllData();
@@ -414,10 +395,7 @@ export default function AdminDashboard() {
         const uploadedUrl = await secureImageUpload(file, "gallery");
         if (!uploadedUrl) throw new Error("Şəkil yüklənmədi");
 
-        await fetch("/api/admin-action", {
-            method: "POST", headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ action: "insert", table: "gallery", data: { image_url: uploadedUrl } })
-        });
+        await supabase.from("gallery").insert({ image_url: uploadedUrl });
         fetchAllData();
      } catch(e:any) { alert("Xəta: " + e.message); } finally { setUploading(false); e.target.value = ""; }
   }
@@ -425,16 +403,12 @@ export default function AdminDashboard() {
   // F. Qalereya Sil
   async function deleteImage(id: number, url: string) {
       if(!confirm("Silinsin?")) return;
-      await fetch("/api/admin-action", {
-        method: "POST", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ action: "delete", table: "gallery", id: id })
-      });
+      await supabase.from("gallery").delete().eq('id', id);
       fetchAllData();
   }
 
   function logout() { router.push("/"); }
 
-  // HELPERS - YENİLƏNDİ (results cədvəlinə baxır)
   const checkResultsExist = (examName: string) => results.some(r => r.quiz === examName);
   const getResultCount = (examName: string) => results.filter(r => r.quiz === examName).length;
   const getSelectedCertExam = () => exams.find(e => e.name === certExamSelect);
@@ -657,7 +631,7 @@ export default function AdminDashboard() {
                              <span>{uploading ? "Yüklənir..." : "Faylı bura atın"}</span>
                          </div>
                      </div>
-                     {uploadMessage && <p className={`mt-4 font-bold text-sm ${uploadMessage.includes("Xəta") ? "text-red-500" : "text-green-600"}`}>{uploadMessage}</p>}
+                     {uploadMessage && <p className={`mt-4 font-bold text-sm ${uploadMessage.includes("Xəta") || uploadMessage.includes("⚠️") ? "text-amber-600" : "text-green-600"}`}>{uploadMessage}</p>}
                  </div>
 
                  {/* B. CERTIFICATE SECTION */}
