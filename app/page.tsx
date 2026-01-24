@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Hammer, Instagram, Facebook, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { Instagram, Facebook, Mail, ArrowRight, Loader2, CheckCircle } from "lucide-react";
 
 export default function ComingSoon() {
   const [email, setEmail] = useState("");
