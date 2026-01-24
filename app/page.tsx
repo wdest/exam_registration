@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Instagram, Facebook, Mail, ArrowRight, Loader2, CheckCircle } from "lucide-react";
+import { Instagram, Mail, ArrowRight, Loader2, CheckCircle, Phone } from "lucide-react";
 
 export default function ComingSoon() {
   const [email, setEmail] = useState("");
@@ -14,7 +14,7 @@ export default function ComingSoon() {
     e.preventDefault();
     if (!email) return;
     setLoading(true);
-    // Burada gələcəkdə Supabase-ə email yaza bilərsən
+    // Gələcəkdə bura Supabase kodunu yaza bilərsən
     setTimeout(() => {
       setLoading(false);
       setNotified(true);
@@ -41,17 +41,16 @@ export default function ComingSoon() {
           initial={{ scale: 0.8 }}
           animate={{ scale: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-8 flex justify-center"
+          className="mb-6 flex justify-center"
         >
-           {/* Logo şəkli yoxdursa textlə əvəzləyirik */}
-           <div className="flex flex-col items-center">
-             <span className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-amber-500 to-orange-600">
-               MOC
-             </span>
-             <span className="text-[10px] md:text-xs font-bold tracking-[0.3em] text-gray-400 mt-1 uppercase">
-               Main Olympic Center
-             </span>
-           </div>
+           <Image
+             src="/logo.png" // Sənin loqon
+             alt="Main Olympic Center Logo"
+             width={180}
+             height={80}
+             className="object-contain h-24 w-auto drop-shadow-md"
+             priority
+           />
         </motion.div>
 
         {/* BAŞLIQ & MƏTN */}
@@ -61,7 +60,7 @@ export default function ComingSoon() {
         </h1>
         
         <p className="text-gray-500 text-lg md:text-xl mb-8 max-w-lg mx-auto">
-          Saytımız üzərində son tamamlanma işləri gedir. Tezliklə ən müasir təhsil platforması ilə xidmətinizdəyik.
+          Main Olympic Center saytı üzərində son tamamlanma işləri gedir. Tezliklə ən müasir təhsil platforması ilə xidmətinizdəyik.
         </p>
 
         {/* NOTIFICATION FORM */}
@@ -98,9 +97,36 @@ export default function ComingSoon() {
           <p>© 2025 Main Olympic Center</p>
           
           <div className="flex gap-4">
-            <a href="#" className="p-2 bg-gray-50 rounded-full hover:bg-amber-100 hover:text-amber-600 transition"><Instagram size={18}/></a>
-            <a href="#" className="p-2 bg-gray-50 rounded-full hover:bg-blue-100 hover:text-blue-600 transition"><Facebook size={18}/></a>
-            <a href="mailto:info@moc.az" className="p-2 bg-gray-50 rounded-full hover:bg-orange-100 hover:text-orange-600 transition"><Mail size={18}/></a>
+            {/* Instagram Linki */}
+            <a 
+              href="https://www.instagram.com/main_olympic_center?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-3 bg-gray-50 rounded-full hover:bg-amber-100 hover:text-amber-600 transition shadow-sm border border-gray-100"
+              title="Instagram"
+            >
+              <Instagram size={20}/>
+            </a>
+
+            {/* WhatsApp Linki (070 207 37 92) */}
+            <a 
+              href="https://wa.me/994702073792" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="p-3 bg-gray-50 rounded-full hover:bg-green-100 hover:text-green-600 transition shadow-sm border border-gray-100"
+              title="WhatsApp: 070 207 37 92"
+            >
+              <Phone size={20}/>
+            </a>
+
+            {/* Email Linki */}
+            <a 
+              href="mailto:info@moc.az" 
+              className="p-3 bg-gray-50 rounded-full hover:bg-orange-100 hover:text-orange-600 transition shadow-sm border border-gray-100"
+              title="Email"
+            >
+              <Mail size={20}/>
+            </a>
           </div>
         </div>
 
