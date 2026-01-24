@@ -7,7 +7,8 @@ import {
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
-  Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square
+  Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square,
+  ChevronLeft, X
 } from "lucide-react";
 
 // RECHARTS
@@ -20,17 +21,16 @@ const DAY_INDEX_MAP: { [key: string]: number } = {
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
-// 🔥 SAAT AYARLARI
-const START_HOUR = 6;  
-const END_HOUR = 24;   
+// 🔥 ÖLÇÜLƏR (Geniş və qısa olması üçün)
+const START_HOUR = 8;  // Səhər 8-dən
+const END_HOUR = 22;   // Axşam 10-a qədər
 const TOTAL_HOURS = END_HOUR - START_HOUR;
-const PIXELS_PER_HOUR = 80; // Genişlik
+const PIXELS_PER_HOUR = 60; // Hündürlük kompakt
 
 const PHONE_PREFIXES = ["050", "051", "055", "070", "077", "099", "010", "060"]; 
 const GRADES = Array.from({ length: 11 }, (_, i) => i + 1); 
 const SECTORS = ["Az", "Ru", "Eng"];
 
-// DROPDOWN DATA
 const TIME_SLOTS: string[] = [];
 for (let i = START_HOUR; i < END_HOUR; i++) {
   const hour = i.toString().padStart(2, '0');
@@ -44,18 +44,23 @@ export default function TeacherCabinet() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [teacher, setTeacher] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState("schedule"); // Default Schedule açılır
 
   // DATA
   const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   
-  // TOPLU SEÇİM STATE
+  // TOPLU SEÇİM
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
-  // CƏDVƏL
+  // CƏDVƏL & NAVİQASİYA
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
   const [currentTimePosition, setCurrentTimePosition] = useState<number | null>(null);
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date()); // Həftənin başlanğıcı
+  const [selectedEventForStatus, setSelectedEventForStatus] = useState<any>(null); // Modal üçün
+  
+  // 🔥 STATUS YADDAŞI
+  const [lessonStatusOverrides, setLessonStatusOverrides] = useState<{[key: string]: string}>({});
 
   // EDIT
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -82,7 +87,7 @@ export default function TeacherCabinet() {
   const [attendance, setAttendance] = useState<{[key: string]: boolean}>({});
   const [isValidDay, setIsValidDay] = useState(true); 
 
-  // --- ANALİZ STATE ---
+  // --- ANALİZ ---
   const [analyticsGroupId, setAnalyticsGroupId] = useState<string>("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState({ avgScore: 0, avgAttendance: 0 });
@@ -95,6 +100,13 @@ export default function TeacherCabinet() {
 
   // --- INIT ---
   useEffect(() => {
+    // Cari həftənin Bazar ertəsini tapmaq
+    const today = new Date();
+    const day = today.getDay(); 
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // bazar ertəsinə çəkmək
+    const monday = new Date(today.setDate(diff));
+    setCurrentWeekStart(monday);
+
     const initData = async () => {
         try {
             const res = await fetch("/api/teacher/dashboard");
@@ -105,6 +117,7 @@ export default function TeacherCabinet() {
             const data = await res.json();
             if (data.teacher) {
                 setTeacher(data.teacher);
+                // Dataları yüklə
                 fetchData(data.teacher.id);
             }
         } catch (error) {
@@ -133,12 +146,44 @@ export default function TeacherCabinet() {
     return () => clearInterval(interval);
   }, [router]);
 
-  // 🔥 YENİ CƏDVƏL LOGİKASI (RƏNGLƏR VƏ PARSE)
+  // 🔥 STATUSLARI API-dan YÜKLƏMƏK
+  const fetchLessonStatuses = async () => {
+      try {
+          const res = await fetch("/api/teacher/schedule/status");
+          if (res.ok) {
+              const data = await res.json();
+              // Bazadan gələn datanı map-ə çeviririk: "groupID_YYYY-MM-DD" -> "done"
+              const statusMap: {[key: string]: string} = {};
+              data.statuses.forEach((item: any) => {
+                  const key = `${item.group_id}_${item.lesson_date}`;
+                  statusMap[key] = item.status;
+              });
+              setLessonStatusOverrides(statusMap);
+          }
+      } catch (error) {
+          console.error("Statuslar yüklənmədi", error);
+      }
+  };
+
+  useEffect(() => {
+    if (teacher) {
+        fetchLessonStatuses();
+    }
+  }, [teacher]);
+
+
+  // 🔥 CƏDVƏL LOGİKASI (Həftəyə görə + Status Overrides)
   useEffect(() => {
       const events: any[] = [];
       const now = new Date();
-      const currentDayIndex = (now.getDay() + 6) % 7; 
-      const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      // Seçilmiş həftənin günlərini hesablamaq
+      const weekDates: Date[] = [];
+      for(let i=0; i<7; i++) {
+        const d = new Date(currentWeekStart);
+        d.setDate(currentWeekStart.getDate() + i);
+        weekDates.push(d);
+      }
 
       groups.forEach(group => {
           if(!group.schedule) return;
@@ -165,36 +210,55 @@ export default function TeacherCabinet() {
                             endH = eH; endM = eM;
                         }
 
-                        const startTotalMinutes = h * 60 + m;
-                        const endTotalMinutes = endH * 60 + endM;
+                        // Bu dərsin dəqiq tarixi
+                        const specificDate = weekDates[dayIndex];
+                        const dateString = specificDate.toISOString().split('T')[0]; // YYYY-MM-DD
                         
-                        // RƏNG LOGİKASI
-                        let statusColor = "bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800"; // Gələcək
+                        // Status açarı: "groupID_YYYY-MM-DD"
+                        const statusKey = `${group.id}_${dateString}`;
+
+                        const lessonStart = new Date(specificDate);
+                        lessonStart.setHours(h, m, 0);
+                        const lessonEnd = new Date(specificDate);
+                        lessonEnd.setHours(endH, endM, 0);
+
+                        // STATUS LOGİKASI
+                        const manualStatus = lessonStatusOverrides[statusKey];
+
+                        let statusColor = "bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800"; // Default: Olacaq
                         let statusText = "Olacaq";
 
-                        if (dayIndex < currentDayIndex) {
+                        if (manualStatus === 'done') {
                             statusColor = "bg-green-100 border-l-4 border-green-500 text-green-800";
-                            statusText = "Dərs Olub";
-                        } else if (dayIndex === currentDayIndex) {
-                            if (currentTotalMinutes > endTotalMinutes) {
-                                statusColor = "bg-green-100 border-l-4 border-green-500 text-green-800";
-                                statusText = "Dərs Olub";
-                            } else if (currentTotalMinutes >= startTotalMinutes && currentTotalMinutes <= endTotalMinutes) {
+                            statusText = "✅ Keçirildi";
+                        } else if (manualStatus === 'cancelled') {
+                            statusColor = "bg-red-100 border-l-4 border-red-500 text-red-800 opacity-70 grayscale";
+                            statusText = "❌ Ləğv edildi";
+                        } else {
+                            // Avtomatik Məntiq
+                            if (lessonEnd < now) {
+                                statusColor = "bg-gray-100 border-l-4 border-gray-400 text-gray-600";
+                                statusText = "Vaxtı bitib";
+                            } else if (lessonStart <= now && lessonEnd >= now) {
                                 statusColor = "bg-blue-100 border-l-4 border-blue-500 text-blue-800 animate-pulse shadow-blue-300 shadow-md";
                                 statusText = "Davam edir...";
                             }
                         }
 
                         const top = ((h - START_HOUR) * PIXELS_PER_HOUR) + ((m / 60) * PIXELS_PER_HOUR);
+                        
                         events.push({
-                            id: group.id + slot,
+                            uniqueId: statusKey, // status key-i unikal id kimi istifadə edirik
+                            groupId: group.id,
                             groupName: group.name,
                             dayIndex, 
                             top, 
                             height: duration * PIXELS_PER_HOUR,
                             timeStr: timeRange,
                             color: statusColor,
-                            status: statusText
+                            status: statusText,
+                            fullDate: specificDate,
+                            manualStatus
                         });
                       }
                   }
@@ -202,240 +266,70 @@ export default function TeacherCabinet() {
           });
       });
       setScheduleEvents(events);
-  }, [groups]);
+  }, [groups, currentWeekStart, lessonStatusOverrides]);
 
-  // Chart Update
-  useEffect(() => {
-      if (rawGradesForChart.length > 0) {
-          updateChart(rawGradesForChart, analysisMode, selectedStudentForChart, chartInterval);
-      }
-  }, [analysisMode, selectedStudentForChart, chartInterval, rawGradesForChart]);
-
-  const fetchData = async (teacherId: number) => {
-    try {
-        const res = await fetch("/api/teacher/students");
-        if (res.ok) { const data = await res.json(); setStudents(data.students || []); }
-        const resG = await fetch("/api/teacher/groups");
-        if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); }
-    } catch (e) { console.error(e); }
+  // Həftəni Dəyişmək
+  const changeWeek = (direction: number) => {
+    const newDate = new Date(currentWeekStart);
+    newDate.setDate(newDate.getDate() + (direction * 7));
+    setCurrentWeekStart(newDate);
   };
 
-  // --- TOPLU SEÇİM ---
-  const toggleSelectAll = () => {
-      if (selectedIds.length === students.length) {
-          setSelectedIds([]);
-      } else {
-          setSelectedIds(students.map(s => s.id));
-      }
+  // Status Modalını idarə etmək
+  const handleEventClick = (event: any) => {
+    setSelectedEventForStatus(event);
   };
 
-  const toggleSelectOne = (id: number) => {
-      if (selectedIds.includes(id)) {
-          setSelectedIds(selectedIds.filter(sid => sid !== id));
-      } else {
-          setSelectedIds([...selectedIds, id]);
-      }
-  };
-
-  // --- TOPLU SİLMƏ ---
-  const bulkDelete = async () => {
-      if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return;
+  const updateEventStatus = async (status: string | null) => {
+      if (!selectedEventForStatus) return;
       
+      const groupId = selectedEventForStatus.groupId;
+      const dateString = selectedEventForStatus.fullDate.toISOString().split('T')[0];
+      const mapKey = `${groupId}_${dateString}`;
+
+      // 1. Optimistik UI yeniləməsi
+      const newOverrides = { ...lessonStatusOverrides };
+      if (status === null) {
+          delete newOverrides[mapKey];
+      } else {
+          newOverrides[mapKey] = status;
+      }
+      setLessonStatusOverrides(newOverrides);
+      setSelectedEventForStatus(null);
+
+      // 2. API çağırışı (Serverə yazmaq)
       try {
-          const res = await fetch("/api/teacher/students", {
+          await fetch("/api/teacher/schedule/status", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds })
+              body: JSON.stringify({
+                  groupId: groupId,
+                  date: dateString,
+                  status: status
+              })
           });
-          
-          if (!res.ok) throw new Error("Silinmə xətası");
-          
-          alert("Silindi!");
-          setSelectedIds([]); 
-          if(teacher) fetchData(teacher.id);
-      } catch (error: any) { alert(error.message); }
-  };
-
-  // --- ANALYTICS FUNCTIONS ---
-  const calculateAnalytics = async (groupId: string) => {
-    if (!groupId) return;
-    setAnalyticsGroupId(groupId);
-
-    let studentsInGroup = [];
-    try {
-        const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
-        if (res.ok) {
-            const data = await res.json();
-            studentsInGroup = data.students;
-            setAnalyticsStudentsList(studentsInGroup);
-        }
-    } catch(e) { console.error(e); return; }
-
-    let allGrades = [];
-    try {
-        const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`);
-        if (res.ok) {
-            const data = await res.json();
-            allGrades = data.allGrades;
-            setRawGradesForChart(allGrades);
-        }
-    } catch(e) { console.error(e); return; }
-
-    if (!allGrades || !studentsInGroup) return;
-
-    let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0;
-
-    const stats = studentsInGroup.map((student: any) => {
-        const studentGrades = allGrades.filter((g: any) => g.student_id === student.id);
-        const scoredDays = studentGrades.filter((g: any) => g.score !== null);
-        const avgScore = scoredDays.length > 0 
-            ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length 
-            : 0;
-
-        const totalDays = studentGrades.length;
-        const presentDays = studentGrades.filter((g: any) => g.attendance === true).length;
-        const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
-
-        if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; }
-        if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; }
-
-        return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) };
-    });
-
-    stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
-    setAnalyticsData(stats);
-    setGroupStats({
-        avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0,
-        avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0
-    });
-
-    updateChart(allGrades, 'group', null, 'lessons4');
-  };
-
-  const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => {
-      let filteredData = [...data];
-      if (mode === 'individual' && studentId) {
-          filteredData = filteredData.filter(g => g.student_id.toString() === studentId.toString());
+      } catch (error) {
+          alert("Statusu yadda saxlamaq olmadı!");
+          fetchLessonStatuses(); // Xəta olsa köhnəni qaytar
       }
-
-      const groupedData: { [key: string]: number[] } = {};
-
-      filteredData.forEach((g: any) => {
-          if (g.score !== null) {
-              const date = new Date(g.grade_date);
-              let key = g.grade_date; 
-
-              if (interval === 'weeks4') {
-                  const startOfYear = new Date(date.getFullYear(), 0, 1);
-                  const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-                  const weekNum = Math.ceil((days + 1) / 7);
-                  key = `Həftə ${weekNum}`; 
-              } else if (interval === 'months4' || interval === 'year') {
-                  const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
-                  key = monthNames[date.getMonth()];
-              }
-
-              if (!groupedData[key]) groupedData[key] = [];
-              groupedData[key].push(g.score);
-          }
-      });
-
-      let chartResult = Object.keys(groupedData).map(key => {
-          const scores = groupedData[key];
-          const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-          return { label: key, avg: parseFloat(avg.toFixed(1)), rawDate: key };
-      });
-
-      if (interval === 'lessons4') {
-          chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
-          chartResult = chartResult.slice(-4);
-      } else if (interval === 'weeks4' || interval === 'months4') {
-          chartResult = chartResult.slice(-4);
-      }
-      
-      setChartData(chartResult);
   };
 
-  const getDisplayStats = () => {
-    if (analysisMode === 'individual' && selectedStudentForChart) {
-        const studentStat = analyticsData.find(s => s.id.toString() === selectedStudentForChart.toString());
-        if (studentStat) {
-            return {
-                title: "Şagird Ortalaması",
-                score: studentStat.avgScore,
-                attendance: studentStat.attendanceRate,
-                isIndividual: true
-            };
-        }
-    }
-    return {
-        title: "Qrup Ortalaması",
-        score: groupStats.avgScore,
-        attendance: groupStats.avgAttendance,
-        isIndividual: false
-    };
-  };
-  const displayStats = getDisplayStats();
 
-  // --- UPLOAD ---
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    setUploading(true);
-    const file = e.target.files[0];
-    const reader = new FileReader();
-
-    reader.onload = async (evt) => {
-        try {
-            const data = evt.target?.result;
-            const wb = XLSX.read(data, { type: "array" }); 
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const jsonData = XLSX.utils.sheet_to_json(ws);
-            
-            const res = await fetch("/api/teacher/students/upload", {
-                method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: jsonData })
-            });
-            const result = await res.json();
-            if (!res.ok) throw new Error(result.error || "Yükləmə xətası");
-            alert(`✅ Uğurla yükləndi! ${result.count} şagird əlavə olundu.`);
-            if(teacher) fetchData(teacher.id);
-        } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  // --- CRUD & JURNAL ---
-  const handleAddOrUpdateStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`;
-    const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 };
-    try {
-        const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) });
-        const result = await res.json(); if (!res.ok) throw new Error(result.error);
-        alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); resetForm(); if(teacher) fetchData(teacher.id);
-    } catch (error: any) { alert("Xəta: " + error.message); }
-  };
+  // --- DİGƏR FUNKSİYALAR (Standart) ---
+  const fetchData = async (teacherId: number) => { try { const res = await fetch("/api/teacher/students"); if (res.ok) { const data = await res.json(); setStudents(data.students || []); } const resG = await fetch("/api/teacher/groups"); if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); } } catch (e) { console.error(e); } };
+  const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
+  const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
+  const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
+  const calculateAnalytics = async (groupId: string) => { if (!groupId) return; setAnalyticsGroupId(groupId); let studentsInGroup = []; try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); studentsInGroup = data.students; setAnalyticsStudentsList(studentsInGroup); } } catch(e) { console.error(e); return; } let allGrades = []; try { const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); if (res.ok) { const data = await res.json(); allGrades = data.allGrades; setRawGradesForChart(allGrades); } } catch(e) { console.error(e); return; } if (!allGrades || !studentsInGroup) return; let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; const stats = studentsInGroup.map((student: any) => { const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); const scoredDays = studentGrades.filter((g: any) => g.score !== null); const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; const totalDays = studentGrades.length; const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; }); stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); setAnalyticsData(stats); setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); updateChart(allGrades, 'group', null, 'lessons4'); };
+  const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => { let filteredData = [...data]; if (mode === 'individual' && studentId) { filteredData = filteredData.filter(g => g.student_id.toString() === studentId.toString()); } const groupedData: { [key: string]: number[] } = {}; filteredData.forEach((g: any) => { if (g.score !== null) { const date = new Date(g.grade_date); let key = g.grade_date; if (interval === 'weeks4') { const startOfYear = new Date(date.getFullYear(), 0, 1); const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); const weekNum = Math.ceil((days + 1) / 7); key = `Həftə ${weekNum}`; } else if (interval === 'months4' || interval === 'year') { const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; key = monthNames[date.getMonth()]; } if (!groupedData[key]) groupedData[key] = []; groupedData[key].push(g.score); } }); let chartResult = Object.keys(groupedData).map(key => { const scores = groupedData[key]; const avg = scores.reduce((a, b) => a + b, 0) / scores.length; return { label: key, avg: parseFloat(avg.toFixed(1)), rawDate: key }; }); if (interval === 'lessons4') { chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); chartResult = chartResult.slice(-4); } else if (interval === 'weeks4' || interval === 'months4') { chartResult = chartResult.slice(-4); } setChartData(chartResult); };
+  const getDisplayStats = () => { if (analysisMode === 'individual' && selectedStudentForChart) { const studentStat = analyticsData.find(s => s.id.toString() === selectedStudentForChart.toString()); if (studentStat) { return { title: "Şagird Ortalaması", score: studentStat.avgScore, attendance: studentStat.attendanceRate, isIndividual: true }; } } return { title: "Qrup Ortalaması", score: groupStats.avgScore, attendance: groupStats.avgAttendance, isIndividual: false }; }; const displayStats = getDisplayStats();
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploading(true); const file = e.target.files[0]; const reader = new FileReader(); reader.onload = async (evt) => { try { const data = evt.target?.result; const wb = XLSX.read(data, { type: "array" }); const wsname = wb.SheetNames[0]; const ws = wb.Sheets[wsname]; const jsonData = XLSX.utils.sheet_to_json(ws); const res = await fetch("/api/teacher/students/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: jsonData }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Yükləmə xətası"); alert(`✅ Uğurla yükləndi! ${result.count} şagird əlavə olundu.`); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; } }; reader.readAsArrayBuffer(file); };
+  const handleAddOrUpdateStudent = async (e: React.FormEvent) => { e.preventDefault(); const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`; const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 }; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error); alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); resetForm(); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("Xəta: " + error.message); } };
   const deleteStudent = async (id: number) => { if (!confirm("Silinsin?")) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); if (!res.ok) throw new Error("Silinmə xətası"); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
-  const startEdit = (student: any) => {
-      const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = "";
-      if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); }
-      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
-  };
-
-  const addScheduleSlot = () => { 
-      if (!tempTime || !tempEndTime) return; 
-      
-      if (tempTime >= tempEndTime) {
-          alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!");
-          return;
-      }
-
-      setScheduleSlots([...scheduleSlots, { day: tempDay, time: `${tempTime}-${tempEndTime}` }]); 
-  };
-
+  const startEdit = (student: any) => { const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = ""; if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); } setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id); };
+  const addScheduleSlot = () => { if (!tempTime || !tempEndTime) return; if (tempTime >= tempEndTime) { alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!"); return; } setScheduleSlots([...scheduleSlots, { day: tempDay, time: `${tempTime}-${tempEndTime}` }]); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
-  
   const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); try { const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); if (!res.ok) { const err = await res.json(); throw new Error(err.error); } alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); if(teacher) fetchData(teacher.id); } catch (e: any) { alert(e.message); } };
   const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
@@ -451,7 +345,36 @@ export default function TeacherCabinet() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans">
-      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-50">
+      
+      {/* --- STATUS MODAL (POPUP) --- */}
+      {selectedEventForStatus && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full border dark:border-gray-700">
+                  <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-bold">{selectedEventForStatus.groupName}</h3>
+                      <button onClick={() => setSelectedEventForStatus(null)} className="p-1 hover:bg-gray-100 rounded-full"><X size={20}/></button>
+                  </div>
+                  <p className="text-gray-500 mb-6 text-sm">
+                      Tarix: {selectedEventForStatus.fullDate.toLocaleDateString('az-AZ')} <br/>
+                      Saat: {selectedEventForStatus.timeStr}
+                  </p>
+                  
+                  <div className="space-y-3">
+                      <button onClick={() => updateEventStatus('done')} className="w-full p-3 rounded-xl bg-green-100 text-green-700 font-bold hover:bg-green-200 flex items-center justify-center gap-2 border border-green-300">
+                          <CheckCircle size={20}/> Keçirildi
+                      </button>
+                      <button onClick={() => updateEventStatus('cancelled')} className="w-full p-3 rounded-xl bg-red-100 text-red-700 font-bold hover:bg-red-200 flex items-center justify-center gap-2 border border-red-300">
+                          <XCircle size={20}/> Ləğv edildi
+                      </button>
+                      <button onClick={() => updateEventStatus(null)} className="w-full p-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 flex items-center justify-center gap-2 border border-gray-300">
+                          <RefreshCcw size={18}/> Sıfırla (Avtomatik)
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-40">
         <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2"><BookOpen className="text-blue-600" /> Müəllim Kabineti</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm font-semibold bg-blue-50 text-blue-700 px-3 py-1 rounded-full">👤 {teacher?.full_name || teacher?.username}</span>
@@ -459,8 +382,8 @@ export default function TeacherCabinet() {
         </div>
       </nav>
 
-      <main className="p-4 md:p-8 max-w-7xl mx-auto">
-        <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
+      <main className="p-4 md:p-8 max-w-full mx-auto">
+        <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide max-w-7xl mx-auto">
             <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Users size={20} /> Dashboard</button>
             <button onClick={() => setActiveTab('schedule')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'schedule' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><Clock size={20} /> Cədvəl</button>
             <button onClick={() => setActiveTab('students')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition ${activeTab === 'students' ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-gray-800 text-gray-500'}`}><GraduationCap size={20} /> Şagird</button>
@@ -470,7 +393,7 @@ export default function TeacherCabinet() {
 
         {/* --- DASHBOARD --- */}
         {activeTab === 'dashboard' && (
-            <div className="animate-in fade-in duration-500">
+            <div className="animate-in fade-in duration-500 max-w-7xl mx-auto">
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg mb-8 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
                     <h2 className="text-3xl font-bold mb-2 relative z-10">Xoş Gəldiniz, {teacher?.full_name || teacher?.username}! 👋</h2>
@@ -497,33 +420,55 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- SCHEDULE (YENİLƏNMİŞ) --- */}
+        {/* --- SCHEDULE (FULL: Naviqasiya + Modal + Wide Layout) --- */}
         {activeTab === 'schedule' && (
-            <div className="animate-in fade-in">
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
+            <div className="animate-in fade-in max-w-full">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden flex flex-col h-[calc(100vh-180px)]">
+                    
+                    {/* Header: Naviqasiya */}
                     <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 shrink-0">
-                        <h3 className="text-lg font-bold flex items-center gap-2"><Clock /> Həftəlik Dərs Cədvəli</h3>
+                        <div className="flex items-center gap-4">
+                            <h3 className="text-lg font-bold flex items-center gap-2"><Clock /> Dərs Cədvəli</h3>
+                            
+                            {/* HƏFTƏ DƏYİŞDİRMƏ */}
+                            <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg border dark:border-gray-700 p-1 shadow-sm">
+                                <button onClick={() => changeWeek(-1)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition"><ChevronLeft size={16}/></button>
+                                <span className="px-4 text-sm font-bold min-w-[150px] text-center">
+                                    {currentWeekStart.toLocaleDateString('az-AZ', { day: 'numeric', month: 'long' })}
+                                </span>
+                                <button onClick={() => changeWeek(1)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition"><ChevronRight size={16}/></button>
+                            </div>
+                        </div>
+
                         <div className="flex items-center gap-4 text-xs font-bold">
-                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> Olub</div>
-                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span> Davam edir</div>
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> Keçirildi</div>
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-500"></span> Ləğv</div>
                             <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400"></span> Olacaq</div>
                         </div>
                     </div>
                     
-                    {/* SCROLL CONTAINER */}
+                    {/* SCROLL AREA */}
                     <div className="flex-1 overflow-auto relative bg-white dark:bg-gray-800">
-                         <div className="min-w-[1000px] relative" style={{ height: `${TOTAL_HOURS * PIXELS_PER_HOUR + 60}px` }}>
+                         {/* GRID WRAPPER - Genişlik: 1500px */}
+                         <div className="min-w-[1500px] relative" style={{ height: `${TOTAL_HOURS * PIXELS_PER_HOUR + 60}px` }}>
                             
                             {/* HEADER - STICKY TOP */}
                             <div className="flex sticky top-0 left-0 right-0 z-20 shadow-sm">
                                 <div className="w-20 bg-gray-100 dark:bg-gray-900 border-r border-b dark:border-gray-700 shrink-0 sticky left-0 z-30"></div>
-                                {WEEK_DAYS.map((day, i) => (
-                                    <div key={day} className={`flex-1 text-center font-bold text-sm py-3 border-r border-b dark:border-gray-700 uppercase tracking-wider
-                                        ${(new Date().getDay() + 6) % 7 === i ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-300'}
-                                    `}>
-                                        {day}
-                                    </div>
-                                ))}
+                                {WEEK_DAYS.map((day, i) => {
+                                    const d = new Date(currentWeekStart);
+                                    d.setDate(d.getDate() + i);
+                                    const isToday = new Date().toDateString() === d.toDateString();
+
+                                    return (
+                                        <div key={day} className={`flex-1 text-center py-3 border-r border-b dark:border-gray-700 flex flex-col justify-center
+                                            ${isToday ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-300'}
+                                        `}>
+                                            <span className="font-bold text-sm uppercase">{day}</span>
+                                            <span className="text-xs opacity-80">{d.getDate()}.{d.getMonth()+1}</span>
+                                        </div>
+                                    )
+                                })}
                             </div>
 
                             {/* BODY */}
@@ -538,43 +483,50 @@ export default function TeacherCabinet() {
                                 </div>
 
                                 {/* COLUMNS */}
-                                {WEEK_DAYS.map((day, i) => (
-                                    <div key={i} className="flex-1 border-r dark:border-gray-700 relative">
-                                        {/* GRID LINES */}
-                                        {Array.from({ length: TOTAL_HOURS }).map((_, h) => (
-                                            <div key={h} className="border-b dark:border-gray-700 border-dashed border-gray-100 dark:border-gray-800 box-border" style={{ height: `${PIXELS_PER_HOUR}px` }}></div>
-                                        ))}
+                                {WEEK_DAYS.map((day, i) => {
+                                     const d = new Date(currentWeekStart);
+                                     d.setDate(d.getDate() + i);
+                                     const isToday = new Date().toDateString() === d.toDateString();
 
-                                        {/* EVENTS */}
-                                        {scheduleEvents.filter(ev => ev.dayIndex === i).map((ev, idx) => (
-                                            <div 
-                                                key={idx}
-                                                className={`absolute left-1 right-1 rounded-md p-2 text-xs shadow-sm transition hover:scale-[1.02] cursor-pointer overflow-hidden flex flex-col justify-center ${ev.color}`}
-                                                style={{ 
-                                                    top: `${ev.top}px`, 
-                                                    height: `${ev.height - 2}px` 
-                                                }}
-                                                title={`${ev.groupName}\n${ev.timeStr}\n${ev.status}`}
-                                            >
-                                                <p className="font-extrabold truncate text-sm">{ev.groupName}</p>
-                                                <div className="flex justify-between items-center mt-1 opacity-80">
-                                                    <span>{ev.timeStr}</span>
+                                     return (
+                                        <div key={i} className={`flex-1 border-r dark:border-gray-700 relative ${isToday ? 'bg-blue-50/30' : ''}`}>
+                                            {/* GRID LINES */}
+                                            {Array.from({ length: TOTAL_HOURS }).map((_, h) => (
+                                                <div key={h} className="border-b dark:border-gray-700 border-dashed border-gray-100 dark:border-gray-800 box-border" style={{ height: `${PIXELS_PER_HOUR}px` }}></div>
+                                            ))}
+
+                                            {/* EVENTS */}
+                                            {scheduleEvents.filter(ev => ev.dayIndex === i).map((ev, idx) => (
+                                                <div 
+                                                    key={idx}
+                                                    onClick={() => handleEventClick(ev)} 
+                                                    className={`absolute left-1 right-1 rounded-md p-2 text-xs shadow-sm transition hover:scale-[1.02] cursor-pointer overflow-hidden flex flex-col justify-center group ${ev.color}`}
+                                                    style={{ 
+                                                        top: `${ev.top}px`, 
+                                                        height: `${ev.height - 4}px` 
+                                                    }}
+                                                >
+                                                    <p className="font-extrabold truncate text-sm">{ev.groupName}</p>
+                                                    <div className="flex justify-between items-center mt-1 opacity-90">
+                                                        <span>{ev.timeStr}</span>
+                                                        <span className="font-bold">{ev.status}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            ))}
 
-                                        {/* CURRENT TIME */}
-                                        {currentTimePosition !== null && (new Date().getDay() + 6) % 7 === i && (
-                                            <div 
-                                                className="absolute left-0 right-0 border-t-2 border-red-500 z-10 pointer-events-none flex items-center"
-                                                style={{ top: `${currentTimePosition}px` }} 
-                                            >
-                                                <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
-                                                <div className="absolute right-0 bg-red-500 text-white text-[10px] px-1 rounded-l-md">İndi</div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+                                            {/* CURRENT TIME */}
+                                            {currentTimePosition !== null && isToday && (
+                                                <div 
+                                                    className="absolute left-0 right-0 border-t-2 border-red-500 z-10 pointer-events-none flex items-center"
+                                                    style={{ top: `${currentTimePosition}px` }} 
+                                                >
+                                                    <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
+                                                    <div className="absolute right-0 bg-red-500 text-white text-[10px] px-1 rounded-l-md">İndi</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                     )
+                                })}
                             </div>
                          </div>
                     </div>
@@ -584,9 +536,8 @@ export default function TeacherCabinet() {
 
         {/* --- STUDENTS --- */}
         {activeTab === 'students' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-fit sticky top-24">
-                    
                     <div className="mb-6 pb-6 border-b dark:border-gray-700">
                         <label className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-green-300 bg-green-50 text-green-700 cursor-pointer hover:bg-green-100 transition ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             <Upload size={20} />
@@ -679,7 +630,7 @@ export default function TeacherCabinet() {
 
         {/* --- GROUPS --- */}
         {activeTab === 'groups' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto">
                 <div className="lg:col-span-1 space-y-6">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                         <h3 className="text-lg font-bold mb-4">Yeni Qrup</h3>
@@ -782,7 +733,7 @@ export default function TeacherCabinet() {
 
         {/* --- ANALYTICS --- */}
         {activeTab === 'analytics' && (
-             <div className="animate-in fade-in">
+             <div className="animate-in fade-in max-w-7xl mx-auto">
                 <div className="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                     <div className="w-full md:w-1/3">
                         <h2 className="text-2xl font-bold mb-2">Statistika</h2>
