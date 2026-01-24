@@ -254,6 +254,11 @@ export default function TeacherCabinet() {
     setCurrentWeekStart(newDate);
   };
 
+  // 🔥 BU FUNKSİYA ƏSKİK İDİ, ƏLAVƏ EDİLDİ:
+  const handleEventClick = (event: any) => {
+      setSelectedEventForStatus(event);
+  };
+
   const updateEventStatus = async (status: string | null) => {
       if (!selectedEventForStatus) return;
       const groupId = selectedEventForStatus.groupId;
@@ -279,169 +284,16 @@ export default function TeacherCabinet() {
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
-  
-  const calculateAnalytics = async (groupId: string) => { 
-      if (!groupId) return; 
-      setAnalyticsGroupId(groupId); 
-      let studentsInGroup = []; 
-      try { 
-          const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); 
-          if (res.ok) { 
-              const data = await res.json(); 
-              studentsInGroup = data.students; 
-              setAnalyticsStudentsList(studentsInGroup); 
-          } 
-      } catch(e) { console.error(e); return; } 
-      
-      let allGrades = []; 
-      try { 
-          const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); 
-          if (res.ok) { 
-              const data = await res.json(); 
-              allGrades = data.allGrades; 
-              setRawGradesForChart(allGrades); 
-          } 
-      } catch(e) { console.error(e); return; } 
-      
-      if (!allGrades || !studentsInGroup) return; 
-      
-      let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; 
-      const stats = studentsInGroup.map((student: any) => { 
-          const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); 
-          const scoredDays = studentGrades.filter((g: any) => g.score !== null); 
-          const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; 
-          const totalDays = studentGrades.length; 
-          const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; 
-          const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; 
-          if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } 
-          if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } 
-          return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; 
-      }); 
-      stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); 
-      setAnalyticsData(stats); 
-      setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); 
-      updateChart(allGrades, 'group', null, 'lessons4'); 
-  };
-
-  const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => { 
-      let filteredData = [...data]; 
-      if (mode === 'individual' && studentId) { 
-          filteredData = filteredData.filter(g => g.student_id.toString() === studentId.toString()); 
-      } 
-      const groupedData: { [key: string]: number[] } = {}; 
-      filteredData.forEach((g: any) => { 
-          if (g.score !== null) { 
-              const date = new Date(g.grade_date); 
-              let key = g.grade_date; 
-              if (interval === 'weeks4') { 
-                  const startOfYear = new Date(date.getFullYear(), 0, 1); 
-                  const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); 
-                  const weekNum = Math.ceil((days + 1) / 7); 
-                  key = `Həftə ${weekNum}`; 
-              } else if (interval === 'months4' || interval === 'year') { 
-                  const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; 
-                  key = monthNames[date.getMonth()]; 
-              } 
-              if (!groupedData[key]) groupedData[key] = []; 
-              groupedData[key].push(g.score); 
-          } 
-      }); 
-      let chartResult = Object.keys(groupedData).map(key => { 
-          const scores = groupedData[key]; 
-          const avg = scores.reduce((a, b) => a + b, 0) / scores.length; 
-          return { label: key, avg: parseFloat(avg.toFixed(1)), rawDate: key }; 
-      }); 
-      if (interval === 'lessons4') { 
-          chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); 
-          chartResult = chartResult.slice(-4); 
-      } else if (interval === 'weeks4' || interval === 'months4') { 
-          chartResult = chartResult.slice(-4); 
-      } 
-      setChartData(chartResult); 
-  };
-
-  const getDisplayStats = () => { 
-      if (analysisMode === 'individual' && selectedStudentForChart) { 
-          const studentStat = analyticsData.find(s => s.id.toString() === selectedStudentForChart.toString()); 
-          if (studentStat) { return { title: "Şagird Ortalaması", score: studentStat.avgScore, attendance: studentStat.attendanceRate, isIndividual: true }; } 
-      } 
-      return { title: "Qrup Ortalaması", score: groupStats.avgScore, attendance: groupStats.avgAttendance, isIndividual: false }; 
-  }; 
-  const displayStats = getDisplayStats();
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { 
-      if (!e.target.files || e.target.files.length === 0) return; 
-      setUploading(true); 
-      const file = e.target.files[0]; 
-      const reader = new FileReader(); 
-      reader.onload = async (evt) => { 
-          try { 
-              const data = evt.target?.result; 
-              const wb = XLSX.read(data, { type: "array" }); 
-              const wsname = wb.SheetNames[0]; 
-              const ws = wb.Sheets[wsname]; 
-              const jsonData = XLSX.utils.sheet_to_json(ws); 
-              const res = await fetch("/api/teacher/students/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: jsonData }) }); 
-              const result = await res.json(); 
-              if (!res.ok) throw new Error(result.error || "Yükləmə xətası"); 
-              alert(`✅ Uğurla yükləndi! ${result.count} şagird əlavə olundu.`); 
-              if(teacher) fetchData(teacher.id); 
-          } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; } 
-      }; 
-      reader.readAsArrayBuffer(file); 
-  };
-
-  const handleAddOrUpdateStudent = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`; 
-      const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 }; 
-      try { 
-          const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) }); 
-          const result = await res.json(); 
-          if (!res.ok) throw new Error(result.error); 
-          alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); 
-          resetForm(); 
-          if(teacher) fetchData(teacher.id); 
-      } catch (error: any) { alert("Xəta: " + error.message); } 
-  };
-
-  const deleteStudent = async (id: number) => { 
-      if (!confirm("Silinsin?")) return; 
-      try { 
-          const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); 
-          if (!res.ok) throw new Error("Silinmə xətası"); 
-          if(teacher) fetchData(teacher.id); 
-      } catch (error: any) { alert(error.message); } 
-  };
-
+  const calculateAnalytics = async (groupId: string) => { if (!groupId) return; setAnalyticsGroupId(groupId); let studentsInGroup = []; try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); studentsInGroup = data.students; setAnalyticsStudentsList(studentsInGroup); } } catch(e) { console.error(e); return; } let allGrades = []; try { const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); if (res.ok) { const data = await res.json(); allGrades = data.allGrades; setRawGradesForChart(allGrades); } } catch(e) { console.error(e); return; } if (!allGrades || !studentsInGroup) return; let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; const stats = studentsInGroup.map((student: any) => { const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); const scoredDays = studentGrades.filter((g: any) => g.score !== null); const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; const totalDays = studentGrades.length; const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; }); stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); setAnalyticsData(stats); setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); updateChart(allGrades, 'group', null, 'lessons4'); };
+  const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => { let filteredData = [...data]; if (mode === 'individual' && studentId) { filteredData = filteredData.filter(g => g.student_id.toString() === studentId.toString()); } const groupedData: { [key: string]: number[] } = {}; filteredData.forEach((g: any) => { if (g.score !== null) { const date = new Date(g.grade_date); let key = g.grade_date; if (interval === 'weeks4') { const startOfYear = new Date(date.getFullYear(), 0, 1); const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); const weekNum = Math.ceil((days + 1) / 7); key = `Həftə ${weekNum}`; } else if (interval === 'months4' || interval === 'year') { const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; key = monthNames[date.getMonth()]; } if (!groupedData[key]) groupedData[key] = []; groupedData[key].push(g.score); } }); let chartResult = Object.keys(groupedData).map(key => { const scores = groupedData[key]; const avg = scores.reduce((a, b) => a + b, 0) / scores.length; return { label: key, avg: parseFloat(avg.toFixed(1)), rawDate: key }; }); if (interval === 'lessons4') { chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); chartResult = chartResult.slice(-4); } else if (interval === 'weeks4' || interval === 'months4') { chartResult = chartResult.slice(-4); } setChartData(chartResult); };
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploading(true); const file = e.target.files[0]; const reader = new FileReader(); reader.onload = async (evt) => { try { const data = evt.target?.result; const wb = XLSX.read(data, { type: "array" }); const wsname = wb.SheetNames[0]; const ws = wb.Sheets[wsname]; const jsonData = XLSX.utils.sheet_to_json(ws); const res = await fetch("/api/teacher/students/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: jsonData }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Yükləmə xətası"); alert(`✅ Uğurla yükləndi! ${result.count} şagird əlavə olundu.`); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; } }; reader.readAsArrayBuffer(file); };
+  const handleAddOrUpdateStudent = async (e: React.FormEvent) => { e.preventDefault(); const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`; const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 }; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error); alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); resetForm(); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("Xəta: " + error.message); } };
+  const deleteStudent = async (id: number) => { if (!confirm("Silinsin?")) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); if (!res.ok) throw new Error("Silinmə xətası"); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
-  
-  const startEdit = (student: any) => { 
-      const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = ""; 
-      if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); } 
-      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id); 
-  };
-
-  const addScheduleSlot = () => { 
-      if (!tempTime || !tempEndTime) return; 
-      if (tempTime >= tempEndTime) { alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!"); return; } 
-      setScheduleSlots([...scheduleSlots, { day: tempDay, time: `${tempTime}-${tempEndTime}` }]); 
-  };
-
+  const startEdit = (student: any) => { const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = ""; if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); } setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id); };
+  const addScheduleSlot = () => { if (!tempTime || !tempEndTime) return; if (tempTime >= tempEndTime) { alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!"); return; } setScheduleSlots([...scheduleSlots, { day: tempDay, time: `${tempTime}-${tempEndTime}` }]); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
-  
-  const handleCreateGroup = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      if (scheduleSlots.length === 0) return; 
-      const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); 
-      try { 
-          const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); 
-          if (!res.ok) { const err = await res.json(); throw new Error(err.error); } 
-          alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); 
-          if(teacher) fetchData(teacher.id); 
-      } catch (e: any) { alert(e.message); } 
-  };
-
+  const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); try { const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); if (!res.ok) { const err = await res.json(); throw new Error(err.error); } alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); if(teacher) fetchData(teacher.id); } catch (e: any) { alert(e.message); } };
   const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
   const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
@@ -512,7 +364,6 @@ export default function TeacherCabinet() {
                     <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz! 👋</h2>
                     <p className="opacity-90">{new Date().toLocaleDateString('az-AZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
-                {/* Dashboard Kartları */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div onClick={() => setActiveTab('schedule')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4">
                         <div className="p-4 bg-orange-50 text-orange-600 rounded-xl"><Clock size={32} /></div>
@@ -537,8 +388,6 @@ export default function TeacherCabinet() {
         {/* --- SCHEDULE (GOOGLE CALENDAR STYLE) --- */}
         {activeTab === 'schedule' && (
             <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-xl border dark:border-gray-700 shadow-sm overflow-hidden animate-in fade-in">
-                
-                {/* 1. Header Control */}
                 <div className="p-4 flex justify-between items-center border-b dark:border-gray-700 bg-white dark:bg-gray-900 shrink-0 z-20">
                     <div className="flex items-center gap-4">
                         <button onClick={() => { const d = new Date(); setCurrentWeekStart(new Date(d.setDate(d.getDate() - d.getDay() + (d.getDay() === 0 ? -6 : 1)))) }} className="px-3 py-1.5 border rounded-md text-sm hover:bg-gray-50 dark:hover:bg-gray-800">Bugün</button>
@@ -557,13 +406,10 @@ export default function TeacherCabinet() {
                     </div>
                 </div>
 
-                {/* 2. Scrollable Calendar Area */}
                 <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative bg-white dark:bg-gray-900 scroll-smooth">
                     <div className="min-w-[800px] relative">
-                        
-                        {/* Day Headers (Sticky Top) */}
                         <div className="sticky top-0 z-30 flex border-b dark:border-gray-700 bg-white dark:bg-gray-900">
-                            <div className="w-16 shrink-0 border-r dark:border-gray-700 bg-white dark:bg-gray-900"></div> {/* Time spacer */}
+                            <div className="w-16 shrink-0 border-r dark:border-gray-700 bg-white dark:bg-gray-900"></div> 
                             {WEEK_DAYS.map((day, i) => {
                                 const d = new Date(currentWeekStart); d.setDate(d.getDate() + i);
                                 const isToday = new Date().toDateString() === d.toDateString();
@@ -579,7 +425,6 @@ export default function TeacherCabinet() {
                         </div>
 
                         <div className="flex">
-                            {/* Time Sidebar (Sticky Left) */}
                             <div className="w-16 shrink-0 sticky left-0 z-20 bg-white dark:bg-gray-900 border-r dark:border-gray-700 text-xs text-gray-400 font-medium text-right pr-2">
                                 {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
                                     <div key={i} className="relative" style={{ height: `${PIXELS_PER_HOUR}px` }}>
@@ -588,15 +433,12 @@ export default function TeacherCabinet() {
                                 ))}
                             </div>
 
-                            {/* Grid Content */}
                             {WEEK_DAYS.map((day, i) => (
                                 <div key={i} className="flex-1 border-r dark:border-gray-700 relative min-w-[120px]">
-                                    {/* Grid lines */}
                                     {Array.from({ length: TOTAL_HOURS }).map((_, h) => (
                                         <div key={h} className="border-b dark:border-gray-800 border-gray-100" style={{ height: `${PIXELS_PER_HOUR}px` }}></div>
                                     ))}
 
-                                    {/* Events */}
                                     {scheduleEvents.filter(ev => ev.dayIndex === i).map((ev, idx) => (
                                         <div 
                                             key={idx}
@@ -609,7 +451,6 @@ export default function TeacherCabinet() {
                                         </div>
                                     ))}
 
-                                    {/* Current Time Line */}
                                     {currentTimePosition !== null && (new Date().getDay() + 6) % 7 === i && (
                                         <div className="absolute w-full border-t-2 border-red-500 z-10 pointer-events-none" style={{ top: `${currentTimePosition}px` }}>
                                             <div className="w-2 h-2 bg-red-500 rounded-full -mt-[5px] -ml-[1px]"></div>
