@@ -13,31 +13,30 @@ import {
 // RECHARTS
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// --- SABITLƏR (DƏYİŞDİRİLMİŞ VERSİYA) ---
+// --- SABITLƏR ---
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
 const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
 const DAY_INDEX_MAP: { [key: string]: number } = { 
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
-// 🔥 DƏYİŞİKLİK: Saat aralığını buradan idarə edə bilərsən
-const START_HOUR = 6;  // Səhər 06:00-dan başlasın
-const END_HOUR = 24;   // Gecə 00:00-a (24:00) qədər davam etsin
+// 🔥 SAAT AYARLARI
+const START_HOUR = 6;  
+const END_HOUR = 24;   
 const TOTAL_HOURS = END_HOUR - START_HOUR;
-const PIXELS_PER_HOUR = 60; 
+const PIXELS_PER_HOUR = 80; // Genişlik
 
 const PHONE_PREFIXES = ["050", "051", "055", "070", "077", "099", "010", "060"]; 
 const GRADES = Array.from({ length: 11 }, (_, i) => i + 1); 
 const SECTORS = ["Az", "Ru", "Eng"];
 
-// 🔥 DƏYİŞİKLİK: Dropdown menyusu avtomatik yuxarıdakı saatlara görə yaranır
+// DROPDOWN DATA
 const TIME_SLOTS: string[] = [];
 for (let i = START_HOUR; i < END_HOUR; i++) {
   const hour = i.toString().padStart(2, '0');
   TIME_SLOTS.push(`${hour}:00`);
-  TIME_SLOTS.push(`${hour}:30`); // Yarım saatları da əlavə edirik
+  TIME_SLOTS.push(`${hour}:30`); 
 }
-// Əgər 24:00-ı da siyahıda istəyirsənsə (bitmə vaxtı kimi):
 TIME_SLOTS.push(`${END_HOUR.toString().padStart(2, '0')}:00`);
 
 export default function TeacherCabinet() {
@@ -51,7 +50,7 @@ export default function TeacherCabinet() {
   const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   
-  // 🔥 TOPLU SEÇİM STATE
+  // TOPLU SEÇİM STATE
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // CƏDVƏL
@@ -70,7 +69,6 @@ export default function TeacherCabinet() {
   const [newGroupName, setNewGroupName] = useState("");
   const [tempDay, setTempDay] = useState("B.e"); 
   const [tempTime, setTempTime] = useState("09:00"); 
-  // 🔥 DƏYİŞİKLİK: Bitmə vaxtı üçün state
   const [tempEndTime, setTempEndTime] = useState("10:30");
   
   const [scheduleSlots, setScheduleSlots] = useState<{day: string, time: string}[]>([]);
@@ -135,9 +133,13 @@ export default function TeacherCabinet() {
     return () => clearInterval(interval);
   }, [router]);
 
-  // 🔥 DƏYİŞİKLİK: Cədvəl Datası (Start-End Parse Edilməsi)
+  // 🔥 YENİ CƏDVƏL LOGİKASI (RƏNGLƏR VƏ PARSE)
   useEffect(() => {
       const events: any[] = [];
+      const now = new Date();
+      const currentDayIndex = (now.getDay() + 6) % 7; 
+      const currentTotalMinutes = now.getHours() * 60 + now.getMinutes();
+
       groups.forEach(group => {
           if(!group.schedule) return;
           const slots = group.schedule.split(", ");
@@ -145,31 +147,54 @@ export default function TeacherCabinet() {
               const parts = slot.split(" ");
               if(parts.length === 2) {
                   const dayName = parts[0];
-                  const timeRange = parts[1]; // "09:00-10:30"
+                  const timeRange = parts[1];
                   const dayIndex = DAY_INDEX_MAP[dayName];
                   
                   if (dayIndex !== undefined) {
-                      // Tire ilə vaxtı bölürük
                       const [startStr, endStr] = timeRange.includes("-") ? timeRange.split("-") : [timeRange, null];
                       
                       if(startStr) {
                         const [h, m] = startStr.split(":").map(Number);
                         
-                        // Default duration 1.5 saat, amma endStr varsa hesabla
                         let duration = 1.5; 
+                        let endH = h + 1, endM = m + 30;
+
                         if (endStr) {
-                            const [endH, endM] = endStr.split(":").map(Number);
-                            duration = (endH + endM / 60) - (h + m / 60);
+                            const [eH, eM] = endStr.split(":").map(Number);
+                            duration = (eH + eM / 60) - (h + m / 60);
+                            endH = eH; endM = eM;
+                        }
+
+                        const startTotalMinutes = h * 60 + m;
+                        const endTotalMinutes = endH * 60 + endM;
+                        
+                        // RƏNG LOGİKASI
+                        let statusColor = "bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800"; // Gələcək
+                        let statusText = "Olacaq";
+
+                        if (dayIndex < currentDayIndex) {
+                            statusColor = "bg-green-100 border-l-4 border-green-500 text-green-800";
+                            statusText = "Dərs Olub";
+                        } else if (dayIndex === currentDayIndex) {
+                            if (currentTotalMinutes > endTotalMinutes) {
+                                statusColor = "bg-green-100 border-l-4 border-green-500 text-green-800";
+                                statusText = "Dərs Olub";
+                            } else if (currentTotalMinutes >= startTotalMinutes && currentTotalMinutes <= endTotalMinutes) {
+                                statusColor = "bg-blue-100 border-l-4 border-blue-500 text-blue-800 animate-pulse shadow-blue-300 shadow-md";
+                                statusText = "Davam edir...";
+                            }
                         }
 
                         const top = ((h - START_HOUR) * PIXELS_PER_HOUR) + ((m / 60) * PIXELS_PER_HOUR);
                         events.push({
                             id: group.id + slot,
                             groupName: group.name,
-                            dayIndex, top, 
-                            height: duration * PIXELS_PER_HOUR, // Dinamik hündürlük
+                            dayIndex, 
+                            top, 
+                            height: duration * PIXELS_PER_HOUR,
                             timeStr: timeRange,
-                            color:"bg-red-600"
+                            color: statusColor,
+                            status: statusText
                         });
                       }
                   }
@@ -195,7 +220,7 @@ export default function TeacherCabinet() {
     } catch (e) { console.error(e); }
   };
 
-  // --- 🔥 TOPLU SEÇİM FUNKSİYALARI ---
+  // --- TOPLU SEÇİM ---
   const toggleSelectAll = () => {
       if (selectedIds.length === students.length) {
           setSelectedIds([]);
@@ -212,7 +237,7 @@ export default function TeacherCabinet() {
       }
   };
 
-  // --- 🔥 TOPLU SİLMƏ FUNKSİYASI ---
+  // --- TOPLU SİLMƏ ---
   const bulkDelete = async () => {
       if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return;
       
@@ -352,7 +377,7 @@ export default function TeacherCabinet() {
   };
   const displayStats = getDisplayStats();
 
-  // --- 🔥 UPLOAD VƏ ENCODING DÜZƏLİŞİ ---
+  // --- UPLOAD ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setUploading(true);
@@ -398,11 +423,9 @@ export default function TeacherCabinet() {
       setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
   };
 
-  // 🔥 DƏYİŞİKLİK: addScheduleSlot (Validasiya və Format)
   const addScheduleSlot = () => { 
       if (!tempTime || !tempEndTime) return; 
       
-      // Məntiq yoxlanışı
       if (tempTime >= tempEndTime) {
           alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!");
           return;
@@ -474,72 +497,86 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- SCHEDULE --- */}
+        {/* --- SCHEDULE (YENİLƏNMİŞ) --- */}
         {activeTab === 'schedule' && (
             <div className="animate-in fade-in">
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
-                    <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden flex flex-col h-[calc(100vh-200px)]">
+                    <div className="p-4 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900 shrink-0">
                         <h3 className="text-lg font-bold flex items-center gap-2"><Clock /> Həftəlik Dərs Cədvəli</h3>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div> Hazırki zaman
+                        <div className="flex items-center gap-4 text-xs font-bold">
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-500"></span> Olub</div>
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-blue-500 animate-pulse"></span> Davam edir</div>
+                            <div className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-400"></span> Olacaq</div>
                         </div>
                     </div>
                     
-                    <div className="relative overflow-x-auto">
-                        <div className="min-w-[800px] relative" style={{ height: `${TOTAL_HOURS * PIXELS_PER_HOUR + 50}px` }}>
+                    {/* SCROLL CONTAINER */}
+                    <div className="flex-1 overflow-auto relative bg-white dark:bg-gray-800">
+                         <div className="min-w-[1000px] relative" style={{ height: `${TOTAL_HOURS * PIXELS_PER_HOUR + 60}px` }}>
                             
-                            <div className="flex border-b dark:border-gray-700 absolute top-0 left-0 right-0 h-10 bg-gray-50 dark:bg-gray-900 z-10">
-                                <div className="w-16 border-r dark:border-gray-700"></div>
+                            {/* HEADER - STICKY TOP */}
+                            <div className="flex sticky top-0 left-0 right-0 z-20 shadow-sm">
+                                <div className="w-20 bg-gray-100 dark:bg-gray-900 border-r border-b dark:border-gray-700 shrink-0 sticky left-0 z-30"></div>
                                 {WEEK_DAYS.map((day, i) => (
-                                    <div key={day} className={`flex-1 text-center font-bold text-sm py-2 border-r dark:border-gray-700 ${new Date().getDay() === (i+1)%7 ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-gray-600 dark:text-gray-300'}`}>
+                                    <div key={day} className={`flex-1 text-center font-bold text-sm py-3 border-r border-b dark:border-gray-700 uppercase tracking-wider
+                                        ${(new Date().getDay() + 6) % 7 === i ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-300'}
+                                    `}>
                                         {day}
                                     </div>
                                 ))}
                             </div>
 
-                            <div className="absolute top-10 left-0 right-0 bottom-0 flex">
-                                <div className="w-16 border-r dark:border-gray-700 bg-white dark:bg-gray-800 z-10">
+                            {/* BODY */}
+                            <div className="flex h-full">
+                                {/* SIDEBAR - STICKY LEFT */}
+                                <div className="w-20 bg-gray-50 dark:bg-gray-900 border-r dark:border-gray-700 shrink-0 sticky left-0 z-10">
                                     {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
-                                        <div key={i} className="h-[60px] text-xs text-gray-400 text-right pr-2 pt-1 border-b dark:border-gray-700">
-                                            {START_HOUR + i}:00
+                                        <div key={i} className="text-xs font-mono text-gray-400 text-right pr-3 pt-2 border-b dark:border-gray-700 relative" style={{ height: `${PIXELS_PER_HOUR}px` }}>
+                                            <span className="-top-3 relative">{START_HOUR + i}:00</span>
                                         </div>
                                     ))}
                                 </div>
 
+                                {/* COLUMNS */}
                                 {WEEK_DAYS.map((day, i) => (
                                     <div key={i} className="flex-1 border-r dark:border-gray-700 relative">
+                                        {/* GRID LINES */}
                                         {Array.from({ length: TOTAL_HOURS }).map((_, h) => (
-                                            <div key={h} className="h-[60px] border-b dark:border-gray-700 border-dashed border-gray-100"></div>
+                                            <div key={h} className="border-b dark:border-gray-700 border-dashed border-gray-100 dark:border-gray-800 box-border" style={{ height: `${PIXELS_PER_HOUR}px` }}></div>
                                         ))}
 
+                                        {/* EVENTS */}
                                         {scheduleEvents.filter(ev => ev.dayIndex === i).map((ev, idx) => (
                                             <div 
                                                 key={idx}
-                                                className={`absolute left-1 right-1 rounded-lg p-2 text-white text-xs shadow-md ${ev.color} hover:opacity-90 transition cursor-pointer z-10`}
+                                                className={`absolute left-1 right-1 rounded-md p-2 text-xs shadow-sm transition hover:scale-[1.02] cursor-pointer overflow-hidden flex flex-col justify-center ${ev.color}`}
                                                 style={{ 
                                                     top: `${ev.top}px`, 
-                                                    height: `${ev.height}px`
+                                                    height: `${ev.height - 2}px` 
                                                 }}
-                                                title={`${ev.groupName} (${ev.timeStr})`}
+                                                title={`${ev.groupName}\n${ev.timeStr}\n${ev.status}`}
                                             >
-                                                <p className="font-bold truncate">{ev.groupName}</p>
-                                                <p className="opacity-90">{ev.timeStr}</p>
+                                                <p className="font-extrabold truncate text-sm">{ev.groupName}</p>
+                                                <div className="flex justify-between items-center mt-1 opacity-80">
+                                                    <span>{ev.timeStr}</span>
+                                                </div>
                                             </div>
                                         ))}
+
+                                        {/* CURRENT TIME */}
+                                        {currentTimePosition !== null && (new Date().getDay() + 6) % 7 === i && (
+                                            <div 
+                                                className="absolute left-0 right-0 border-t-2 border-red-500 z-10 pointer-events-none flex items-center"
+                                                style={{ top: `${currentTimePosition}px` }} 
+                                            >
+                                                <div className="w-2 h-2 bg-red-500 rounded-full -ml-1"></div>
+                                                <div className="absolute right-0 bg-red-500 text-white text-[10px] px-1 rounded-l-md">İndi</div>
+                                            </div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
-
-                            {currentTimePosition !== null && (
-                                <div 
-                                    className="absolute left-16 right-0 border-t-2 border-red-500 z-20 pointer-events-none flex items-center"
-                                    style={{ top: `${currentTimePosition + 40}px` }} 
-                                >
-                                    <div className="w-3 h-3 bg-red-500 rounded-full -ml-1.5 shadow-sm"></div>
-                                </div>
-                            )}
-
-                        </div>
+                         </div>
                     </div>
                 </div>
             </div>
@@ -588,7 +625,6 @@ export default function TeacherCabinet() {
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold flex items-center gap-2">Şagirdlərin Siyahısı <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{students.length}</span></h3>
                         
-                        {/* 🔥 TOPLU SİLMƏ DÜYMƏSİ */}
                         {selectedIds.length > 0 && (
                             <button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in">
                                 <Trash2 size={18} /> Seçilənləri Sil ({selectedIds.length})
@@ -652,7 +688,6 @@ export default function TeacherCabinet() {
                             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl border dark:border-gray-600">
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
                                 
-                                {/* 🔥 DƏYİŞİKLİK: Start - End Select */}
                                 <div className="flex gap-2 mb-2">
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm flex-1 outline-none" value={tempDay} onChange={(e) => setTempDay(e.target.value)}>{WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none w-24" value={tempTime} onChange={(e) => setTempTime(e.target.value)}>{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
