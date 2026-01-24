@@ -67,6 +67,9 @@ export default function TeacherCabinet() {
   const [newGroupName, setNewGroupName] = useState("");
   const [tempDay, setTempDay] = useState("B.e"); 
   const [tempTime, setTempTime] = useState("09:00"); 
+  // 🔥 DƏYİŞİKLİK: Bitmə vaxtı üçün state
+  const [tempEndTime, setTempEndTime] = useState("10:30");
+  
   const [scheduleSlots, setScheduleSlots] = useState<{day: string, time: string}[]>([]);
 
   // JURNAL
@@ -129,7 +132,7 @@ export default function TeacherCabinet() {
     return () => clearInterval(interval);
   }, [router]);
 
-  // Cədvəl Datası
+  // 🔥 DƏYİŞİKLİK: Cədvəl Datası (Start-End Parse Edilməsi)
   useEffect(() => {
       const events: any[] = [];
       groups.forEach(group => {
@@ -139,19 +142,33 @@ export default function TeacherCabinet() {
               const parts = slot.split(" ");
               if(parts.length === 2) {
                   const dayName = parts[0];
-                  const time = parts[1];
+                  const timeRange = parts[1]; // "09:00-10:30"
                   const dayIndex = DAY_INDEX_MAP[dayName];
+                  
                   if (dayIndex !== undefined) {
-                      const [h, m] = time.split(":").map(Number);
-                      const duration = 1.5; 
-                      const top = ((h - START_HOUR) * PIXELS_PER_HOUR) + ((m / 60) * PIXELS_PER_HOUR);
-                      events.push({
-                          id: group.id + slot,
-                          groupName: group.name,
-                          dayIndex, top, height: duration * PIXELS_PER_HOUR,
-                          timeStr: time,
-                          color: `hsl(${(group.id * 50) % 360}, 70%, 50%)`
-                      });
+                      // Tire ilə vaxtı bölürük
+                      const [startStr, endStr] = timeRange.includes("-") ? timeRange.split("-") : [timeRange, null];
+                      
+                      if(startStr) {
+                        const [h, m] = startStr.split(":").map(Number);
+                        
+                        // Default duration 1.5 saat, amma endStr varsa hesabla
+                        let duration = 1.5; 
+                        if (endStr) {
+                            const [endH, endM] = endStr.split(":").map(Number);
+                            duration = (endH + endM / 60) - (h + m / 60);
+                        }
+
+                        const top = ((h - START_HOUR) * PIXELS_PER_HOUR) + ((m / 60) * PIXELS_PER_HOUR);
+                        events.push({
+                            id: group.id + slot,
+                            groupName: group.name,
+                            dayIndex, top, 
+                            height: duration * PIXELS_PER_HOUR, // Dinamik hündürlük
+                            timeStr: timeRange,
+                            color: `hsl(${(group.id * 50) % 360}, 70%, 50%)`
+                        });
+                      }
                   }
               }
           });
@@ -206,7 +223,7 @@ export default function TeacherCabinet() {
           if (!res.ok) throw new Error("Silinmə xətası");
           
           alert("Silindi!");
-          setSelectedIds([]); // Seçimi təmizlə
+          setSelectedIds([]); 
           if(teacher) fetchData(teacher.id);
       } catch (error: any) { alert(error.message); }
   };
@@ -339,11 +356,10 @@ export default function TeacherCabinet() {
     const file = e.target.files[0];
     const reader = new FileReader();
 
-    // 🛑 DÜZƏLİŞ: readAsBinaryString yerinə readAsArrayBuffer istifadə edirik ki, UTF-8 düz oxunsun
     reader.onload = async (evt) => {
         try {
             const data = evt.target?.result;
-            const wb = XLSX.read(data, { type: "array" }); // type: "array"
+            const wb = XLSX.read(data, { type: "array" }); 
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
             const jsonData = XLSX.utils.sheet_to_json(ws);
@@ -357,7 +373,6 @@ export default function TeacherCabinet() {
             if(teacher) fetchData(teacher.id);
         } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; }
     };
-    // 🛑 DÜZƏLİŞ: ArrayBuffer oxuyuruq
     reader.readAsArrayBuffer(file);
   };
 
@@ -379,9 +394,23 @@ export default function TeacherCabinet() {
       if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); }
       setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id);
   };
-  const addScheduleSlot = () => { if (!tempTime) return; setScheduleSlots([...scheduleSlots, { day: tempDay, time: tempTime }]); };
+
+  // 🔥 DƏYİŞİKLİK: addScheduleSlot (Validasiya və Format)
+  const addScheduleSlot = () => { 
+      if (!tempTime || !tempEndTime) return; 
+      
+      // Məntiq yoxlanışı
+      if (tempTime >= tempEndTime) {
+          alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!");
+          return;
+      }
+
+      setScheduleSlots([...scheduleSlots, { day: tempDay, time: `${tempTime}-${tempEndTime}` }]); 
+  };
+
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
-  const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); try { const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); if (!res.ok) throw new Error("Qrup yaradılmadı"); alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); if(teacher) fetchData(teacher.id); } catch (e: any) { alert(e.message); } };
+  
+  const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); try { const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); if (!res.ok) { const err = await res.json(); throw new Error(err.error); } alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); if(teacher) fetchData(teacher.id); } catch (e: any) { alert(e.message); } };
   const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
   const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
@@ -619,11 +648,16 @@ export default function TeacherCabinet() {
                             <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
                             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl border dark:border-gray-600">
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
+                                
+                                {/* 🔥 DƏYİŞİKLİK: Start - End Select */}
                                 <div className="flex gap-2 mb-2">
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm flex-1 outline-none" value={tempDay} onChange={(e) => setTempDay(e.target.value)}>{WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none w-24" value={tempTime} onChange={(e) => setTempTime(e.target.value)}>{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
+                                    <span className="self-center font-bold text-gray-400">-</span>
+                                    <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none w-24" value={tempEndTime} onChange={(e) => setTempEndTime(e.target.value)}>{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
                                     <button type="button" onClick={addScheduleSlot} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"><Plus size={18}/></button>
                                 </div>
+
                                 <div className="space-y-1 mt-2">
                                     {scheduleSlots.map((slot, index) => (
                                         <div key={index} className="flex justify-between items-center bg-white dark:bg-gray-600 border p-2 rounded-lg text-sm">
@@ -789,7 +823,7 @@ export default function TeacherCabinet() {
                                                 </div>
                                                 <div 
                                                     className={`w-full max-w-[50px] rounded-t-md transition-all relative hover:opacity-80 
-                                                      ${d.avg === 10 ? 'bg-purple-600' : d.avg >= 7 ? 'bg-blue-500' : d.avg >= 5 ? 'bg-orange-500' : 'bg-red-500'}
+                                                        ${d.avg === 10 ? 'bg-purple-600' : d.avg >= 7 ? 'bg-blue-500' : d.avg >= 5 ? 'bg-orange-500' : 'bg-red-500'}
                                                     `}
                                                     style={{ height: `${Math.max(d.avg * 10, 5)}%` }} 
                                                 ></div>
