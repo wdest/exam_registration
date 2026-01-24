@@ -13,16 +13,16 @@ import {
 // RECHARTS
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// --- SABITLƏR ---
+// --- SABITLƏR (DƏYİŞDİRİLMİŞ VERSİYA) ---
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
 const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
 const DAY_INDEX_MAP: { [key: string]: number } = { 
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
-// Cədvəl parametrləri
-const START_HOUR = 8;
-const END_HOUR = 22;
+// 🔥 DƏYİŞİKLİK: Saat aralığını buradan idarə edə bilərsən
+const START_HOUR = 6;  // Səhər 06:00-dan başlasın
+const END_HOUR = 24;   // Gecə 00:00-a (24:00) qədər davam etsin
 const TOTAL_HOURS = END_HOUR - START_HOUR;
 const PIXELS_PER_HOUR = 60; 
 
@@ -30,12 +30,15 @@ const PHONE_PREFIXES = ["050", "051", "055", "070", "077", "099", "010", "060"];
 const GRADES = Array.from({ length: 11 }, (_, i) => i + 1); 
 const SECTORS = ["Az", "Ru", "Eng"];
 
+// 🔥 DƏYİŞİKLİK: Dropdown menyusu avtomatik yuxarıdakı saatlara görə yaranır
 const TIME_SLOTS: string[] = [];
-for (let i = 8; i <= 22; i++) {
+for (let i = START_HOUR; i < END_HOUR; i++) {
   const hour = i.toString().padStart(2, '0');
   TIME_SLOTS.push(`${hour}:00`);
-  if (i !== 22) TIME_SLOTS.push(`${hour}:30`);
+  TIME_SLOTS.push(`${hour}:30`); // Yarım saatları da əlavə edirik
 }
+// Əgər 24:00-ı da siyahıda istəyirsənsə (bitmə vaxtı kimi):
+TIME_SLOTS.push(`${END_HOUR.toString().padStart(2, '0')}:00`);
 
 export default function TeacherCabinet() {
   const router = useRouter();
