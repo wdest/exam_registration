@@ -169,7 +169,7 @@ export default function TeacherCabinet() {
                             dayIndex, top, 
                             height: duration * PIXELS_PER_HOUR, // Dinamik hündürlük
                             timeStr: timeRange,
-                            color: `hsl(${(group.id * 50) % 360}, 70%, 50%)`
+                            color:"bg-red-600"
                         });
                       }
                   }
