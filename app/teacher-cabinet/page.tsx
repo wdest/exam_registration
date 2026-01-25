@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 
 // RECHARTS
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Legend 
+} from 'recharts';
 
 // --- SABITLƏR ---
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
@@ -825,183 +828,218 @@ export default function TeacherCabinet() {
         )}
 
         {/* --- 🔥 YENİLƏNMİŞ ANALYTICS TAB --- */}
+        {/* --- ANALYTICS (YENİLƏNMİŞ) --- */}
         {activeTab === 'analytics' && (
-             <div className="animate-in fade-in max-w-7xl mx-auto h-full overflow-y-auto pb-20">
-                <div className="mb-8 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+             <div className="animate-in fade-in space-y-6">
+                {/* HEADERS & CONTROLS */}
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="w-full md:w-1/3">
-                        <h2 className="text-2xl font-bold mb-2">Statistika</h2>
-                        <div className="relative">
-                            <select 
-                                className="p-3 pl-10 border rounded-xl bg-white dark:bg-gray-800 w-full shadow-sm outline-none cursor-pointer appearance-none"
-                                onChange={(e) => calculateAnalytics(e.target.value)}
-                                value={analyticsGroupId}
-                            >
-                                <option value="">Analiz üçün qrup seçin...</option>
-                                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                            </select>
-                            <Search className="absolute left-3 top-3.5 text-gray-400" size={18}/>
-                        </div>
+                        <h2 className="text-2xl font-bold mb-1 flex items-center gap-2">
+                            <BarChart3 className="text-blue-600"/> Statistika
+                        </h2>
+                        <p className="text-gray-500 text-sm mb-3">Qrup və ya fərdi inkişaf analizləri</p>
+                        <select 
+                            className="p-3 border dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 w-full outline-none focus:ring-2 focus:ring-blue-500 transition cursor-pointer"
+                            onChange={(e) => calculateAnalytics(e.target.value)}
+                            value={analyticsGroupId}
+                        >
+                            <option value="">Analiz üçün qrup seçin...</option>
+                            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
                     </div>
                     
                     {analyticsGroupId && (
-                        <div className="flex flex-col gap-4 w-full md:w-auto items-end animate-in fade-in">
-                            <div className="flex gap-2">
-                                <button onClick={() => setAnalysisMode('group')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'group' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Qrup</button>
-                                <button onClick={() => setAnalysisMode('individual')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'individual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Fərdi</button>
+                        <div className="flex flex-col gap-3 w-full md:w-auto items-end">
+                             <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                                <button onClick={() => setAnalysisMode('group')} className={`px-4 py-2 rounded-md text-sm font-bold transition ${analysisMode === 'group' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>Qrup</button>
+                                <button onClick={() => setAnalysisMode('individual')} className={`px-4 py-2 rounded-md text-sm font-bold transition ${analysisMode === 'individual' ? 'bg-white dark:bg-gray-600 shadow text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}>Fərdi</button>
                             </div>
 
-                            {analysisMode === 'individual' && (
-                                <select className="p-2 border rounded-lg bg-white dark:bg-gray-800 text-sm w-48 outline-none" value={selectedStudentForChart} onChange={(e) => setSelectedStudentForChart(e.target.value)}>
-                                    <option value="">Şagird seç...</option>
-                                    {analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                            <div className="flex gap-2 w-full md:w-auto">
+                                {analysisMode === 'individual' && (
+                                    <select className="p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none w-full md:w-48" value={selectedStudentForChart} onChange={(e) => setSelectedStudentForChart(e.target.value)}>
+                                        <option value="">Şagird seç...</option>
+                                        {analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                                    </select>
+                                )}
+                                <select 
+                                    className="p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none font-medium"
+                                    value={chartInterval}
+                                    onChange={(e) => setChartInterval(e.target.value as any)}
+                                >
+                                    <option value="lessons4">Son 4 Dərs</option>
+                                    <option value="weeks4">Son 4 Həftə</option>
+                                    <option value="months4">Son 4 Ay</option>
+                                    <option value="year">İllik</option>
                                 </select>
-                            )}
-
-                            <div className="flex bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-700">
-                                <button onClick={() => setChartInterval('lessons4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'lessons4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Dərs</button>
-                                <button onClick={() => setChartInterval('weeks4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'weeks4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Həftə</button>
-                                <button onClick={() => setChartInterval('months4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'months4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Ay</button>
-                                <button onClick={() => setChartInterval('year')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'year' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>İllik</button>
                             </div>
                         </div>
                     )}
                 </div>
 
                 {analyticsGroupId ? (
-                    <div className="space-y-8 animate-in slide-in-from-bottom-4">
+                    <div className="space-y-6">
+                        {/* KPI CARDS */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Bal</p>
-                                    <h3 className="text-4xl font-bold text-blue-600">{displayStats.score}</h3>
-                                    {displayStats.isIndividual && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Fərdi</span>}
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 relative overflow-hidden group hover:shadow-md transition">
+                                <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/20 rounded-bl-full -mr-8 -mt-8 transition group-hover:scale-110"></div>
+                                <div className="relative z-10">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <p className="text-gray-500 text-sm font-bold uppercase tracking-wide">{displayStats.title} Bal</p>
+                                            <h3 className="text-4xl font-extrabold text-gray-800 dark:text-white mt-2">{displayStats.score}</h3>
+                                        </div>
+                                        <div className="p-3 bg-blue-100 dark:bg-blue-900 text-blue-600 rounded-xl">
+                                            <Activity size={24}/>
+                                        </div>
+                                    </div>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                                        <div className="bg-blue-500 h-full rounded-full" style={{ width: `${(Number(displayStats.score) / 10) * 100}%` }}></div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2 text-right">Maksimum: 10</p>
                                 </div>
-                                <div className="p-4 bg-blue-50 rounded-full text-blue-600"><TrendingUp size={32}/></div>
                             </div>
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Davamiyyət</p>
-                                    <h3 className="text-4xl font-bold text-green-600">{displayStats.attendance}%</h3>
-                                    {displayStats.isIndividual && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Fərdi</span>}
+
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 relative overflow-hidden group hover:shadow-md transition">
+                                <div className="absolute right-0 top-0 w-32 h-32 bg-green-50 dark:bg-green-900/20 rounded-bl-full -mr-8 -mt-8 transition group-hover:scale-110"></div>
+                                <div className="relative z-10">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <p className="text-gray-500 text-sm font-bold uppercase tracking-wide">{displayStats.title} Davamiyyət</p>
+                                            <h3 className="text-4xl font-extrabold text-gray-800 dark:text-white mt-2">{displayStats.attendance}%</h3>
+                                        </div>
+                                        <div className="p-3 bg-green-100 dark:bg-green-900 text-green-600 rounded-xl">
+                                            <CheckCircle size={24}/>
+                                        </div>
+                                    </div>
+                                    <div className="w-full bg-gray-100 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
+                                        <div className="bg-green-500 h-full rounded-full" style={{ width: `${displayStats.attendance}%` }}></div>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-2 text-right">Hədəf: 100%</p>
                                 </div>
-                                <div className="p-4 bg-green-50 rounded-full text-green-600"><PieChart size={32}/></div>
                             </div>
                         </div>
 
+                        {/* CHARTS ROW */}
                         {chartData.length > 0 && (
-                            <>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* BAR CHART */}
                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <Activity size={20} className="text-purple-600"/> 
-                                        {analysisMode === 'group' ? 'Qrup Trendi' : 'Fərdi İnkişaf'} 
-                                        <span className="text-sm font-normal text-gray-400 ml-2">
-                                            ({chartInterval === 'lessons4' ? 'Günlük' : chartInterval === 'weeks4' ? 'Həftəlik' : 'Aylıq'})
-                                        </span>
+                                        <BarChart3 size={20} className="text-purple-500"/> Müqayisəli Nəticələr
                                     </h3>
-                                    
-                                    <div className="h-64 flex items-end justify-around gap-4 px-2 border-b dark:border-gray-700 pb-2">
-                                        {chartData.map((d, i) => (
-                                            <div key={i} className="flex flex-col items-center flex-1 group relative h-full justify-end">
-                                                <div className="absolute -top-10 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition z-10 whitespace-nowrap">
-                                                    {d.label}: <strong>{d.avg}</strong> Bal
-                                                </div>
-                                                <div 
-                                                    className={`w-full max-w-[50px] rounded-t-md transition-all relative hover:opacity-80 
-                                                        ${d.avg === 10 ? 'bg-purple-600' : d.avg >= 7 ? 'bg-blue-500' : d.avg >= 5 ? 'bg-orange-500' : 'bg-red-500'}
-                                                    `}
-                                                    style={{ height: `${Math.max(d.avg * 10, 5)}%` }} 
-                                                ></div>
-                                                <span className="text-[10px] text-gray-400 mt-3 font-medium truncate w-full text-center">
-                                                    {chartInterval === 'lessons4' ? d.label.slice(5) : d.label}
-                                                </span>
-                                            </div>
-                                        ))}
+                                    <div className="h-72 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} dy={10} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} domain={[0, 10]} />
+                                                <Tooltip 
+                                                    cursor={{fill: 'transparent'}}
+                                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                                />
+                                                <Bar dataKey="avg" name="Ortalama Bal" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={40} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
                                     </div>
                                 </div>
 
-                                {/* RECHARTS LINE CHART */}
-                                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 mt-6">
+                                {/* LINE CHART */}
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <LineChartIcon size={20} className="text-blue-500"/> İnkişaf Dinamikası (Line)
+                                        <TrendingUp size={20} className="text-blue-500"/> İnkişaf Dinamikası
                                     </h3>
-                                    <div className="h-64 w-full">
-                                      <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={chartData}>
-                                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                          <XAxis dataKey="label" fontSize={12} stroke="#9ca3af" />
-                                          <YAxis domain={[0, 10]} hide /> 
-                                          <Tooltip 
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                            formatter={(value: number) => [`${value} Bal`, 'Ortalama']}
-                                          />
-                                          <Line 
-                                            type="monotone" 
-                                            dataKey="avg" 
-                                            stroke="#3b82f6" 
-                                            strokeWidth={3}
-                                            dot={{ fill: '#fff', stroke: '#3b82f6', strokeWidth: 2, r: 4 }}
-                                            activeDot={{ r: 6 }}
-                                          />
-                                        </LineChart>
-                                      </ResponsiveContainer>
+                                    <div className="h-72 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                                                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} dy={10} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} domain={[0, 10]} />
+                                                <Tooltip 
+                                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                                />
+                                                <Line 
+                                                    type="monotone" 
+                                                    dataKey="avg" 
+                                                    name="Ortalama Bal"
+                                                    stroke="#3b82f6" 
+                                                    strokeWidth={4}
+                                                    dot={{ fill: '#fff', stroke: '#3b82f6', strokeWidth: 2, r: 4 }}
+                                                    activeDot={{ r: 6, fill: '#3b82f6' }}
+                                                />
+                                            </LineChart>
+                                        </ResponsiveContainer>
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         )}
 
-                        {/* REYTİNQ CƏDVƏLİ */}
+                        {/* STUDENT RANKING TABLE */}
                         {analysisMode === 'group' && (
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
-                                <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold border-b dark:border-gray-600">
-                                        <tr><th className="p-3">#</th><th className="p-3">Şagird</th><th className="p-3">Ortalama</th><th className="p-3">Davamiyyət</th><th className="p-3">Status</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        {analyticsData.map((s, index) => (
-                                            <tr key={s.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                <td className="p-3 font-bold text-gray-400">{index + 1}</td>
-                                                <td className="p-3 font-medium">{s.first_name} {s.last_name}</td>
-                                                <td className="p-3 font-bold text-blue-600 text-lg">{s.avgScore}</td>
-                                                <td className="p-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                            <div className={`h-full ${parseFloat(s.attendanceRate) > 80 ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${s.attendanceRate}%` }}></div>
-                                                        </div>
-                                                        <span className="text-xs text-gray-500">{s.attendanceRate}%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-3">
-                                                    {parseFloat(s.avgScore) === 10 ? 
-                                                      <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded text-xs font-extrabold border border-purple-200">🦁 Canavar</span> :
-                                                     parseFloat(s.avgScore) >= 7 ? 
-                                                      <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
-                                                     parseFloat(s.avgScore) >= 5 ? 
-                                                      <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded text-xs font-bold">Orta</span> :
-                                                      <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>
-                                                    }
-                                                </td>
+                                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                                    <Users size={20} className="text-orange-500"/> Şagird Reytinqi
+                                </h3>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead>
+                                            <tr className="border-b-2 border-gray-100 dark:border-gray-700 text-gray-400 uppercase text-xs">
+                                                <th className="p-3 font-bold">Reytinq</th>
+                                                <th className="p-3 font-bold">Şagird</th>
+                                                <th className="p-3 font-bold">Ortalama</th>
+                                                <th className="p-3 font-bold">Davamiyyət</th>
+                                                <th className="p-3 font-bold">Status</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                            {analyticsData.map((s, index) => (
+                                                <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition group">
+                                                    <td className="p-4">
+                                                        <span className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs 
+                                                            ${index === 0 ? 'bg-yellow-100 text-yellow-600' : 
+                                                              index === 1 ? 'bg-gray-100 text-gray-600' : 
+                                                              index === 2 ? 'bg-orange-100 text-orange-600' : 'bg-transparent text-gray-400'}`}>
+                                                            {index + 1}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4 font-semibold text-gray-700 dark:text-gray-200">{s.first_name} {s.last_name}</td>
+                                                    <td className="p-4">
+                                                        <span className="font-bold text-lg text-blue-600 dark:text-blue-400">{s.avgScore}</span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-24 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                                                <div className={`h-full rounded-full ${parseFloat(s.attendanceRate) > 85 ? 'bg-green-500' : parseFloat(s.attendanceRate) > 50 ? 'bg-orange-400' : 'bg-red-500'}`} style={{ width: `${s.attendanceRate}%` }}></div>
+                                                            </div>
+                                                            <span className="text-xs font-medium text-gray-500">{s.attendanceRate}%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        {parseFloat(s.avgScore) >= 9 ? 
+                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-600 border border-purple-200">💎 Əlaçı</span> :
+                                                        parseFloat(s.avgScore) >= 7 ? 
+                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-600 border border-green-200">🚀 Yaxşı</span> :
+                                                        parseFloat(s.avgScore) >= 5 ? 
+                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200">⚡ Orta</span> :
+                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">⚠️ Zəif</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </div>
                 ) : (
-                    // EMPTY STATE (Qrup seçilməyib)
-                    <div className="flex flex-col items-center justify-center h-[400px] text-center p-8 bg-white dark:bg-gray-800 rounded-2xl border dark:border-gray-700 shadow-sm animate-in fade-in">
-                        <div className="bg-blue-50 p-4 rounded-full mb-4">
-                            <BarChart3 className="text-blue-500 w-12 h-12" />
+                    <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-800/50">
+                        <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 text-blue-500 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                            <BarChart3 size={40} />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Statistikanı görmək üçün qrup seçin</h3>
-                        <p className="text-gray-500 max-w-sm">Yuxarıdakı menyudan qrup seçərək şagirdlərinizin inkişaf dinamikasını və davamiyyətini izləyə bilərsiniz.</p>
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Analizə Başlamaq Üçün</h3>
+                        <p className="text-gray-500 max-w-sm">Zəhmət olmasa yuxarıdakı menyudan analiz etmək istədiyiniz <strong>Qrupu</strong> seçin.</p>
                     </div>
                 )}
              </div>
         )}
-      </main>
-    </div>
-  );
-}
