@@ -1043,3 +1043,13 @@ export default function TeacherCabinet() {
                 )}
              </div>
         )}
+        // ... sizin kodunuz ...
+                )}
+             </div>
+        )}
+      
+      {/* AŞAĞIDAKI HİSSƏNİ ƏLAVƏ EDİN: */}
+      </main>
+    </div>
+  );
+}
