@@ -82,6 +82,8 @@ export default function TeacherCabinet() {
   const [grades, setGrades] = useState<{[key: string]: string}>({});
   const [attendance, setAttendance] = useState<{[key: string]: boolean}>({});
   const [isValidDay, setIsValidDay] = useState(true); 
+  
+  // --- YENİLƏNMİŞ ANALİZ STATE-LƏRİ ---
   const [analyticsGroupId, setAnalyticsGroupId] = useState<string>("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState({ avgScore: 0, avgAttendance: 0 });
@@ -285,85 +287,116 @@ export default function TeacherCabinet() {
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   
-  const calculateAnalytics = async (groupId: string) => { 
-      if (!groupId) return; 
-      setAnalyticsGroupId(groupId); 
-      let studentsInGroup = []; 
-      try { 
-          const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); 
-          if (res.ok) { 
-              const data = await res.json(); 
-              studentsInGroup = data.students; 
-              setAnalyticsStudentsList(studentsInGroup); 
-          } 
-      } catch(e) { console.error(e); return; } 
-      
-      let allGrades = []; 
-      try { 
-          const res = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); 
-          if (res.ok) { 
-              const data = await res.json(); 
-              allGrades = data.allGrades; 
-              setRawGradesForChart(allGrades); 
-          } 
-      } catch(e) { console.error(e); return; } 
-      
-      if (!allGrades || !studentsInGroup) return; 
-      
-      let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; 
-      const stats = studentsInGroup.map((student: any) => { 
-          const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); 
-          const scoredDays = studentGrades.filter((g: any) => g.score !== null); 
-          const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; 
-          const totalDays = studentGrades.length; 
-          const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; 
-          const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; 
-          if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } 
-          if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } 
-          return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; 
-      }); 
-      stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); 
-      setAnalyticsData(stats); 
-      setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); 
-      updateChart(allGrades, 'group', null, 'lessons4'); 
+  // --- 🔥 YENİLƏNMİŞ ANALİZ MƏNTİQİ ---
+
+  // 1. Data Çəkən Funksiya (Qrafik hesabatı etmir)
+  const calculateAnalytics = async (groupId: string) => {
+    if (!groupId) return;
+    setAnalyticsGroupId(groupId);
+
+    try {
+        // Tələbələr
+        const resMembers = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
+        const dataMembers = await resMembers.json();
+        const studentsInGroup = dataMembers.students || [];
+        setAnalyticsStudentsList(studentsInGroup);
+
+        // Qiymətlər
+        const resGrades = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`);
+        const dataGrades = await resGrades.json();
+        const allGrades = dataGrades.allGrades || [];
+        
+        // Raw datanı yadda saxla
+        setRawGradesForChart(allGrades);
+
+        // Table statistikasını hesabla
+        calculateTableStats(studentsInGroup, allGrades);
+
+    } catch(e) { console.error(e); }
   };
 
-  const updateChart = (data: any[], mode: 'group' | 'individual', studentId: string | null, interval: string) => { 
-      let filteredData = [...data]; 
-      if (mode === 'individual' && studentId) { 
-          filteredData = filteredData.filter(g => g.student_id.toString() === studentId.toString()); 
-      } 
-      const groupedData: { [key: string]: number[] } = {}; 
-      filteredData.forEach((g: any) => { 
-          if (g.score !== null) { 
-              const date = new Date(g.grade_date); 
-              let key = g.grade_date; 
-              if (interval === 'weeks4') { 
-                  const startOfYear = new Date(date.getFullYear(), 0, 1); 
-                  const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); 
-                  const weekNum = Math.ceil((days + 1) / 7); 
-                  key = `Həftə ${weekNum}`; 
-              } else if (interval === 'months4' || interval === 'year') { 
-                  const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; 
-                  key = monthNames[date.getMonth()]; 
-              } 
-              if (!groupedData[key]) groupedData[key] = []; 
-              groupedData[key].push(g.score); 
-          } 
-      }); 
-      let chartResult = Object.keys(groupedData).map(key => { 
-          const scores = groupedData[key]; 
-          const avg = scores.reduce((a, b) => a + b, 0) / scores.length; 
-          return { label: key, avg: parseFloat(avg.toFixed(1)), rawDate: key }; 
-      }); 
-      if (interval === 'lessons4') { 
-          chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); 
-          chartResult = chartResult.slice(-4); 
-      } else if (interval === 'weeks4' || interval === 'months4') { 
-          chartResult = chartResult.slice(-4); 
-      } 
-      setChartData(chartResult); 
+  // 2. Cədvəl Statistikası (Ranking)
+  const calculateTableStats = (studentsInGroup: any[], allGrades: any[]) => {
+      let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0;
+
+      const stats = studentsInGroup.map((student: any) => {
+          const studentGrades = allGrades.filter((g: any) => g.student_id === student.id);
+          const scoredDays = studentGrades.filter((g: any) => g.score !== null);
+          
+          const avgScore = scoredDays.length > 0 
+              ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length 
+              : 0;
+
+          const totalDays = studentGrades.length;
+          const presentDays = studentGrades.filter((g: any) => g.attendance === true).length;
+          const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
+          if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; }
+          if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; }
+
+          return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) };
+      });
+
+      stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore));
+      setAnalyticsData(stats);
+      
+      setGroupStats({
+          avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0,
+          avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0
+      });
   };
+
+  // 3. 🔥 QRAFİKİ YENİLƏYƏN EFFECT (Interval dəyişəndə işləyir)
+  useEffect(() => {
+      if (rawGradesForChart.length === 0) return;
+
+      let filteredData = [...rawGradesForChart];
+
+      if (analysisMode === 'individual' && selectedStudentForChart) {
+          filteredData = filteredData.filter(g => g.student_id.toString() === selectedStudentForChart.toString());
+      }
+
+      const groupedData: { [key: string]: number[] } = {};
+
+      filteredData.forEach((g: any) => {
+          if (g.score !== null) {
+              const date = new Date(g.grade_date);
+              let key = g.grade_date; 
+
+              if (chartInterval === 'weeks4') {
+                  const startOfYear = new Date(date.getFullYear(), 0, 1);
+                  const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
+                  const weekNum = Math.ceil((days + 1) / 7);
+                  key = `Həftə ${weekNum}`;
+              } else if (chartInterval === 'months4') {
+                  const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
+                  key = monthNames[date.getMonth()];
+              } else if (chartInterval === 'year') {
+                  key = date.getFullYear().toString();
+              }
+
+              if (!groupedData[key]) groupedData[key] = [];
+              groupedData[key].push(g.score);
+          }
+      });
+
+      let chartResult = Object.keys(groupedData).map(key => {
+          const scores = groupedData[key];
+          const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+          return { label: key, avg: parseFloat(avg.toFixed(1)) };
+      });
+
+      if (chartInterval === 'lessons4') {
+          chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
+          chartResult = chartResult.slice(-4);
+          chartResult = chartResult.map(item => ({...item, label: item.label.slice(5)}));
+      } else if (chartInterval === 'weeks4' || chartInterval === 'months4') {
+           chartResult = chartResult.slice(-4);
+      }
+
+      setChartData(chartResult);
+
+  }, [chartInterval, analysisMode, selectedStudentForChart, rawGradesForChart]);
 
   const getDisplayStats = () => { 
       if (analysisMode === 'individual' && selectedStudentForChart) { 
@@ -828,9 +861,8 @@ export default function TeacherCabinet() {
         )}
 
         {/* --- 🔥 YENİLƏNMİŞ ANALYTICS TAB --- */}
-        {/* --- ANALYTICS (YENİLƏNMİŞ) --- */}
         {activeTab === 'analytics' && (
-             <div className="animate-in fade-in space-y-6">
+             <div className="animate-in fade-in space-y-6 pb-20 overflow-y-auto">
                 {/* HEADERS & CONTROLS */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="w-full md:w-1/3">
@@ -1023,29 +1055,28 @@ export default function TeacherCabinet() {
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200">⚡ Orta</span> :
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">⚠️ Zəif</span>
                                                         }
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
-            ) : (
-                <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-800/50">
-                    <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 text-blue-500 rounded-full flex items-center justify-center mb-4 animate-pulse">
-                        <BarChart3 size={40} />
+                        )}
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Analizə Başlamaq Üçün</h3>
-                    <p className="text-gray-500 max-w-sm">Zəhmət olmasa yuxarıdakı menyudan analiz etmək istədiyiniz <strong>Qrupu</strong> seçin.</p>
-                </div>
-            )}
-         </div>
-    )}
+                ) : (
+                    <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-800/50">
+                        <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 text-blue-500 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                            <BarChart3 size={40} />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Analizə Başlamaq Üçün</h3>
+                        <p className="text-gray-500 max-w-sm">Zəhmət olmasa yuxarıdakı menyudan analiz etmək istədiyiniz <strong>Qrupu</strong> seçin.</p>
+                    </div>
+                )}
+             </div>
+        )}
 
-  </main>
-</div>
-);
+      </main>
+    </div>
+  );
 }
-                        
