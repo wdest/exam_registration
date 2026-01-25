@@ -53,6 +53,7 @@ export default function TeacherCabinet() {
   const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [studentSearch, setStudentSearch] = useState(""); // 🔥 YENİ: Şagird Axtarışı
 
   // CƏDVƏL
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
@@ -83,7 +84,7 @@ export default function TeacherCabinet() {
   const [attendance, setAttendance] = useState<{[key: string]: boolean}>({});
   const [isValidDay, setIsValidDay] = useState(true); 
   
-  // --- YENİLƏNMİŞ ANALİZ STATE-LƏRİ ---
+  // --- ANALİZ STATE-LƏRİ ---
   const [analyticsGroupId, setAnalyticsGroupId] = useState<string>("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
   const [groupStats, setGroupStats] = useState({ avgScore: 0, avgAttendance: 0 });
@@ -287,42 +288,33 @@ export default function TeacherCabinet() {
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   
-  // --- 🔥 YENİLƏNMİŞ ANALİZ MƏNTİQİ ---
-
-  // 1. Data Çəkən Funksiya (Qrafik hesabatı etmir)
+  // --- ANALİZ MƏNTİQİ ---
   const calculateAnalytics = async (groupId: string) => {
     if (!groupId) return;
     setAnalyticsGroupId(groupId);
 
     try {
-        // Tələbələr
         const resMembers = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`);
         const dataMembers = await resMembers.json();
         const studentsInGroup = dataMembers.students || [];
         setAnalyticsStudentsList(studentsInGroup);
 
-        // Qiymətlər
         const resGrades = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`);
         const dataGrades = await resGrades.json();
         const allGrades = dataGrades.allGrades || [];
         
-        // Raw datanı yadda saxla
         setRawGradesForChart(allGrades);
-
-        // Table statistikasını hesabla
         calculateTableStats(studentsInGroup, allGrades);
 
     } catch(e) { console.error(e); }
   };
 
-  // 2. Cədvəl Statistikası (Ranking)
   const calculateTableStats = (studentsInGroup: any[], allGrades: any[]) => {
       let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0;
 
       const stats = studentsInGroup.map((student: any) => {
           const studentGrades = allGrades.filter((g: any) => g.student_id === student.id);
           const scoredDays = studentGrades.filter((g: any) => g.score !== null);
-          
           const avgScore = scoredDays.length > 0 
               ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length 
               : 0;
@@ -346,19 +338,15 @@ export default function TeacherCabinet() {
       });
   };
 
-  // 3. 🔥 QRAFİKİ YENİLƏYƏN EFFECT (Interval dəyişəndə işləyir)
-  // 3. 🔥 QRAFİKİ YENİLƏYƏN EFFECT (Interval dəyişəndə işləyir)
   useEffect(() => {
       if (rawGradesForChart.length === 0) return;
 
       let filteredData = [...rawGradesForChart];
 
-      // Fərdi rejimdisə, şagirdə görə filterlə
       if (analysisMode === 'individual' && selectedStudentForChart) {
           filteredData = filteredData.filter(g => g.student_id.toString() === selectedStudentForChart.toString());
       }
 
-      // Əgər "İllik" seçilibsə, yalnız cari ilin datalarını saxla (İstəyə bağlı, amma tövsiyə olunur)
       if (chartInterval === 'year') {
           const currentYear = new Date().getFullYear();
           filteredData = filteredData.filter(g => new Date(g.grade_date).getFullYear() === currentYear);
@@ -380,7 +368,6 @@ export default function TeacherCabinet() {
               } else if (chartInterval === 'months4') {
                   key = monthNames[date.getMonth()];
               } else if (chartInterval === 'year') {
-                  // 🔥 DÜZƏLİŞ BURADA: İllik seçiləndə açar sözü Ayın adı edirik (Yan, Fev...)
                   key = monthNames[date.getMonth()];
               }
 
@@ -395,25 +382,22 @@ export default function TeacherCabinet() {
           return { label: key, avg: parseFloat(avg.toFixed(1)) };
       });
 
-      // SORT VƏ SLICE MƏNTİQİ
       if (chartInterval === 'lessons4') {
           chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
           chartResult = chartResult.slice(-4);
           chartResult = chartResult.map(item => ({...item, label: item.label.slice(5)}));
       } else if (chartInterval === 'weeks4') {
-           // Həftələri sadəcə sona görə kəsirik
            chartResult = chartResult.slice(-4);
       } else if (chartInterval === 'months4') {
-           // Son 4 ayı göstərir
            chartResult = chartResult.slice(-4);
       } else if (chartInterval === 'year') {
-           // 🔥 DÜZƏLİŞ: Ayları ardıcıllıqla düzürük (Yan -> Dek)
            chartResult.sort((a, b) => monthNames.indexOf(a.label) - monthNames.indexOf(b.label));
       }
 
       setChartData(chartResult);
 
   }, [chartInterval, analysisMode, selectedStudentForChart, rawGradesForChart]);
+
   const getDisplayStats = () => { 
       if (analysisMode === 'individual' && selectedStudentForChart) { 
           const studentStat = analyticsData.find(s => s.id.toString() === selectedStudentForChart.toString()); 
@@ -422,6 +406,13 @@ export default function TeacherCabinet() {
       return { title: "Qrup Ortalaması", score: groupStats.avgScore, attendance: groupStats.avgAttendance, isIndividual: false }; 
   }; 
   const displayStats = getDisplayStats();
+
+  // 🔥 FILTER MƏNTİQİ: Axtarış üçün
+  const filteredStudents = students.filter(s => {
+      const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase();
+      const code = s.student_code ? s.student_code.toString() : '';
+      return fullName.includes(studentSearch.toLowerCase()) || code.includes(studentSearch);
+  });
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { 
       if (!e.target.files || e.target.files.length === 0) return; 
@@ -571,7 +562,7 @@ export default function TeacherCabinet() {
 
       <main className="p-4 md:p-6 h-[calc(100vh-80px)] overflow-hidden flex flex-col bg-gray-50 dark:bg-gray-900">
 
-        {/* --- 🔥 YENİLƏNMİŞ DASHBOARD --- */}
+        {/* --- DASHBOARD --- */}
         {activeTab === 'dashboard' && (
             <div className="overflow-auto h-full pb-20 animate-in fade-in max-w-7xl mx-auto w-full">
                 <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-8 text-white shadow-lg mb-8">
@@ -679,10 +670,10 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- STUDENTS TAB --- */}
+        {/* --- 🔥 YENİLƏNMİŞ STUDENTS TAB (SEARCH & SCROLL) --- */}
         {activeTab === 'students' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-y-auto pb-20">
-                <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-fit sticky top-0">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-hidden pb-2">
+                <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-full overflow-y-auto">
                     <div className="mb-6 pb-6 border-b dark:border-gray-700">
                         <label className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-green-300 bg-green-50 text-green-700 cursor-pointer hover:bg-green-100 transition ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
                             <Upload size={20} />
@@ -717,38 +708,52 @@ export default function TeacherCabinet() {
                     </form>
                 </div>
 
-                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-bold flex items-center gap-2">Şagirdlərin Siyahısı <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{students.length}</span></h3>
+                <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex flex-col h-full overflow-hidden">
+                    <div className="flex justify-between items-center mb-4 shrink-0">
+                        <h3 className="text-lg font-bold flex items-center gap-2">Şagirdlər <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{filteredStudents.length}</span></h3>
                         
-                        {selectedIds.length > 0 && (
-                            <button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in">
-                                <Trash2 size={18} /> Seçilənləri Sil ({selectedIds.length})
-                            </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {/* 🔥 AXTARIŞ INPUTU */}
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                <input 
+                                    placeholder="Ad, soyad və ya kod..." 
+                                    className="pl-10 pr-4 py-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-48 focus:w-64 transition-all"
+                                    value={studentSearch}
+                                    onChange={(e) => setStudentSearch(e.target.value)}
+                                />
+                            </div>
+
+                            {selectedIds.length > 0 && (
+                                <button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in text-sm">
+                                    <Trash2 size={16} /> Sil ({selectedIds.length})
+                                </button>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="overflow-x-auto">
+                    {/* 🔥 SCROLL OLUNAN CƏDVƏL HİSSƏSİ */}
+                    <div className="overflow-auto flex-1 rounded-lg border dark:border-gray-700">
                         <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
-                            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold border-b dark:border-gray-600">
+                            <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold sticky top-0 z-10 shadow-sm">
                                 <tr>
-                                    <th className="p-3 w-10">
+                                    <th className="p-3 w-10 border-b dark:border-gray-600">
                                         <button onClick={toggleSelectAll} className="text-gray-500 hover:text-blue-600">
-                                            {selectedIds.length === students.length && students.length > 0 ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
+                                            {selectedIds.length === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
                                         </button>
                                     </th>
-                                    <th className="p-3">ID</th>
-                                    <th className="p-3">Kod</th>
-                                    <th className="p-3">Ad Soyad</th>
-                                    <th className="p-3">Ata adı</th>
-                                    <th className="p-3">Sinif</th>
-                                    <th className="p-3">Sektor</th>
-                                    <th className="p-3 text-right">Əməliyyatlar</th>
+                                    <th className="p-3 border-b dark:border-gray-600">ID</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Kod</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Ad Soyad</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Sinif</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Sektor</th>
+                                    <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {students.map((s) => (
-                                    <tr key={s.id} className={`border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition ${selectedIds.includes(s.id) ? "bg-blue-50 dark:bg-blue-900/30" : ""} ${editingId === s.id ? "bg-yellow-50 dark:bg-yellow-900/30" : ""}`}>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                {filteredStudents.map((s) => (
+                                    <tr key={s.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition ${selectedIds.includes(s.id) ? "bg-blue-50 dark:bg-blue-900/30" : ""} ${editingId === s.id ? "bg-yellow-50 dark:bg-yellow-900/30" : ""}`}>
                                         <td className="p-3">
                                             <button onClick={() => toggleSelectOne(s.id)} className="text-gray-400 hover:text-blue-600">
                                                 {selectedIds.includes(s.id) ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
@@ -761,11 +766,16 @@ export default function TeacherCabinet() {
                                         <td className="p-3">{s.grade}</td>
                                         <td className="p-3"><span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-600">{s.sector || "Az"}</span></td>
                                         <td className="p-3 flex justify-end gap-2">
-                                            <button onClick={() => startEdit(s)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg"><Pencil size={16}/></button>
-                                            <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:text-red-600"><Trash2 size={16}/></button>
+                                            <button onClick={() => startEdit(s)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900"><Pencil size={16}/></button>
+                                            <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900"><Trash2 size={16}/></button>
                                         </td>
                                     </tr>
                                 ))}
+                                {filteredStudents.length === 0 && (
+                                    <tr>
+                                        <td colSpan={8} className="text-center p-8 text-gray-400">Heç bir şagird tapılmadı.</td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -876,10 +886,9 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- 🔥 YENİLƏNMİŞ ANALYTICS TAB --- */}
+        {/* --- ANALYTICS TAB --- */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in space-y-6 pb-20 overflow-y-auto">
-                {/* HEADERS & CONTROLS */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="w-full md:w-1/3">
                         <h2 className="text-2xl font-bold mb-1 flex items-center gap-2">
@@ -927,7 +936,6 @@ export default function TeacherCabinet() {
 
                 {analyticsGroupId ? (
                     <div className="space-y-6">
-                        {/* KPI CARDS */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 relative overflow-hidden group hover:shadow-md transition">
                                 <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/20 rounded-bl-full -mr-8 -mt-8 transition group-hover:scale-110"></div>
@@ -968,10 +976,8 @@ export default function TeacherCabinet() {
                             </div>
                         </div>
 
-                        {/* CHARTS ROW */}
                         {chartData.length > 0 && (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                                {/* BAR CHART */}
                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                                         <BarChart3 size={20} className="text-purple-500"/> Müqayisəli Nəticələr
@@ -992,7 +998,6 @@ export default function TeacherCabinet() {
                                     </div>
                                 </div>
 
-                                {/* LINE CHART */}
                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
                                     <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                                         <TrendingUp size={20} className="text-blue-500"/> İnkişaf Dinamikası
@@ -1022,7 +1027,6 @@ export default function TeacherCabinet() {
                             </div>
                         )}
 
-                        {/* STUDENT RANKING TABLE */}
                         {analysisMode === 'group' && (
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
                                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
