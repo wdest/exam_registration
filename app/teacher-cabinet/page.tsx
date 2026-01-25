@@ -347,16 +347,25 @@ export default function TeacherCabinet() {
   };
 
   // 3. 🔥 QRAFİKİ YENİLƏYƏN EFFECT (Interval dəyişəndə işləyir)
+  // 3. 🔥 QRAFİKİ YENİLƏYƏN EFFECT (Interval dəyişəndə işləyir)
   useEffect(() => {
       if (rawGradesForChart.length === 0) return;
 
       let filteredData = [...rawGradesForChart];
 
+      // Fərdi rejimdisə, şagirdə görə filterlə
       if (analysisMode === 'individual' && selectedStudentForChart) {
           filteredData = filteredData.filter(g => g.student_id.toString() === selectedStudentForChart.toString());
       }
 
+      // Əgər "İllik" seçilibsə, yalnız cari ilin datalarını saxla (İstəyə bağlı, amma tövsiyə olunur)
+      if (chartInterval === 'year') {
+          const currentYear = new Date().getFullYear();
+          filteredData = filteredData.filter(g => new Date(g.grade_date).getFullYear() === currentYear);
+      }
+
       const groupedData: { [key: string]: number[] } = {};
+      const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
 
       filteredData.forEach((g: any) => {
           if (g.score !== null) {
@@ -369,10 +378,10 @@ export default function TeacherCabinet() {
                   const weekNum = Math.ceil((days + 1) / 7);
                   key = `Həftə ${weekNum}`;
               } else if (chartInterval === 'months4') {
-                  const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"];
                   key = monthNames[date.getMonth()];
               } else if (chartInterval === 'year') {
-                  key = date.getFullYear().toString();
+                  // 🔥 DÜZƏLİŞ BURADA: İllik seçiləndə açar sözü Ayın adı edirik (Yan, Fev...)
+                  key = monthNames[date.getMonth()];
               }
 
               if (!groupedData[key]) groupedData[key] = [];
@@ -386,18 +395,25 @@ export default function TeacherCabinet() {
           return { label: key, avg: parseFloat(avg.toFixed(1)) };
       });
 
+      // SORT VƏ SLICE MƏNTİQİ
       if (chartInterval === 'lessons4') {
           chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
           chartResult = chartResult.slice(-4);
           chartResult = chartResult.map(item => ({...item, label: item.label.slice(5)}));
-      } else if (chartInterval === 'weeks4' || chartInterval === 'months4') {
+      } else if (chartInterval === 'weeks4') {
+           // Həftələri sadəcə sona görə kəsirik
            chartResult = chartResult.slice(-4);
+      } else if (chartInterval === 'months4') {
+           // Son 4 ayı göstərir
+           chartResult = chartResult.slice(-4);
+      } else if (chartInterval === 'year') {
+           // 🔥 DÜZƏLİŞ: Ayları ardıcıllıqla düzürük (Yan -> Dek)
+           chartResult.sort((a, b) => monthNames.indexOf(a.label) - monthNames.indexOf(b.label));
       }
 
       setChartData(chartResult);
 
   }, [chartInterval, analysisMode, selectedStudentForChart, rawGradesForChart]);
-
   const getDisplayStats = () => { 
       if (analysisMode === 'individual' && selectedStudentForChart) { 
           const studentStat = analyticsData.find(s => s.id.toString() === selectedStudentForChart.toString()); 
