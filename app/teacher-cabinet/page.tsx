@@ -1023,31 +1023,29 @@ export default function TeacherCabinet() {
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200">⚡ Orta</span> :
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">⚠️ Zəif</span>
                                                         }
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        )}
-                    </div>
-                ) : (
-                    <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-800/50">
-                        <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 text-blue-500 rounded-full flex items-center justify-center mb-4 animate-pulse">
-                            <BarChart3 size={40} />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Analizə Başlamaq Üçün</h3>
-                        <p className="text-gray-500 max-w-sm">Zəhmət olmasa yuxarıdakı menyudan analiz etmək istədiyiniz <strong>Qrupu</strong> seçin.</p>
+                    )}
+                </div>
+            ) : (
+                <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl bg-gray-50/50 dark:bg-gray-800/50">
+                    <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 text-blue-500 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                        <BarChart3 size={40} />
                     </div>
-                )}
-             </div>
-        )}
-       )}
-             </div>
-        )}
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Analizə Başlamaq Üçün</h3>
+                    <p className="text-gray-500 max-w-sm">Zəhmət olmasa yuxarıdakı menyudan analiz etmək istədiyiniz <strong>Qrupu</strong> seçin.</p>
+                </div>
+            )}
+         </div>
+    )}
 
-      </main>
-    </div>
-  );
+  </main>
+</div>
+);
 }
+                        
