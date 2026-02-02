@@ -40,7 +40,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ students });
     }
 
-    // B. Konkret Tarix üçün Qiymətləri Gətir (Jurnal üçün)
+    // B. Konkret Tarix üçün Qiymətləri Gətir
     if (type === 'grades' && groupId && date) {
         const { data } = await supabaseAdmin
             .from('daily_grades')
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ grades: data });
     }
 
-    // C. Bütün Qiymətləri Gətir (Analiz üçün - Son 1 il)
+    // C. Analiz
     if (type === 'analytics' && groupId) {
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -86,19 +86,25 @@ export async function POST(request: Request) {
         const { data: group } = await supabaseAdmin.from('groups').select('id').eq('id', groupId).eq('teacher_id', user.id).single();
         if (!group) return NextResponse.json({ error: "Qrup tapılmadı" }, { status: 404 });
 
+        // a) Qrupa əlavə edirik
         const { error } = await supabaseAdmin
             .from('group_members')
             .insert({ group_id: groupId, student_id: studentId });
         
         if (error) throw error;
+
+        // 🔥 b) DƏYİŞİKLİK: Şagirdi bu müəllimə mənimsədirik (user_id = teacher.id)
+        await supabaseAdmin
+            .from('local_students')
+            .update({ user_id: user.id })
+            .eq('id', studentId);
+
         return NextResponse.json({ success: true });
     }
 
     // 2. Qiymətləri Yadda Saxla
     if (action === 'save_grades') {
-         // Köhnələri silib təzələrini yazırıq (Update əvəzinə)
          await supabaseAdmin.from('daily_grades').delete().eq('group_id', groupId).eq('grade_date', date);
-         
          const { error } = await supabaseAdmin.from('daily_grades').insert(gradesData);
          if (error) throw error;
          return NextResponse.json({ success: true });
