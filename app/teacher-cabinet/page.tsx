@@ -8,7 +8,7 @@ import {
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
   Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square,
-  ChevronLeft, X, LayoutDashboard, Search, Key // Key iconu əlavə etdim
+  ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck // 🔥 UserCheck iconu əlavə olundu
 } from "lucide-react";
 
 // RECHARTS
@@ -55,6 +55,7 @@ export default function TeacherCabinet() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [studentSearch, setStudentSearch] = useState(""); // Şagird Tabı Axtarışı
   const [studentAddSearch, setStudentAddSearch] = useState(""); // Jurnal Tabı Axtarışı
+  const [myStudentSearch, setMyStudentSearch] = useState(""); // 🔥 Mənim Şagirdlərim Axtarışı
 
   // CƏDVƏL
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
@@ -67,7 +68,6 @@ export default function TeacherCabinet() {
   // FORM & EDIT
   const [editingId, setEditingId] = useState<number | null>(null);
   const [phonePrefix, setPhonePrefix] = useState("050");
-  // 🔥 YENİLƏNMİŞ STATE: access_code əlavə olundu
   const [newStudent, setNewStudent] = useState({
     first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0], access_code: ""
   });
@@ -288,6 +288,12 @@ export default function TeacherCabinet() {
   const fetchData = async (teacherId: number) => { try { const res = await fetch("/api/teacher/students"); if (res.ok) { const data = await res.json(); setStudents(data.students || []); } const resG = await fetch("/api/teacher/groups"); if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); } } catch (e) { console.error(e); } };
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
+  
+  // 🔥 MƏNİM ŞAGİRDLƏRİMİN SEÇİMİ
+  const myStudents = students.filter(s => s.user_id === teacher?.id);
+  const toggleSelectMyStudent = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
+  const toggleSelectAllMyStudents = () => { if (selectedIds.length === myStudents.length) setSelectedIds([]); else setSelectedIds(myStudents.map(s => s.id)); };
+
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   
   // --- YENİ: RANDOM ACCESS CODE GENERATOR ---
@@ -419,11 +425,18 @@ export default function TeacherCabinet() {
   }; 
   const displayStats = getDisplayStats();
 
-  // 🔥 FILTER MƏNTİQİ: Axtarış üçün
+  // 🔥 FILTER MƏNTİQİ: Ümumi Axtarış
   const filteredStudents = students.filter(s => {
       const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase();
       const code = s.student_code ? s.student_code.toString() : '';
       return fullName.includes(studentSearch.toLowerCase()) || code.includes(studentSearch);
+  });
+
+  // 🔥 FILTER MƏNTİQİ: Mənim Şagirdlərim
+  const filteredMyStudents = myStudents.filter(s => {
+      const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase();
+      const code = s.student_code ? s.student_code.toString() : '';
+      return fullName.includes(myStudentSearch.toLowerCase()) || code.includes(myStudentSearch);
   });
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { 
@@ -472,7 +485,6 @@ export default function TeacherCabinet() {
       } catch (error: any) { alert(error.message); } 
   };
 
-  // 🔥 STATE RESETLƏYƏNDƏ access_code-u da sıfırlayırıq
   const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0], access_code: "" }); setPhonePrefix("050"); setEditingId(null); };
   
   const startEdit = (student: any) => { 
@@ -548,14 +560,21 @@ export default function TeacherCabinet() {
         <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2"><BookOpen className="text-blue-600" /> Kabinet</h1>
         
         <div className="hidden md:flex gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
-            {['dashboard', 'schedule', 'students', 'groups', 'analytics'].map(tab => (
+            {['dashboard', 'schedule', 'students', 'my_students', 'groups', 'analytics'].map(tab => (
                  <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition ${activeTab === tab ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-white/50'}`}>
                     {tab === 'dashboard' && <LayoutDashboard size={16} />}
                     {tab === 'schedule' && <Clock size={16} />}
                     {tab === 'students' && <GraduationCap size={16} />}
+                    {tab === 'my_students' && <UserCheck size={16} />}
                     {tab === 'groups' && <BookOpen size={16} />}
                     {tab === 'analytics' && <BarChart3 size={16} />}
-                    <span className="capitalize">{tab === 'dashboard' ? 'Ana Səhifə' : tab === 'schedule' ? 'Cədvəl' : tab === 'students' ? 'Şagird' : tab === 'groups' ? 'Jurnal' : 'Analiz'}</span>
+                    <span className="capitalize">
+                        {tab === 'dashboard' ? 'Ana Səhifə' : 
+                         tab === 'schedule' ? 'Cədvəl' : 
+                         tab === 'students' ? 'Bütün Şagirdlər' : 
+                         tab === 'my_students' ? 'Mənim Şagirdlərim' :
+                         tab === 'groups' ? 'Jurnal' : 'Analiz'}
+                    </span>
                  </button>
             ))}
         </div>
@@ -568,9 +587,9 @@ export default function TeacherCabinet() {
 
       {/* MOBILE TABS */}
       <div className="md:hidden flex overflow-x-auto gap-2 p-2 bg-white dark:bg-gray-800 border-b dark:border-gray-700">
-          {['dashboard', 'schedule', 'students', 'groups', 'analytics'].map(tab => (
+          {['dashboard', 'schedule', 'students', 'my_students', 'groups', 'analytics'].map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 whitespace-nowrap transition ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500'}`}>
-                  <span className="capitalize">{tab}</span>
+                  <span className="capitalize">{tab === 'my_students' ? 'Şagirdlərim' : tab}</span>
               </button>
           ))}
       </div>
@@ -826,8 +845,93 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* ... (Qalan Hissələr eynidir) ... */}
-        {/* --- GROUPS TAB --- */}
+        {/* --- 🔥 YENİ: MY STUDENTS TAB (MƏNİM ŞAGİRDLƏRİM) --- */}
+        {activeTab === 'my_students' && (
+            <div className="animate-in fade-in max-w-7xl mx-auto h-full w-full overflow-hidden pb-2">
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex flex-col h-full">
+                    
+                    {/* Başlıq və Axtarış */}
+                    <div className="flex justify-between items-center mb-6 shrink-0">
+                        <h3 className="text-xl font-bold flex items-center gap-2 text-indigo-600">
+                            <UserCheck size={24}/> Mənim Şagirdlərim 
+                            <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{filteredMyStudents.length}</span>
+                        </h3>
+                        
+                        <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                <input 
+                                    placeholder="Ad, soyad və ya kod..." 
+                                    className="pl-10 pr-4 py-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-64 focus:w-80 transition-all"
+                                    value={myStudentSearch}
+                                    onChange={(e) => setMyStudentSearch(e.target.value)}
+                                />
+                            </div>
+
+                            {selectedIds.length > 0 && (
+                                <button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in text-sm">
+                                    <Trash2 size={16} /> Sil ({selectedIds.length})
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Cədvəl */}
+                    <div className="overflow-auto flex-1 rounded-lg border dark:border-gray-700">
+                        <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
+                            <thead className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-100 font-bold sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th className="p-3 w-10 border-b dark:border-gray-600">
+                                        <button onClick={toggleSelectAllMyStudents} className="text-indigo-400 hover:text-indigo-600">
+                                            {selectedIds.length === filteredMyStudents.length && filteredMyStudents.length > 0 ? <CheckSquare size={20} className="text-indigo-600"/> : <Square size={20}/>}
+                                        </button>
+                                    </th>
+                                    <th className="p-3 border-b dark:border-gray-600">ID</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Kod</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Ad Soyad</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Sinif</th>
+                                    <th className="p-3 border-b dark:border-gray-600">Sektor</th>
+                                    <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                {filteredMyStudents.map((s) => (
+                                    <tr key={s.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition ${selectedIds.includes(s.id) ? "bg-indigo-50 dark:bg-indigo-900/30" : ""}`}>
+                                        <td className="p-3">
+                                            <button onClick={() => toggleSelectMyStudent(s.id)} className="text-gray-400 hover:text-indigo-600">
+                                                {selectedIds.includes(s.id) ? <CheckSquare size={20} className="text-indigo-600"/> : <Square size={20}/>}
+                                            </button>
+                                        </td>
+                                        <td className="p-3 font-mono text-indigo-600 font-bold">#{s.student_code}</td>
+                                        <td className="p-3 font-mono text-gray-500 text-xs">{s.access_code || "-"}</td>
+                                        <td className="p-3 font-medium text-gray-800 dark:text-white">{s.first_name} {s.last_name}</td>
+                                        <td className="p-3 text-gray-500">{s.father_name || "-"}</td>
+                                        <td className="p-3">{s.grade}</td>
+                                        <td className="p-3"><span className="px-2 py-1 rounded text-xs font-bold bg-indigo-100 text-indigo-600">{s.sector || "Az"}</span></td>
+                                        <td className="p-3 flex justify-end gap-2">
+                                            {/* Redaktə düyməsi əsas səhifədəki formanı aça bilər və ya modal */}
+                                            <button onClick={() => { setActiveTab('students'); startEdit(s); }} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900" title="Redaktə et"><Pencil size={16}/></button>
+                                            <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900" title="Sil"><Trash2 size={16}/></button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredMyStudents.length === 0 && (
+                                    <tr>
+                                        <td colSpan={8} className="text-center p-8 text-gray-400">
+                                            Sizə təhkim olunmuş şagird yoxdur.<br/>
+                                            <span className="text-xs">Şagirdləri Jurnal bölməsində qrupa əlavə edərək siyahınıza sala bilərsiniz.</span>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* ... (GROUPS & ANALYTICS eyni qalır) ... */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-y-auto pb-20">
                 <div className="lg:col-span-1 space-y-6">
@@ -1104,9 +1208,9 @@ export default function TeacherCabinet() {
                                             {analyticsData.map((s, index) => (
                                                 <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition group">
                                                     <td className="p-4">
-                                                        <span className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs 
-                                                            ${index === 0 ? 'bg-yellow-100 text-yellow-600' : 
-                                                              index === 1 ? 'bg-gray-100 text-gray-600' : 
+                                                        <span className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs 
+                                                            ${index === 0 ? 'bg-yellow-100 text-yellow-600' : 
+                                                              index === 1 ? 'bg-gray-100 text-gray-600' : 
                                                               index === 2 ? 'bg-orange-100 text-orange-600' : 'bg-transparent text-gray-400'}`}>
                                                             {index + 1}
                                                         </span>
@@ -1124,11 +1228,11 @@ export default function TeacherCabinet() {
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
-                                                        {parseFloat(s.avgScore) >= 9 ? 
+                                                        {parseFloat(s.avgScore) >= 9 ? 
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-600 border border-purple-200">💎 Əlaçı</span> :
-                                                        parseFloat(s.avgScore) >= 7 ? 
+                                                        parseFloat(s.avgScore) >= 7 ? 
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-600 border border-green-200">🚀 Yaxşı</span> :
-                                                        parseFloat(s.avgScore) >= 5 ? 
+                                                        parseFloat(s.avgScore) >= 5 ? 
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200">⚡ Orta</span> :
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">⚠️ Zəif</span>
                                                         }
