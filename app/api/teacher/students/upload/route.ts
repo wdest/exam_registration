@@ -32,18 +32,16 @@ export async function POST(request: Request) {
 
     const formattedStudents = students.map((row: any) => {
         // 1. Soyad və Ata adını ayırmaq
-        // Format: "Last Name" sütununda -> "Ibrahimova Haci"
         let lastName = row['Last Name'] || "";
         let fatherName = "";
 
         if (lastName.includes(" ")) {
             const parts = lastName.trim().split(" ");
-            lastName = parts[0]; // "Ibrahimova"
-            fatherName = parts.slice(1).join(" "); // "Haci"
+            lastName = parts[0]; 
+            fatherName = parts.slice(1).join(" "); 
         }
 
         // 2. Sektoru təyin etmək
-        // "External ID": "BO (Az)" -> "Az", "BO (Ru)" -> "Ru"
         let sector = "Az";
         const extId = row['External ID'] || "";
         if (extId.includes("Ru")) sector = "Ru";
@@ -51,26 +49,27 @@ export async function POST(request: Request) {
 
         // 3. Digər sahələr
         return {
-            teacher_id: user.id,
-            student_code: row['ZipGrade ID'] ? String(row['ZipGrade ID']) : null, // ID
+            // 🔥 DƏYİŞİKLİK: Müəllim ID-si yazmırıq (NULL gedir)
+            user_id: null, 
+            
+            student_code: row['ZipGrade ID'] ? String(row['ZipGrade ID']) : null, 
             first_name: row['First Name'],
             last_name: lastName,
             father_name: fatherName,
             sector: sector,
-            grade: row['Classes'] ? String(row['Classes']) : "", // Sinif
-            access_code: row['Access Code'] || null, // Kod
-            school: "", // Manual doldurulacaq
-            phone: "",  // Manual doldurulacaq
-            // Əgər start_date yoxdursa, bu günü yaz
+            grade: row['Classes'] ? String(row['Classes']) : "", 
+            access_code: row['Access Code'] || null, 
+            school: "", 
+            phone: "",  
             start_date: new Date().toISOString().split('T')[0]
         };
     });
 
-    // Bazaya Upsert (Varsa yenilə, yoxsa yarat)
+    // Bazaya Upsert
     const { error } = await supabaseAdmin
         .from('local_students')
         .upsert(formattedStudents, { 
-            onConflict: 'student_code', // ZipGrade ID unikaldır
+            onConflict: 'student_code', 
             ignoreDuplicates: false 
         });
 
