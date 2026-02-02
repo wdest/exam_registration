@@ -8,7 +8,7 @@ import {
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
   Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square,
-  ChevronLeft, X, LayoutDashboard, Search
+  ChevronLeft, X, LayoutDashboard, Search, Key // Key iconu əlavə etdim
 } from "lucide-react";
 
 // RECHARTS
@@ -54,7 +54,7 @@ export default function TeacherCabinet() {
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [studentSearch, setStudentSearch] = useState(""); // Şagird Tabı Axtarışı
-  const [studentAddSearch, setStudentAddSearch] = useState(""); // 🔥 Jurnal Tabı Axtarışı (ID ilə)
+  const [studentAddSearch, setStudentAddSearch] = useState(""); // Jurnal Tabı Axtarışı
 
   // CƏDVƏL
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
@@ -67,8 +67,9 @@ export default function TeacherCabinet() {
   // FORM & EDIT
   const [editingId, setEditingId] = useState<number | null>(null);
   const [phonePrefix, setPhonePrefix] = useState("050");
+  // 🔥 YENİLƏNMİŞ STATE: access_code əlavə olundu
   const [newStudent, setNewStudent] = useState({
-    first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0]
+    first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0], access_code: ""
   });
   const [newGroupName, setNewGroupName] = useState("");
   const [tempDay, setTempDay] = useState("B.e"); 
@@ -289,6 +290,16 @@ export default function TeacherCabinet() {
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   
+  // --- YENİ: RANDOM ACCESS CODE GENERATOR ---
+  const generateAccessCode = () => {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let result = "";
+      for (let i = 0; i < 6; i++) {
+          result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      setNewStudent({...newStudent, access_code: result});
+  };
+
   // --- ANALİZ MƏNTİQİ ---
   const calculateAnalytics = async (groupId: string) => {
     if (!groupId) return;
@@ -408,7 +419,7 @@ export default function TeacherCabinet() {
   }; 
   const displayStats = getDisplayStats();
 
-  // 🔥 FILTER MƏNTİQİ: Axtarış üçün (Tab 2)
+  // 🔥 FILTER MƏNTİQİ: Axtarış üçün
   const filteredStudents = students.filter(s => {
       const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase();
       const code = s.student_code ? s.student_code.toString() : '';
@@ -440,6 +451,7 @@ export default function TeacherCabinet() {
   const handleAddOrUpdateStudent = async (e: React.FormEvent) => { 
       e.preventDefault(); 
       const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`; 
+      // 🔥 access_code göndərilir
       const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 }; 
       try { 
           const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) }); 
@@ -460,12 +472,14 @@ export default function TeacherCabinet() {
       } catch (error: any) { alert(error.message); } 
   };
 
-  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0] }); setPhonePrefix("050"); setEditingId(null); };
+  // 🔥 STATE RESETLƏYƏNDƏ access_code-u da sıfırlayırıq
+  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0], access_code: "" }); setPhonePrefix("050"); setEditingId(null); };
   
   const startEdit = (student: any) => { 
       const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = ""; 
       if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); } 
-      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date }); setPhonePrefix(pPrefix); setEditingId(student.id); 
+      // 🔥 EDIT ZAMANI access_code-u da set edirik
+      setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date, access_code: student.access_code || "" }); setPhonePrefix(pPrefix); setEditingId(student.id); 
   };
 
   const addScheduleSlot = () => { 
@@ -705,6 +719,24 @@ export default function TeacherCabinet() {
                         </div>
                         <div className="flex gap-2">{SECTORS.map(sec => (<button key={sec} type="button" onClick={() => setNewStudent({...newStudent, sector: sec})} className={`flex-1 py-2 rounded-lg text-sm font-bold border transition ${newStudent.sector === sec ? "bg-blue-600 text-white" : "bg-white dark:bg-gray-700 text-gray-500"}`}>{sec}</button>))}</div>
                         <input type="date" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.start_date} onChange={e => setNewStudent({...newStudent, start_date: e.target.value})} />
+                        
+                        {/* 🔥 YENİ: ACCESS CODE GENERATOR */}
+                        <div className="relative">
+                            <input 
+                                placeholder="Access Code (Giriş Kodu)" 
+                                className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-mono tracking-widest text-center uppercase" 
+                                value={newStudent.access_code} 
+                                onChange={e => setNewStudent({...newStudent, access_code: e.target.value.toUpperCase()})} 
+                            />
+                            <button 
+                                type="button" 
+                                onClick={generateAccessCode}
+                                className="absolute right-2 top-2 p-1.5 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-xs font-bold flex items-center gap-1"
+                            >
+                                <Key size={14}/> Avto-Yarat
+                            </button>
+                        </div>
+
                         <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold transition ${editingId ? "bg-orange-500" : "bg-blue-600"}`}>{editingId ? "Yadda Saxla" : "Əlavə Et"}</button>
                     </form>
                 </div>
@@ -749,6 +781,8 @@ export default function TeacherCabinet() {
                                     <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sinif</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sektor</th>
+                                    {/* 🔥 YENİ: Müəllim / Qrup Sütunu */}
+                                    <th className="p-3 border-b dark:border-gray-600">Müəllim / Qrup</th>
                                     <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
                                 </tr>
                             </thead>
@@ -766,6 +800,14 @@ export default function TeacherCabinet() {
                                         <td className="p-3 text-gray-500">{s.father_name || "-"}</td>
                                         <td className="p-3">{s.grade}</td>
                                         <td className="p-3"><span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-600">{s.sector || "Az"}</span></td>
+                                        
+                                        {/* 🔥 YENİ: Müəllim / Qrup Xanasi */}
+                                        <td className="p-3">
+                                            <span className="px-2 py-1 rounded text-xs font-bold bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300">
+                                                {s.group_name || s.teacher_name || "-"}
+                                            </span>
+                                        </td>
+
                                         <td className="p-3 flex justify-end gap-2">
                                             <button onClick={() => startEdit(s)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900"><Pencil size={16}/></button>
                                             <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900"><Trash2 size={16}/></button>
@@ -774,7 +816,7 @@ export default function TeacherCabinet() {
                                 ))}
                                 {filteredStudents.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} className="text-center p-8 text-gray-400">Heç bir şagird tapılmadı.</td>
+                                        <td colSpan={9} className="text-center p-8 text-gray-400">Heç bir şagird tapılmadı.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -784,6 +826,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
+        {/* ... (Qalan Hissələr eynidir) ... */}
         {/* --- GROUPS TAB --- */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-y-auto pb-20">
