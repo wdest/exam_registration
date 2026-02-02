@@ -53,8 +53,8 @@ export default function TeacherCabinet() {
   const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [studentSearch, setStudentSearch] = useState(""); // 🔥 YENİ: Şagird Tabı Axtarışı
-  const [studentAddSearch, setStudentAddSearch] = useState(""); // 🔥 YENİ: Jurnal Tabı Axtarışı
+  const [studentSearch, setStudentSearch] = useState(""); // Şagird Tabı Axtarışı
+  const [studentAddSearch, setStudentAddSearch] = useState(""); // 🔥 Jurnal Tabı Axtarışı (ID ilə)
 
   // CƏDVƏL
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
@@ -408,7 +408,7 @@ export default function TeacherCabinet() {
   }; 
   const displayStats = getDisplayStats();
 
-  // 🔥 FILTER MƏNTİQİ: Axtarış üçün
+  // 🔥 FILTER MƏNTİQİ: Axtarış üçün (Tab 2)
   const filteredStudents = students.filter(s => {
       const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase();
       const code = s.student_code ? s.student_code.toString() : '';
@@ -846,8 +846,8 @@ export default function TeacherCabinet() {
                                     <select className="p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none max-w-[200px]" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}>
                                             <option value="">Şagird seç...</option>
                                             {students
-                                                .filter(s => `${s.first_name} ${s.last_name}`.toLowerCase().includes(studentAddSearch.toLowerCase()))
-                                                .map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)
+                                                .filter(s => `${s.first_name} ${s.last_name} ${s.student_code}`.toLowerCase().includes(studentAddSearch.toLowerCase()))
+                                                .map(s => <option key={s.id} value={s.id}>#{s.student_code} - {s.first_name} {s.last_name}</option>)
                                             }
                                     </select>
                                     <button onClick={addStudentToGroup} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap">Əlavə Et</button>
