@@ -350,7 +350,7 @@ export default function StudentCabinet() {
                 {/* Header & Naviqasiya */}
                 <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                     <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                        <Book className="text-indigo-600"/> Məktəb Gündəliyi
+                        <Book className="text-indigo-600"/> Kurs Gündəliyi
                     </h3>
                     <div className="flex items-center gap-3 bg-white p-1 rounded-xl border shadow-sm">
                         <button onClick={() => setCurrentWeekOffset(prev => prev - 1)} className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-500"><ChevronLeft size={20}/></button>
