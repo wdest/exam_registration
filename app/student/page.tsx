@@ -6,7 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 import { 
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, PenTool, CheckCircle, 
-  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown
+  Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown,
+  Book, ChevronLeft, ChevronRight // 🔥 Yeni iconlar
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -18,6 +19,9 @@ const supabase = createClient(
 const AVATARS = [
   "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"
 ];
+
+// 🔥 Həftənin günləri üçün köməkçi array
+const WEEK_DAYS_AZ = ["Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə", "Cümə axşamı", "Cümə", "Şənbə", "Bazar"];
 
 export default function StudentCabinet() {
   const router = useRouter();
@@ -48,6 +52,9 @@ export default function StudentCabinet() {
   const [selectedAvatar, setSelectedAvatar] = useState("👨‍🎓");
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [selectedResult, setSelectedResult] = useState<any>(null);
+
+  // 🔥 GÜNDƏLİK ÜÇÜN YENİ STATE (Həftəni dəyişmək üçün)
+  const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
 
   useEffect(() => {
     fetchData();
@@ -183,6 +190,26 @@ export default function StudentCabinet() {
     }
   };
 
+  // 🔥 YENİ: Cari həftənin günlərini hesablamaq üçün funksiya
+  const getDaysOfCurrentWeek = () => {
+    const today = new Date();
+    // Ofsetə görə tarixi dəyişirik (keçmiş/gələcək həftələr)
+    today.setDate(today.getDate() + (currentWeekOffset * 7));
+    
+    const currentDay = today.getDay(); // 0 (Bazar) - 6 (Şənbə)
+    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // Bazar ertəsinə gətiririk
+    
+    const monday = new Date(today.setDate(diff));
+    const days = [];
+    
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(monday);
+        day.setDate(monday.getDate() + i);
+        days.push(day);
+    }
+    return days;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -195,6 +222,7 @@ export default function StudentCabinet() {
   }
 
   const amIInTopList = myCalculatedRank <= 15;
+  const currentWeekDays = getDaysOfCurrentWeek();
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-800">
@@ -254,6 +282,10 @@ export default function StudentCabinet() {
         {/* TABLAR */}
         <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
             <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><BarChart3 size={20} /> Analiz</button>
+            
+            {/* 🔥 YENİ TAB: GÜNDƏLİK */}
+            <button onClick={() => setActiveTab('diary')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'diary' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><Book size={20} /> Gündəlik</button>
+            
             <button onClick={() => setActiveTab('profile')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><User size={20} /> Profil</button>
             <button onClick={() => setActiveTab('exams')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'exams' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}>
                 <PenTool size={20} /> İmtahanlar 
@@ -308,6 +340,79 @@ export default function StudentCabinet() {
                         ))}
                         {recentGrades.length === 0 && <p className="text-center text-gray-400 text-sm py-8">Hələ dərs qeydə alınmayıb.</p>}
                     </div>
+                </div>
+            </div>
+        )}
+
+        {/* --- 🔥 2. GÜNDƏLİK (DIARY) --- */}
+        {activeTab === 'diary' && (
+            <div className="animate-in fade-in duration-500">
+                {/* Header & Naviqasiya */}
+                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                    <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <Book className="text-indigo-600"/> Məktəb Gündəliyi
+                    </h3>
+                    <div className="flex items-center gap-3 bg-white p-1 rounded-xl border shadow-sm">
+                        <button onClick={() => setCurrentWeekOffset(prev => prev - 1)} className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-500"><ChevronLeft size={20}/></button>
+                        <div className="text-sm font-bold px-2 text-gray-700 w-32 text-center">
+                            {currentWeekDays[0].toLocaleDateString('az-AZ', {day: 'numeric', month: 'short'})} - {currentWeekDays[6].toLocaleDateString('az-AZ', {day: 'numeric', month: 'short'})}
+                        </div>
+                        <button onClick={() => setCurrentWeekOffset(prev => prev + 1)} className="p-2 hover:bg-gray-100 rounded-lg transition text-gray-500"><ChevronRight size={20}/></button>
+                    </div>
+                    <button onClick={() => setCurrentWeekOffset(0)} className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg hover:bg-indigo-100 transition">Bugün</button>
+                </div>
+
+                {/* Gündəlik Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {currentWeekDays.map((date, index) => {
+                        const dateStr = date.toISOString().split('T')[0];
+                        // Bu günə uyğun qiymət/qayıb varmı?
+                        const dayData = recentGrades.find(g => g.grade_date === dateStr);
+                        const isToday = new Date().toISOString().split('T')[0] === dateStr;
+
+                        return (
+                            <div key={index} className={`bg-white rounded-xl border-2 ${isToday ? 'border-indigo-500 shadow-md ring-2 ring-indigo-100' : 'border-gray-200'} overflow-hidden flex flex-col h-40`}>
+                                {/* Başlıq: Gün və Tarix */}
+                                <div className={`p-3 border-b flex justify-between items-center ${isToday ? 'bg-indigo-600 text-white' : 'bg-gray-50 text-gray-700'}`}>
+                                    <span className="font-bold text-sm uppercase">{WEEK_DAYS_AZ[index]}</span>
+                                    <span className={`text-xs font-mono px-2 py-0.5 rounded ${isToday ? 'bg-indigo-500 text-indigo-100' : 'bg-gray-200 text-gray-500'}`}>
+                                        {date.toLocaleDateString('az-AZ')}
+                                    </span>
+                                </div>
+
+                                {/* İçərik */}
+                                <div className="p-4 flex-1 flex flex-col justify-center items-center relative">
+                                    {dayData ? (
+                                        <>
+                                            <div className="w-full text-center mb-2">
+                                                <p className="text-xs text-gray-400 font-bold uppercase mb-1">Fənn / Qrup</p>
+                                                <p className="font-bold text-gray-800 text-sm line-clamp-1">{groupName}</p>
+                                            </div>
+                                            
+                                            {dayData.attendance ? (
+                                                // İştirak edib, qiymət var
+                                                <div className={`text-2xl font-black ${Number(dayData.score) >= 9 ? 'text-green-600' : Number(dayData.score) >= 5 ? 'text-blue-600' : 'text-orange-500'}`}>
+                                                    {dayData.score !== null ? dayData.score : <span className="text-gray-300 text-sm">Qiymətsiz</span>}
+                                                </div>
+                                            ) : (
+                                                // Qayıb
+                                                <div className="bg-red-100 text-red-600 font-bold px-4 py-2 rounded-lg text-lg border border-red-200 animate-pulse">
+                                                    qb
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="text-gray-300 text-center">
+                                            <div className="w-8 h-8 bg-gray-50 rounded-full mx-auto mb-2 flex items-center justify-center">
+                                                <X size={16} />
+                                            </div>
+                                            <p className="text-xs">Dərs yoxdur</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         )}
