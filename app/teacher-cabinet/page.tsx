@@ -53,7 +53,8 @@ export default function TeacherCabinet() {
   const [students, setStudents] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [studentSearch, setStudentSearch] = useState(""); // 🔥 YENİ: Şagird Axtarışı
+  const [studentSearch, setStudentSearch] = useState(""); // 🔥 YENİ: Şagird Tabı Axtarışı
+  const [studentAddSearch, setStudentAddSearch] = useState(""); // 🔥 YENİ: Jurnal Tabı Axtarışı
 
   // CƏDVƏL
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
@@ -487,10 +488,10 @@ export default function TeacherCabinet() {
       } catch (e: any) { alert(e.message); } 
   };
 
-  const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); };
+  const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); setStudentToAdd(""); setStudentAddSearch(""); };
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
   const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
-  const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); } catch (e: any) { alert(e.message); } };
+  const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); setStudentToAdd(""); setStudentAddSearch(""); } catch (e: any) { alert(e.message); } };
   const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates }) }); if (!res.ok) throw new Error("Xəta"); alert("Saxlanıldı!"); } catch (e: any) { alert(e.message); } };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
   const checkScheduleValidity = () => { if (!selectedGroup || !gradingDate) return; const parts = gradingDate.split('-'); const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()])); };
@@ -831,12 +832,25 @@ export default function TeacherCabinet() {
                         <div>
                             <div className="flex justify-between items-center mb-6 pb-6 border-b dark:border-gray-600">
                                 <div><h2 className="text-2xl font-bold">{selectedGroup.name}</h2><p className="text-gray-500 text-sm mt-1">{selectedGroup.schedule}</p></div>
-                                <div className="flex gap-2">
-                                    <select className="p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}>
+                                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                                    {/* 🔥 YENİ: Axtarış Qutusu (Jurnalda əlavə etmək üçün) */}
+                                    <div className="relative">
+                                        <Search className="absolute left-2 top-2.5 text-gray-400" size={16} />
+                                        <input 
+                                            placeholder="Axtar..."
+                                            className="pl-8 p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-32 focus:w-48 transition-all"
+                                            value={studentAddSearch}
+                                            onChange={(e) => setStudentAddSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    <select className="p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none max-w-[200px]" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}>
                                             <option value="">Şagird seç...</option>
-                                            {students.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                                            {students
+                                                .filter(s => `${s.first_name} ${s.last_name}`.toLowerCase().includes(studentAddSearch.toLowerCase()))
+                                                .map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)
+                                            }
                                     </select>
-                                    <button onClick={addStudentToGroup} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold">Əlavə Et</button>
+                                    <button onClick={addStudentToGroup} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap">Əlavə Et</button>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4 mb-4 flex-wrap">
@@ -915,8 +929,8 @@ export default function TeacherCabinet() {
                             <div className="flex gap-2 w-full md:w-auto">
                                 {analysisMode === 'individual' && (
                                     <select className="p-2 border dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm outline-none w-full md:w-48" value={selectedStudentForChart} onChange={(e) => setSelectedStudentForChart(e.target.value)}>
-                                        <option value="">Şagird seç...</option>
-                                        {analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                                            <option value="">Şagird seç...</option>
+                                            {analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
                                     </select>
                                 )}
                                 <select 
