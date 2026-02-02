@@ -86,27 +86,18 @@ export async function POST(request: Request) {
         const { data: group } = await supabaseAdmin.from('groups').select('id').eq('id', groupId).eq('teacher_id', user.id).single();
         if (!group) return NextResponse.json({ error: "Qrup tapılmadı" }, { status: 404 });
 
-        // a) Qrupa əlavə edirik (insert)
-        const { error: insertError } = await supabaseAdmin
+        // a) Qrupa əlavə edirik
+        const { error } = await supabaseAdmin
             .from('group_members')
             .insert({ group_id: groupId, student_id: studentId });
         
-        // 🔥 DÜZƏLİŞ: Əgər uşaq artıq qrupdadırsa, xəta verməsin, davam etsin
-        if (insertError) {
-            // "23505" kodu Postgres-də unique violation (təkrar qeyd) deməkdir
-            if (insertError.code !== '23505') {
-                throw insertError; 
-            }
-        }
+        if (error) throw error;
 
-        // 🔥 b) Şagirdi bu müəllimə mənimsədirik (Ən vacib hissə)
-        // İstər yeni əlavə olunsun, istər köhnə qrupda olsun, bu kod mütləq işləməlidir
-        const { error: updateError } = await supabaseAdmin
+        // 🔥 b) DƏYİŞİKLİK: Şagirdi bu müəllimə mənimsədirik (user_id = teacher.id)
+        await supabaseAdmin
             .from('local_students')
             .update({ user_id: user.id })
             .eq('id', studentId);
-
-        if (updateError) throw updateError;
 
         return NextResponse.json({ success: true });
     }
