@@ -54,7 +54,7 @@ export default function TeacherCabinet() {
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [studentSearch, setStudentSearch] = useState(""); // Şagird Tabı Axtarışı
-  const [studentAddSearch, setStudentAddSearch] = useState(""); // 🔥 Jurnal Tabı Axtarışı
+  const [studentAddSearch, setStudentAddSearch] = useState(""); // 🔥 Jurnal Tabı Axtarışı (ID ilə)
 
   // CƏDVƏL
   const [scheduleEvents, setScheduleEvents] = useState<any[]>([]);
@@ -408,7 +408,7 @@ export default function TeacherCabinet() {
   }; 
   const displayStats = getDisplayStats();
 
-  // 🔥 FILTER MƏNTİQİ: Axtarış üçün
+  // 🔥 FILTER MƏNTİQİ: Axtarış üçün (Tab 2)
   const filteredStudents = students.filter(s => {
       const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase();
       const code = s.student_code ? s.student_code.toString() : '';
