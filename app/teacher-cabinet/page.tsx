@@ -8,7 +8,7 @@ import {
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
   Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square,
-  ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck // 🔥 UserCheck iconu əlavə olundu
+  ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck 
 } from "lucide-react";
 
 // RECHARTS
@@ -289,8 +289,10 @@ export default function TeacherCabinet() {
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   
-  // 🔥 MƏNİM ŞAGİRDLƏRİMİN SEÇİMİ
-  const myStudents = students.filter(s => s.user_id === teacher?.id);
+  // 🔥 MƏNİM ŞAGİRDLƏRİMİN SEÇİMİ - API DÜZƏLİŞİNDƏN SONRAKI DƏYİŞİKLİK
+  // teacher_id artıq API-dan gəlir
+  const myStudents = students.filter(s => s.teacher_id === teacher?.id);
+  
   const toggleSelectMyStudent = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   const toggleSelectAllMyStudents = () => { if (selectedIds.length === myStudents.length) setSelectedIds([]); else setSelectedIds(myStudents.map(s => s.id)); };
 
@@ -655,10 +657,10 @@ export default function TeacherCabinet() {
                                 const isToday = new Date().toDateString() === d.toDateString();
                                 return (
                                     <div key={i} className="flex-1 text-center py-3 border-r dark:border-gray-700">
-                                        <div className={`text-xs font-bold uppercase mb-1 ${isToday ? 'text-blue-600' : 'text-gray-500'}`}>{day}</div>
-                                        <div className={`w-8 h-8 flex items-center justify-center rounded-full mx-auto text-lg ${isToday ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-800 dark:text-white'}`}>
-                                            {d.getDate()}
-                                        </div>
+                                            <div className={`text-xs font-bold uppercase mb-1 ${isToday ? 'text-blue-600' : 'text-gray-500'}`}>{day}</div>
+                                            <div className={`w-8 h-8 flex items-center justify-center rounded-full mx-auto text-lg ${isToday ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-800 dark:text-white'}`}>
+                                                {d.getDate()}
+                                            </div>
                                     </div>
                                 )
                             })}
@@ -1208,9 +1210,9 @@ export default function TeacherCabinet() {
                                             {analyticsData.map((s, index) => (
                                                 <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition group">
                                                     <td className="p-4">
-                                                        <span className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs 
-                                                            ${index === 0 ? 'bg-yellow-100 text-yellow-600' : 
-                                                              index === 1 ? 'bg-gray-100 text-gray-600' : 
+                                                        <span className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs 
+                                                            ${index === 0 ? 'bg-yellow-100 text-yellow-600' : 
+                                                              index === 1 ? 'bg-gray-100 text-gray-600' : 
                                                               index === 2 ? 'bg-orange-100 text-orange-600' : 'bg-transparent text-gray-400'}`}>
                                                             {index + 1}
                                                         </span>
@@ -1228,11 +1230,11 @@ export default function TeacherCabinet() {
                                                         </div>
                                                     </td>
                                                     <td className="p-4">
-                                                        {parseFloat(s.avgScore) >= 9 ? 
+                                                        {parseFloat(s.avgScore) >= 9 ? 
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-600 border border-purple-200">💎 Əlaçı</span> :
-                                                        parseFloat(s.avgScore) >= 7 ? 
+                                                        parseFloat(s.avgScore) >= 7 ? 
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-600 border border-green-200">🚀 Yaxşı</span> :
-                                                        parseFloat(s.avgScore) >= 5 ? 
+                                                        parseFloat(s.avgScore) >= 5 ? 
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200">⚡ Orta</span> :
                                                             <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-600 border border-red-200">⚠️ Zəif</span>
                                                         }
