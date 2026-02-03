@@ -14,7 +14,7 @@ import {
 // RECHARTS
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar
+  BarChart, Bar 
 } from 'recharts';
 
 // --- SABITLƏR ---
@@ -24,12 +24,13 @@ const DAY_INDEX_MAP: { [key: string]: number } = {
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
+// JS günlərini (0-6) sənin cədvəl formatına (B.e, Ç.a...) çeviririk
 const JS_DAY_TO_AZ: { [key: number]: string } = { 
   1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" 
 };
 
 const START_HOUR = 8; 
-const END_HOUR = 23;  
+const END_HOUR = 23;   
 const TOTAL_HOURS = END_HOUR - START_HOUR;
 const PIXELS_PER_HOUR = 80; 
 
@@ -49,7 +50,7 @@ export default function TeacherCabinet() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // 🔥 YENİ: Save Loading State
+  const [isSaving, setIsSaving] = useState(false); // Loading state for save actions
   const [teacher, setTeacher] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -323,14 +324,13 @@ export default function TeacherCabinet() {
       setSelectedEventForStatus(event);
   };
 
-  // 🔥 FIX: STATUS YENİLƏMƏK (Error Handling ilə)
+  // 🔥 FIX: STATUS YENİLƏMƏK (API İLƏ)
   const updateEventStatus = async (status: string | null) => {
       if (!selectedEventForStatus) return;
       const groupId = selectedEventForStatus.groupId;
       const dateString = selectedEventForStatus.fullDate.toISOString().split('T')[0];
       const mapKey = `${groupId}_${dateString}`;
       
-      // Optimistic UI Update (Dərhal dəyişir)
       const newOverrides = { ...lessonStatusOverrides };
       if (status === null) delete newOverrides[mapKey];
       else newOverrides[mapKey] = status;
@@ -342,21 +342,17 @@ export default function TeacherCabinet() {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ type: 'status', groupId, date: dateString, status })
           });
-
-          if (!res.ok) {
-              const err = await res.json();
-              throw new Error(err.error || "Xəta baş verdi");
-          }
-      } catch (error: any) { 
-          alert("❌ Status yadda saxlanmadı: " + error.message); 
-          fetchScheduleData(); // Köhnə halına qaytar
+          if (!res.ok) throw new Error("Status yadda saxlanmadı");
+      } catch (error) { 
+          alert("Xəta baş verdi! İnterneti yoxlayın."); 
+          fetchScheduleData(); // Revert
       }
   };
 
-  // 🔥 FIX: ƏLAVƏ DƏRS YARATMAQ (Error Handling & Loading)
+  // 🔥 FIX: ƏLAVƏ DƏRS YARATMAQ
   const createExtraLesson = async (e: React.FormEvent) => {
       e.preventDefault();
-      if(!newExtraLesson.group_id) return alert("⚠️ Zəhmət olmasa qrup seçin!");
+      if(!newExtraLesson.group_id) return alert("Qrup seçin!");
 
       setIsSaving(true);
       try {
@@ -364,21 +360,17 @@ export default function TeacherCabinet() {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ type: 'extra_lesson', ...newExtraLesson })
           });
-
+          
           const data = await res.json();
-
           if(res.ok) {
-              alert("✅ Əlavə dərs uğurla yaradıldı!");
+              alert("✅ Əlavə dərs yaradıldı!");
               setIsExtraModalOpen(false);
-              fetchScheduleData(); // Cədvəli yenilə
+              fetchScheduleData();
           } else {
-              alert("❌ Xəta: " + (data.error || "Yaradılmadı"));
+              alert("❌ Xəta: " + (data.error || "Bilinməyən xəta"));
           }
-      } catch(e) { 
-          alert("❌ İnternet bağlantısını yoxlayın!"); 
-      } finally {
-          setIsSaving(false);
-      }
+      } catch(e) { alert("Server xətası!"); }
+      finally { setIsSaving(false); }
   };
 
   // --- HELPERS ---
@@ -761,6 +753,7 @@ export default function TeacherCabinet() {
                                     <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sinif</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sektor</th>
+                                    {/* 🔥 YENİ: Müəllim / Qrup Sütunu */}
                                     <th className="p-3 border-b dark:border-gray-600">Müəllim / Qrup</th>
                                     <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
                                 </tr>
