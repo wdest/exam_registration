@@ -495,7 +495,7 @@ export default function TeacherCabinet() {
                   <div className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Məsuliyyət</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 font-bold text-lg text-center" 
+                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
                               value={gradingModal.responsibility} 
                               onChange={(e) => setGradingModal({...gradingModal, responsibility: e.target.value})}
                               autoFocus
