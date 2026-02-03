@@ -540,37 +540,39 @@ export default function TeacherCabinet() {
                   <form onSubmit={createExtraLesson} className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Qrup</label>
-                          <select required className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.group_id} onChange={e => setNewExtraLesson({...newExtraLesson, group_id: e.target.value})}>
-                              <option value="">Seçin...</option>
-                              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                          </select>
-                      </div>
-                      <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase">Tarix</label>
-                          <input required type="date" className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.lesson_date} onChange={e => setNewExtraLesson({...newExtraLesson, lesson_date: e.target.value})}/>
-                      </div>
-                      <div className="flex gap-2">
-                          <div className="flex-1">
-                             <label className="text-xs font-bold text-gray-500 uppercase">Başlama</label>
-                             <select className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.start_time} onChange={e => setNewExtraLesson({...newExtraLesson, start_time: e.target.value})}>
-                                {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-                             </select>
-                          </div>
-                          <div className="flex-1">
-                             <label className="text-xs font-bold text-gray-500 uppercase">Bitmə</label>
-                             <select className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.end_time} onChange={e => setNewExtraLesson({...newExtraLesson, end_time: e.target.value})}>
-                                {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
-                             </select>
-                          </div>
-                      </div>
-                      <button type="submit" disabled={isSaving} className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
-                          {isSaving ? "Yaradılır..." : "Yarat"}
-                      </button>
-                  </form>
-              </div>
-          </div>
-      )}
+                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                        value={gradingModal.responsibility} 
+                        onChange={(e) => setGradingModal({...gradingModal, responsibility: e.target.value})}
+                        autoFocus
+                    />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Dərsdə Aktivlik</label>
+                    <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                        value={gradingModal.activity} 
+                        onChange={(e) => setGradingModal({...gradingModal, activity: e.target.value})}
+                    />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-gray-500 uppercase">Hesab / Bilik</label>
+                    <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                        value={gradingModal.quiz} 
+                        onChange={(e) => setGradingModal({...gradingModal, quiz: e.target.value})}
+                    />
+                </div>
+            </div>
 
+            <div className="mt-6 pt-4 border-t flex items-center justify-between">
+                 <div className="text-sm font-bold text-gray-500">Ortalama: 
+                     <span className="text-xl text-indigo-600 ml-2 font-black">
+                         {Math.round(( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3)}
+                     </span>
+                 </div>
+                 <button onClick={calculateAndSaveGrade} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition">Təsdiqlə</button>
+            </div>
+        </div>
+    </div>
+)}
       {/* --- STATUS MODAL --- */}
       {selectedEventForStatus && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
