@@ -24,6 +24,17 @@ const DAY_INDEX_MAP: { [key: string]: number } = {
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
+// 🔥 YENİ: JS günlərini (0-6) sənin cədvəl formatına (B.e, Ç.a...) çeviririk
+const JS_DAY_TO_AZ: { [key: number]: string } = { 
+  1: "B.e", 
+  2: "Ç.a", 
+  3: "Çərş", 
+  4: "C.a", 
+  5: "Cüm", 
+  6: "Şən", 
+  0: "Baz" 
+};
+
 // 🔥 SAAT AYARLARI (01:00 - 24:00)
 const START_HOUR = 1;  
 const END_HOUR = 24;   
@@ -289,8 +300,7 @@ export default function TeacherCabinet() {
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   
-  // 🔥 MƏNİM ŞAGİRDLƏRİMİN SEÇİMİ - API DÜZƏLİŞİNDƏN SONRAKI DƏYİŞİKLİK
-  // teacher_id artıq API-dan gəlir
+  // 🔥 MƏNİM ŞAGİRDLƏRİMİN SEÇİMİ
   const myStudents = students.filter(s => s.teacher_id === teacher?.id);
   
   const toggleSelectMyStudent = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
@@ -522,7 +532,22 @@ export default function TeacherCabinet() {
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); setStudentToAdd(""); setStudentAddSearch(""); } catch (e: any) { alert(e.message); } };
   const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates }) }); if (!res.ok) throw new Error("Xəta"); alert("Saxlanıldı!"); } catch (e: any) { alert(e.message); } };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
-  const checkScheduleValidity = () => { if (!selectedGroup || !gradingDate) return; const parts = gradingDate.split('-'); const dateObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); setIsValidDay(selectedGroup.schedule.includes(DAY_MAP[dateObj.getDay()])); };
+  
+  // 🔥 YENİLƏNMİŞ YOXLAMA FUNKSİYASI
+  const checkScheduleValidity = () => { 
+      if (!selectedGroup || !gradingDate) return; 
+      
+      const d = new Date(gradingDate);
+      const dayIndex = d.getDay(); // 0-6 arası rəqəm
+      const dayName = JS_DAY_TO_AZ[dayIndex]; // "B.e", "Ç.a" və s.
+
+      if (selectedGroup.schedule && selectedGroup.schedule.includes(dayName)) {
+          setIsValidDay(true);
+      } else {
+          setIsValidDay(false);
+      }
+  };
+
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
   const handleLogout = async () => { try { await fetch("/api/logout", { method: "POST" }); router.push("/login"); router.refresh(); } catch { router.push("/login"); } };
 
@@ -1022,8 +1047,17 @@ export default function TeacherCabinet() {
                                     <Calendar size={18} className="text-gray-500"/>
                                     <input type="date" value={gradingDate} onChange={e => setGradingDate(e.target.value)} className="bg-transparent outline-none text-sm font-medium"/>
                                 </div>
-                                {!isValidDay && (<div className="flex items-center gap-2 text-orange-600 text-sm font-bold bg-orange-50 px-3 py-1 rounded-full border border-orange-200"><AlertTriangle size={16}/> Bu gün dərs günü deyil!</div>)}
-                                <button onClick={saveGrades} className="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition"><Save size={18}/> Yadda Saxla</button>
+                                {!isValidDay && (
+                                    <div className="flex items-center gap-2 text-orange-600 text-sm font-bold bg-orange-50 px-4 py-2 rounded-xl border border-orange-200 animate-pulse">
+                                        <AlertTriangle size={18}/> 
+                                        Bu gün ({new Date(gradingDate).toLocaleDateString('az-AZ', {weekday: 'long'})}) dərs yoxdur!
+                                    </div>
+                                )}
+                                {isValidDay && (
+                                    <button onClick={saveGrades} className="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition">
+                                        <Save size={18}/> Yadda Saxla
+                                    </button>
+                                )}
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm border-collapse">
@@ -1033,25 +1067,47 @@ export default function TeacherCabinet() {
                                             </tr>
                                     </thead>
                                     <tbody>
-                                            {groupStudents.map((s, index) => (
-                                                <tr key={s.id} className="border-b dark:border-gray-600">
-                                                    <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
-                                                    <td className="p-3 border dark:border-gray-600 font-medium">{s.first_name} {s.last_name}</td>
-                                                    <td className="p-3 border dark:border-gray-600 text-center">
-                                                        <button onClick={() => toggleAttendance(s.id)}>
-                                                            {attendance[s.id] !== false ? <CheckCircle className="text-green-500 mx-auto" size={24} /> : <XCircle className="text-red-500 mx-auto" size={24} />}
-                                                        </button>
-                                                    </td>
-                                                    <td className="p-3 border dark:border-gray-600">
-                                                        <input 
-                                                            type="number" min="0" max="10" placeholder="-" 
-                                                            className="w-full p-2 bg-blue-50/50 dark:bg-blue-900 rounded-md outline-none text-center font-bold text-blue-700 dark:text-blue-300" 
-                                                            value={grades[s.id] || ""} 
-                                                            onChange={(e) => { let val = e.target.value; if(Number(val) > 10) val = "10"; setGrades({...grades, [s.id]: val}); }} 
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                        {groupStudents.map((s, index) => (
+                                            <tr key={s.id} className={`border-b dark:border-gray-600 ${!isValidDay ? 'opacity-50 bg-gray-50 dark:bg-gray-800' : ''}`}>
+                                                <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
+                                                <td className="p-3 border dark:border-gray-600 font-medium">
+                                                    {s.first_name} {s.last_name}
+                                                </td>
+                                                
+                                                {/* DAVAMİYYƏT (Button) */}
+                                                <td className="p-3 border dark:border-gray-600 text-center">
+                                                    <button 
+                                                        onClick={() => toggleAttendance(s.id)} 
+                                                        disabled={!isValidDay} // 🔥 Dərs günü deyilsə, basmaq olmasın
+                                                        className={`transition ${!isValidDay ? 'cursor-not-allowed' : 'hover:scale-110'}`}
+                                                    >
+                                                        {attendance[s.id] !== false ? 
+                                                            <CheckCircle className={isValidDay ? "text-green-500" : "text-gray-400"} size={24} /> : 
+                                                            <XCircle className={isValidDay ? "text-red-500" : "text-gray-400"} size={24} />
+                                                        }
+                                                    </button>
+                                                </td>
+
+                                                {/* QİYMƏT (Input) */}
+                                                <td className="p-3 border dark:border-gray-600">
+                                                    <input 
+                                                        type="number" min="0" max="10" placeholder="-" 
+                                                        disabled={!isValidDay} // 🔥 Dərs günü deyilsə, yazmaq olmasın
+                                                        className={`w-full p-2 rounded-md outline-none text-center font-bold 
+                                                            ${!isValidDay 
+                                                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                                                                : 'bg-blue-50/50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 focus:ring-2 focus:ring-blue-400'
+                                                            }`}
+                                                        value={grades[s.id] || ""} 
+                                                        onChange={(e) => { 
+                                                            let val = e.target.value; 
+                                                            if(Number(val) > 10) val = "10"; 
+                                                            setGrades({...grades, [s.id]: val}); 
+                                                        }} 
+                                                    />
+                                                </td>
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </div>
