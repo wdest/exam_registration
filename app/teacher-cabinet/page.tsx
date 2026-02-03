@@ -1111,7 +1111,7 @@ export default function TeacherCabinet() {
                                                             {grades[s.id] ? (
                                                                 <span className="text-lg text-gray-900 dark:text-white">{grades[s.id]}</span>
                                                             ) : (
-                                                                <Calculator size={16} />
+                                                                <Calculator size={16} className="text-gray-500 dark:text-gray-300" />
                                                             )}
                                                         </button>
                                                     </div>
