@@ -822,11 +822,25 @@ export default function TeacherCabinet() {
                                         <td className="p-3">{s.grade}</td>
                                         <td className="p-3"><span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-600">{s.sector || "Az"}</span></td>
                                         
-                                        {/* 🔥 YENİ: Müəllim / Qrup Xanasi */}
+                                        {/* 🔥 YENİ DİZAYN: Müəllim və Qrup Xanasi */}
                                         <td className="p-3">
-                                            <span className="px-2 py-1 rounded text-xs font-bold bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300">
-                                                {s.group_name || s.teacher_name || "-"}
-                                            </span>
+                                            <div className="flex flex-col">
+                                                {/* Müəllim Adı (Qalın) */}
+                                                {s.teacher_name ? (
+                                                    <span className="font-bold text-sm text-gray-800 dark:text-white">
+                                                        {s.teacher_name}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs italic">Təyin edilməyib</span>
+                                                )}
+                                                
+                                                {/* Qrup Adı (Balaca və rəngli) */}
+                                                {s.group_name && (
+                                                    <span className="mt-1 w-fit px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300">
+                                                        {s.group_name}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
 
                                         <td className="p-3 flex justify-end gap-2">
