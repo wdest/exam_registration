@@ -7,7 +7,7 @@ import {
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
-  Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square,
+  Upload, Clock, CheckSquare, Square,
   ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck, CalendarPlus 
 } from "lucide-react";
 
@@ -24,7 +24,6 @@ const DAY_INDEX_MAP: { [key: string]: number } = {
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
-// JS günlərini (0-6) sənin cədvəl formatına (B.e, Ç.a...) çeviririk
 const JS_DAY_TO_AZ: { [key: number]: string } = { 
   1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" 
 };
@@ -50,6 +49,7 @@ export default function TeacherCabinet() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // 🔥 YENİ: Save Loading State
   const [teacher, setTeacher] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -70,13 +70,13 @@ export default function TeacherCabinet() {
   const [extraLessons, setExtraLessons] = useState<any[]>([]); 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // 🔥 FIX: STATE ADLARI DATABASE İLƏ EYNİLƏŞDİRİLDİ
+  // EXTRA LESSON MODAL
   const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
   const [newExtraLesson, setNewExtraLesson] = useState({
       group_id: "", 
-      lesson_date: new Date().toISOString().split('T')[0], // 'date' -> 'lesson_date'
-      start_time: "10:00", // 'start' -> 'start_time'
-      end_time: "11:30"    // 'end' -> 'end_time'
+      lesson_date: new Date().toISOString().split('T')[0], 
+      start_time: "10:00", 
+      end_time: "11:30"
   });
 
   // FORM & EDIT
@@ -130,7 +130,7 @@ export default function TeacherCabinet() {
             if (data.teacher) {
                 setTeacher(data.teacher);
                 fetchData(data.teacher.id);
-                fetchScheduleData(); 
+                fetchScheduleData(); // 🔥 Statusları və Əlavə dərsləri çək
             }
         } catch (error) {
             router.push("/login");
@@ -167,6 +167,7 @@ export default function TeacherCabinet() {
     return () => clearInterval(interval);
   }, [router]);
 
+  // 🔥 API-dan Schedule Datalarını almaq
   const fetchScheduleData = async () => {
       try {
           const res = await fetch("/api/teacher/schedule");
@@ -186,6 +187,7 @@ export default function TeacherCabinet() {
       }
   };
 
+  // --- CƏDVƏL MƏNTİQİ ---
   useEffect(() => {
       const events: any[] = [];
       const now = new Date();
@@ -321,12 +323,14 @@ export default function TeacherCabinet() {
       setSelectedEventForStatus(event);
   };
 
+  // 🔥 FIX: STATUS YENİLƏMƏK (Error Handling ilə)
   const updateEventStatus = async (status: string | null) => {
       if (!selectedEventForStatus) return;
       const groupId = selectedEventForStatus.groupId;
       const dateString = selectedEventForStatus.fullDate.toISOString().split('T')[0];
       const mapKey = `${groupId}_${dateString}`;
       
+      // Optimistic UI Update (Dərhal dəyişir)
       const newOverrides = { ...lessonStatusOverrides };
       if (status === null) delete newOverrides[mapKey];
       else newOverrides[mapKey] = status;
@@ -334,31 +338,50 @@ export default function TeacherCabinet() {
       setSelectedEventForStatus(null);
 
       try {
-          await fetch("/api/teacher/schedule", {
+          const res = await fetch("/api/teacher/schedule", {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ type: 'status', groupId, date: dateString, status })
           });
-      } catch (error) { alert("Xəta!"); fetchScheduleData(); }
+
+          if (!res.ok) {
+              const err = await res.json();
+              throw new Error(err.error || "Xəta baş verdi");
+          }
+      } catch (error: any) { 
+          alert("❌ Status yadda saxlanmadı: " + error.message); 
+          fetchScheduleData(); // Köhnə halına qaytar
+      }
   };
 
-  // 🔥 FIX: CREATE EXTRA LESSON
+  // 🔥 FIX: ƏLAVƏ DƏRS YARATMAQ (Error Handling & Loading)
   const createExtraLesson = async (e: React.FormEvent) => {
       e.preventDefault();
-      if(!newExtraLesson.group_id) return alert("Qrup seçin!");
+      if(!newExtraLesson.group_id) return alert("⚠️ Zəhmət olmasa qrup seçin!");
 
+      setIsSaving(true);
       try {
           const res = await fetch("/api/teacher/schedule", {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ type: 'extra_lesson', ...newExtraLesson }) // Artıq newExtraLesson düzgün adlarla gedir
+              body: JSON.stringify({ type: 'extra_lesson', ...newExtraLesson })
           });
+
+          const data = await res.json();
+
           if(res.ok) {
-              alert("Əlavə dərs yaradıldı!");
+              alert("✅ Əlavə dərs uğurla yaradıldı!");
               setIsExtraModalOpen(false);
-              fetchScheduleData();
+              fetchScheduleData(); // Cədvəli yenilə
+          } else {
+              alert("❌ Xəta: " + (data.error || "Yaradılmadı"));
           }
-      } catch(e) { alert("Xəta!"); }
+      } catch(e) { 
+          alert("❌ İnternet bağlantısını yoxlayın!"); 
+      } finally {
+          setIsSaving(false);
+      }
   };
 
+  // --- HELPERS ---
   const fetchData = async (teacherId: number) => { try { const res = await fetch("/api/teacher/students"); if (res.ok) { const data = await res.json(); setStudents(data.students || []); } const resG = await fetch("/api/teacher/groups"); if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); } } catch (e) { console.error(e); } };
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
@@ -370,7 +393,7 @@ export default function TeacherCabinet() {
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   const generateAccessCode = () => { const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let result = ""; for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); } setNewStudent({...newStudent, access_code: result}); };
 
-  // --- JURNAL VALIDATION ---
+  // --- JURNAL VALIDATION (DƏYİŞDİRİLDİ) ---
   const checkScheduleValidity = () => { 
       if (!selectedGroup || !gradingDate) return; 
       
@@ -379,7 +402,10 @@ export default function TeacherCabinet() {
       const dayName = JS_DAY_TO_AZ[dayIndex]; 
       const dateStr = gradingDate;
 
+      // 1. Standart Cədvəldə varmı?
       const isRegular = selectedGroup.schedule && selectedGroup.schedule.includes(dayName);
+      
+      // 2. Əlavə Dərs kimi varmı?
       const isExtra = extraLessons.some(el => el.group_id === selectedGroup.id && el.lesson_date === dateStr);
 
       if (isRegular || isExtra) {
@@ -427,7 +453,6 @@ export default function TeacherCabinet() {
                       <h3 className="text-xl font-bold flex items-center gap-2"><CalendarPlus className="text-purple-600"/> Əlavə Dərs</h3>
                       <button onClick={() => setIsExtraModalOpen(false)} className="p-1 hover:bg-gray-100 rounded-full"><X size={20}/></button>
                   </div>
-                  {/* 🔥 FIX: Formadakı adlar DB ilə eyniləşdirildi */}
                   <form onSubmit={createExtraLesson} className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Qrup</label>
@@ -454,7 +479,9 @@ export default function TeacherCabinet() {
                              </select>
                           </div>
                       </div>
-                      <button type="submit" className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 transition">Yarat</button>
+                      <button type="submit" disabled={isSaving} className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                          {isSaving ? "Yaradılır..." : "Yarat"}
+                      </button>
                   </form>
               </div>
           </div>
@@ -719,7 +746,6 @@ export default function TeacherCabinet() {
                         </div>
                     </div>
 
-                    {/* 🔥 SCROLL OLUNAN CƏDVƏL HİSSƏSİ */}
                     <div className="overflow-auto flex-1 rounded-lg border dark:border-gray-700">
                         <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold sticky top-0 z-10 shadow-sm">
@@ -735,7 +761,6 @@ export default function TeacherCabinet() {
                                     <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sinif</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sektor</th>
-                                    {/* 🔥 YENİ: Müəllim / Qrup Sütunu */}
                                     <th className="p-3 border-b dark:border-gray-600">Müəllim / Qrup</th>
                                     <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
                                 </tr>
