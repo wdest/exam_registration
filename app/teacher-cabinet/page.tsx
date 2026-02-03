@@ -8,13 +8,13 @@ import {
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
   Upload, Clock, LineChart as LineChartIcon, CheckSquare, Square,
-  ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck, CalendarPlus // 🔥 CalendarPlus icon
+  ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck, CalendarPlus 
 } from "lucide-react";
 
 // RECHARTS
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend 
+  BarChart, Bar
 } from 'recharts';
 
 // --- SABITLƏR ---
@@ -24,13 +24,13 @@ const DAY_INDEX_MAP: { [key: string]: number } = {
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
-// JS günlərini (0-6) schedule formatına çeviririk
+// JS günlərini (0-6) sənin cədvəl formatına (B.e, Ç.a...) çeviririk
 const JS_DAY_TO_AZ: { [key: number]: string } = { 
   1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" 
 };
 
-const START_HOUR = 8; // 🔥 Səhər 08:00
-const END_HOUR = 23;  // 🔥 Axşam 23:00
+const START_HOUR = 8; 
+const END_HOUR = 23;  
 const TOTAL_HOURS = END_HOUR - START_HOUR;
 const PIXELS_PER_HOUR = 80; 
 
@@ -67,13 +67,16 @@ export default function TeacherCabinet() {
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(new Date());
   const [selectedEventForStatus, setSelectedEventForStatus] = useState<any>(null);
   const [lessonStatusOverrides, setLessonStatusOverrides] = useState<{[key: string]: string}>({});
-  const [extraLessons, setExtraLessons] = useState<any[]>([]); // 🔥 Əlavə Dərslər
+  const [extraLessons, setExtraLessons] = useState<any[]>([]); 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // EXTRA LESSON MODAL
+  // 🔥 FIX: STATE ADLARI DATABASE İLƏ EYNİLƏŞDİRİLDİ
   const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
   const [newExtraLesson, setNewExtraLesson] = useState({
-      group_id: "", date: new Date().toISOString().split('T')[0], start: "10:00", end: "11:30"
+      group_id: "", 
+      lesson_date: new Date().toISOString().split('T')[0], // 'date' -> 'lesson_date'
+      start_time: "10:00", // 'start' -> 'start_time'
+      end_time: "11:30"    // 'end' -> 'end_time'
   });
 
   // FORM & EDIT
@@ -127,7 +130,7 @@ export default function TeacherCabinet() {
             if (data.teacher) {
                 setTeacher(data.teacher);
                 fetchData(data.teacher.id);
-                fetchScheduleData(); // 🔥 Statusları və Əlavə dərsləri çək
+                fetchScheduleData(); 
             }
         } catch (error) {
             router.push("/login");
@@ -164,22 +167,18 @@ export default function TeacherCabinet() {
     return () => clearInterval(interval);
   }, [router]);
 
-  // 🔥 API-dan Statusları və Əlavə Dərsləri almaq
   const fetchScheduleData = async () => {
       try {
           const res = await fetch("/api/teacher/schedule");
           if (res.ok) {
               const data = await res.json();
               
-              // Status Map
               const statusMap: {[key: string]: string} = {};
               data.lessonStatuses.forEach((item: any) => {
                   const key = `${item.group_id}_${item.lesson_date.split('T')[0]}`;
                   statusMap[key] = item.status;
               });
               setLessonStatusOverrides(statusMap);
-
-              // Extra Lessons
               setExtraLessons(data.extraLessons || []);
           }
       } catch (error) {
@@ -187,7 +186,6 @@ export default function TeacherCabinet() {
       }
   };
 
-  // --- CƏDVƏL MƏNTİQİ (MERGE) ---
   useEffect(() => {
       const events: any[] = [];
       const now = new Date();
@@ -228,7 +226,7 @@ export default function TeacherCabinet() {
                         const lessonEnd = new Date(specificDate); lessonEnd.setHours(endH, endM, 0);
                         const manualStatus = lessonStatusOverrides[statusKey];
 
-                        let statusColor = "bg-[#F5B041] border-[#D68910] text-white"; // Sarı (Plan)
+                        let statusColor = "bg-[#F5B041] border-[#D68910] text-white"; 
                         let statusText = "Planlaşdırılıb";
 
                         if (manualStatus === 'done') {
@@ -239,7 +237,7 @@ export default function TeacherCabinet() {
                             statusText = "Ləğv edildi";
                         } else {
                             if (lessonEnd < now) {
-                                statusColor = "bg-gray-400 border-gray-600 text-white opacity-80"; // Vaxtı keçib
+                                statusColor = "bg-gray-400 border-gray-600 text-white opacity-80"; 
                                 statusText = "Bitdi";
                             } else if (lessonStart <= now && lessonEnd >= now) {
                                 statusColor = "bg-[#3498DB] border-[#2980B9] text-white animate-pulse shadow-lg ring-2 ring-blue-300";
@@ -256,7 +254,7 @@ export default function TeacherCabinet() {
                             top, 
                             height: duration * PIXELS_PER_HOUR,
                             timeStr: timeRange,
-                            classes: `${baseClasses} ${statusColor}`,
+                            classes: `absolute inset-x-1 rounded-md cursor-pointer z-10 border-l-4 shadow-sm text-xs font-medium p-2 flex flex-col justify-center overflow-hidden transition hover:brightness-95 ${statusColor}`,
                             status: statusText,
                             fullDate: specificDate,
                             manualStatus,
@@ -274,9 +272,8 @@ export default function TeacherCabinet() {
          const startOfWeek = weekDates[0];
          const endOfWeek = weekDates[6];
 
-         // Əgər dərs bu həftəyə düşürsə
          if (elDate >= startOfWeek && elDate <= endOfWeek) {
-             const dayIndex = elDate.getDay() === 0 ? 6 : elDate.getDay() - 1; // JS 0=Baz, Bizim 6=Baz
+             const dayIndex = elDate.getDay() === 0 ? 6 : elDate.getDay() - 1; 
              const [h, m] = el.start_time.split(":").map(Number);
              const [eH, eM] = el.end_time.split(":").map(Number);
              const duration = (eH + eM / 60) - (h + m / 60);
@@ -286,7 +283,6 @@ export default function TeacherCabinet() {
              const manualStatus = lessonStatusOverrides[statusKey];
              const group = groups.find(g => g.id === el.group_id);
 
-             // Default: Purple (Əlavə Dərs)
              let statusColor = "bg-purple-600 border-purple-800 text-white shadow-purple-200"; 
              let statusText = "Əlavə Dərs";
 
@@ -303,7 +299,7 @@ export default function TeacherCabinet() {
                  top,
                  height: duration * PIXELS_PER_HOUR,
                  timeStr: `${el.start_time.slice(0,5)}-${el.end_time.slice(0,5)}`,
-                 classes: `${baseClasses} ${statusColor}`,
+                 classes: `absolute inset-x-1 rounded-md cursor-pointer z-10 border-l-4 shadow-sm text-xs font-medium p-2 flex flex-col justify-center overflow-hidden transition hover:brightness-95 ${statusColor}`,
                  status: statusText,
                  fullDate: elDate,
                  manualStatus,
@@ -315,9 +311,6 @@ export default function TeacherCabinet() {
       setScheduleEvents(events);
   }, [groups, currentWeekStart, lessonStatusOverrides, extraLessons]);
 
-  // Google Calendar Style Base Classes
-  const baseClasses = "absolute inset-x-1 rounded-md cursor-pointer z-10 border-l-4 shadow-sm text-xs font-medium p-2 flex flex-col justify-center overflow-hidden transition hover:brightness-95";
-
   const changeWeek = (direction: number) => {
     const newDate = new Date(currentWeekStart);
     newDate.setDate(newDate.getDate() + (direction * 7));
@@ -328,7 +321,6 @@ export default function TeacherCabinet() {
       setSelectedEventForStatus(event);
   };
 
-  // 🔥 STATUS YENİLƏMƏK (API İLƏ)
   const updateEventStatus = async (status: string | null) => {
       if (!selectedEventForStatus) return;
       const groupId = selectedEventForStatus.groupId;
@@ -349,7 +341,7 @@ export default function TeacherCabinet() {
       } catch (error) { alert("Xəta!"); fetchScheduleData(); }
   };
 
-  // 🔥 ƏLAVƏ DƏRS YARATMAQ (API İLƏ)
+  // 🔥 FIX: CREATE EXTRA LESSON
   const createExtraLesson = async (e: React.FormEvent) => {
       e.preventDefault();
       if(!newExtraLesson.group_id) return alert("Qrup seçin!");
@@ -357,7 +349,7 @@ export default function TeacherCabinet() {
       try {
           const res = await fetch("/api/teacher/schedule", {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ type: 'extra_lesson', ...newExtraLesson })
+              body: JSON.stringify({ type: 'extra_lesson', ...newExtraLesson }) // Artıq newExtraLesson düzgün adlarla gedir
           });
           if(res.ok) {
               alert("Əlavə dərs yaradıldı!");
@@ -367,7 +359,6 @@ export default function TeacherCabinet() {
       } catch(e) { alert("Xəta!"); }
   };
 
-  // --- HELPERS ---
   const fetchData = async (teacherId: number) => { try { const res = await fetch("/api/teacher/students"); if (res.ok) { const data = await res.json(); setStudents(data.students || []); } const resG = await fetch("/api/teacher/groups"); if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); } } catch (e) { console.error(e); } };
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
@@ -379,7 +370,7 @@ export default function TeacherCabinet() {
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   const generateAccessCode = () => { const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let result = ""; for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); } setNewStudent({...newStudent, access_code: result}); };
 
-  // --- JURNAL VALIDATION (DƏYİŞDİRİLDİ) ---
+  // --- JURNAL VALIDATION ---
   const checkScheduleValidity = () => { 
       if (!selectedGroup || !gradingDate) return; 
       
@@ -388,10 +379,7 @@ export default function TeacherCabinet() {
       const dayName = JS_DAY_TO_AZ[dayIndex]; 
       const dateStr = gradingDate;
 
-      // 1. Standart Cədvəldə varmı?
       const isRegular = selectedGroup.schedule && selectedGroup.schedule.includes(dayName);
-      
-      // 2. Əlavə Dərs kimi varmı?
       const isExtra = extraLessons.some(el => el.group_id === selectedGroup.id && el.lesson_date === dateStr);
 
       if (isRegular || isExtra) {
@@ -402,8 +390,8 @@ export default function TeacherCabinet() {
   };
 
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
-
-  // --- ANALIZ ---
+  
+  // ... (Analytics funksiyaları eyni qalır) ...
   const calculateAnalytics = async (groupId: string) => { if (!groupId) return; setAnalyticsGroupId(groupId); try { const resMembers = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); const dataMembers = await resMembers.json(); const studentsInGroup = dataMembers.students || []; setAnalyticsStudentsList(studentsInGroup); const resGrades = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); const dataGrades = await resGrades.json(); const allGrades = dataGrades.allGrades || []; setRawGradesForChart(allGrades); calculateTableStats(studentsInGroup, allGrades); } catch(e) { console.error(e); } };
   const calculateTableStats = (studentsInGroup: any[], allGrades: any[]) => { let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; const stats = studentsInGroup.map((student: any) => { const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); const scoredDays = studentGrades.filter((g: any) => g.score !== null); const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; const totalDays = studentGrades.length; const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; }); stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); setAnalyticsData(stats); setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); };
   useEffect(() => { if (rawGradesForChart.length === 0) return; let filteredData = [...rawGradesForChart]; if (analysisMode === 'individual' && selectedStudentForChart) { filteredData = filteredData.filter(g => g.student_id.toString() === selectedStudentForChart.toString()); } if (chartInterval === 'year') { const currentYear = new Date().getFullYear(); filteredData = filteredData.filter(g => new Date(g.grade_date).getFullYear() === currentYear); } const groupedData: { [key: string]: number[] } = {}; const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; filteredData.forEach((g: any) => { if (g.score !== null) { const date = new Date(g.grade_date); let key = g.grade_date; if (chartInterval === 'weeks4') { const startOfYear = new Date(date.getFullYear(), 0, 1); const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); const weekNum = Math.ceil((days + 1) / 7); key = `Həftə ${weekNum}`; } else if (chartInterval === 'months4') { key = monthNames[date.getMonth()]; } else if (chartInterval === 'year') { key = monthNames[date.getMonth()]; } if (!groupedData[key]) groupedData[key] = []; groupedData[key].push(g.score); } }); let chartResult = Object.keys(groupedData).map(key => { const scores = groupedData[key]; const avg = scores.reduce((a, b) => a + b, 0) / scores.length; return { label: key, avg: parseFloat(avg.toFixed(1)) }; }); if (chartInterval === 'lessons4') { chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); chartResult = chartResult.slice(-4); chartResult = chartResult.map(item => ({...item, label: item.label.slice(5)})); } else if (chartInterval === 'weeks4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'months4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'year') { chartResult.sort((a, b) => monthNames.indexOf(a.label) - monthNames.indexOf(b.label)); } setChartData(chartResult); }, [chartInterval, analysisMode, selectedStudentForChart, rawGradesForChart]);
@@ -439,6 +427,7 @@ export default function TeacherCabinet() {
                       <h3 className="text-xl font-bold flex items-center gap-2"><CalendarPlus className="text-purple-600"/> Əlavə Dərs</h3>
                       <button onClick={() => setIsExtraModalOpen(false)} className="p-1 hover:bg-gray-100 rounded-full"><X size={20}/></button>
                   </div>
+                  {/* 🔥 FIX: Formadakı adlar DB ilə eyniləşdirildi */}
                   <form onSubmit={createExtraLesson} className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Qrup</label>
@@ -449,7 +438,7 @@ export default function TeacherCabinet() {
                       </div>
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Tarix</label>
-                          <input required type="date" className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.date} onChange={e => setNewExtraLesson({...newExtraLesson, date: e.target.value})}/>
+                          <input required type="date" className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.lesson_date} onChange={e => setNewExtraLesson({...newExtraLesson, lesson_date: e.target.value})}/>
                       </div>
                       <div className="flex gap-2">
                           <div className="flex-1">
@@ -654,7 +643,6 @@ export default function TeacherCabinet() {
         {/* --- 🔥 YENİLƏNMİŞ STUDENTS TAB (SEARCH & SCROLL) --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-hidden pb-2">
-                {/* ... (Bu hissə eyni qalır) ... */}
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-full overflow-y-auto">
                     <div className="mb-6 pb-6 border-b dark:border-gray-700">
                         <label className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-green-300 bg-green-50 text-green-700 cursor-pointer hover:bg-green-100 transition ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -712,6 +700,7 @@ export default function TeacherCabinet() {
                         <h3 className="text-lg font-bold flex items-center gap-2">Şagirdlər <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{filteredStudents.length}</span></h3>
                         
                         <div className="flex items-center gap-2">
+                            {/* 🔥 AXTARIŞ INPUTU */}
                             <div className="relative">
                                 <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
                                 <input 
@@ -730,6 +719,7 @@ export default function TeacherCabinet() {
                         </div>
                     </div>
 
+                    {/* 🔥 SCROLL OLUNAN CƏDVƏL HİSSƏSİ */}
                     <div className="overflow-auto flex-1 rounded-lg border dark:border-gray-700">
                         <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold sticky top-0 z-10 shadow-sm">
@@ -745,6 +735,7 @@ export default function TeacherCabinet() {
                                     <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sinif</th>
                                     <th className="p-3 border-b dark:border-gray-600">Sektor</th>
+                                    {/* 🔥 YENİ: Müəllim / Qrup Sütunu */}
                                     <th className="p-3 border-b dark:border-gray-600">Müəllim / Qrup</th>
                                     <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
                                 </tr>
