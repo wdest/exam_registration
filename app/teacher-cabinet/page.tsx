@@ -1109,7 +1109,7 @@ export default function TeacherCabinet() {
                                                                 }`}
                                                         >
                                                             {grades[s.id] ? (
-                                                                <span className="text-lg">{grades[s.id]}</span>
+                                                                <span className="text-lg text-gray-900 dark:text-white">{grades[s.id]}</span>
                                                             ) : (
                                                                 <Calculator size={16} />
                                                             )}
