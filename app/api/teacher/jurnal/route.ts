@@ -18,14 +18,60 @@ async function getUser() {
   } catch { return null; }
 }
 
-// --- GET METODU (Olduğu kimi qalır) ---
+// --- GET: Məlumatları Oxumaq ---
 export async function GET(request: Request) {
-  // ... (Bura dəymə, əvvəlki kimi qalsın) ...
-  // Sadəlik üçün buranı qısaldıram, sən özündəki GET-i saxlaya bilərsən
-  return NextResponse.json({ message: "GET is working" });
+  const user = await getUser();
+  if (!user) return NextResponse.json({ error: "İcazə yoxdur" }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get('type');
+  const groupId = searchParams.get('groupId');
+  const date = searchParams.get('date');
+
+  try {
+    // A. Qrup Üzvlərini Gətir
+    if (type === 'members' && groupId) {
+        const { data } = await supabaseAdmin
+            .from('group_members')
+            .select(`student_id, local_students ( * )`)
+            .eq('group_id', groupId);
+        // @ts-ignore
+        const students = data?.map((item: any) => item.local_students) || [];
+        return NextResponse.json({ students });
+    }
+
+    // B. Konkret Tarix üçün Qiymətləri Gətir
+    if (type === 'grades' && groupId && date) {
+        const { data } = await supabaseAdmin
+            .from('daily_grades')
+            .select('*')
+            .eq('group_id', groupId)
+            .eq('grade_date', date);
+        return NextResponse.json({ grades: data });
+    }
+
+    // C. Analiz
+    if (type === 'analytics' && groupId) {
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        
+        const { data } = await supabaseAdmin
+            .from('daily_grades')
+            .select('*')
+            .eq('group_id', groupId)
+            .gte('grade_date', oneYearAgo.toISOString())
+            .order('grade_date', { ascending: true });
+        return NextResponse.json({ allGrades: data });
+    }
+
+    return NextResponse.json({ error: "Yanlış sorğu" }, { status: 400 });
+
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
 
-// --- POST METODU (YENİLƏNƏCƏK HİSSƏ) ---
+// --- POST: Məlumat Yazmaq ---
 export async function POST(request: Request) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: "İcazə yoxdur" }, { status: 401 });
@@ -40,33 +86,23 @@ export async function POST(request: Request) {
         const { data: group } = await supabaseAdmin.from('groups').select('id').eq('id', groupId).eq('teacher_id', user.id).single();
         if (!group) return NextResponse.json({ error: "Qrup tapılmadı" }, { status: 404 });
 
-        // a) Qrupa əlavə edirik (insert)
-        const { error: insertError } = await supabaseAdmin
+        // a) Qrupa əlavə edirik
+        const { error } = await supabaseAdmin
             .from('group_members')
             .insert({ group_id: groupId, student_id: studentId });
         
-        // 🔥 DÜZƏLİŞ: Əgər uşaq artıq qrupdadırsa, xəta verməsin, davam etsin
-        if (insertError) {
-            // "23505" kodu Postgres-də unique violation (təkrar qeyd) deməkdir.
-            // Yəni uşaq qrupda varsa, bunu error sayma, davam et.
-            if (insertError.code !== '23505') {
-                throw insertError; 
-            }
-        }
+        if (error) throw error;
 
-        // 🔥 b) Şagirdi bu müəllimə mənimsədirik (Ən vacib hissə)
-        // İstər yeni əlavə olunsun, istər köhnə qrupda olsun, bu kod mütləq işləməlidir
-        const { error: updateError } = await supabaseAdmin
+        // 🔥 b) DƏYİŞİKLİK: Şagirdi bu müəllimə mənimsədirik (user_id = teacher.id)
+        await supabaseAdmin
             .from('local_students')
             .update({ user_id: user.id })
             .eq('id', studentId);
 
-        if (updateError) throw updateError;
-
         return NextResponse.json({ success: true });
     }
 
-    // 2. Qiymətləri Yadda Saxla (Olduğu kimi)
+    // 2. Qiymətləri Yadda Saxla
     if (action === 'save_grades') {
          await supabaseAdmin.from('daily_grades').delete().eq('group_id', groupId).eq('grade_date', date);
          const { error } = await supabaseAdmin.from('daily_grades').insert(gradesData);
