@@ -13,7 +13,8 @@ async function getUser() {
   if (!token) return null;
   try {
     const user = JSON.parse(token);
-    if (user.role !== 'teacher') return null;
+    // Əgər rol yoxlanışı lazımdırsa:
+    // if (user.role !== 'teacher') return null;
     return user;
   } catch { return null; }
 }
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
             .from('group_members')
             .select(`student_id, local_students ( * )`)
             .eq('group_id', groupId);
+        
         // @ts-ignore
         const students = data?.map((item: any) => item.local_students) || [];
         return NextResponse.json({ students });
@@ -83,30 +85,37 @@ export async function POST(request: Request) {
     // 1. Şagirdi Qrupa Əlavə Et
     if (action === 'add_member') {
         // Yoxlayaq ki, bu qrup həqiqətən bu müəllimindir
-        const { data: group } = await supabaseAdmin.from('groups').select('id').eq('id', groupId).eq('teacher_id', user.id).single();
+        const { data: group } = await supabaseAdmin
+            .from('groups')
+            .select('id')
+            .eq('id', groupId)
+            .eq('teacher_id', user.id)
+            .single();
+            
         if (!group) return NextResponse.json({ error: "Qrup tapılmadı" }, { status: 404 });
 
-        // a) Qrupa əlavə edirik
+        // a) Qrupa əlavə edirik (Dynamic Join üçün bu kifayətdir!)
         const { error } = await supabaseAdmin
             .from('group_members')
             .insert({ group_id: groupId, student_id: studentId });
         
         if (error) throw error;
 
-        // 🔥 b) DƏYİŞİKLİK: Şagirdi bu müəllimə mənimsədirik (user_id = teacher.id)
-        await supabaseAdmin
-            .from('local_students')
-            .update({ user_id: user.id })
-            .eq('id', studentId);
+        // 🔥 DÜZƏLİŞ: local_students cədvəlini update etməyə ehtiyac yoxdur.
+        // Çünki teacher_id artıq group_members -> groups zənciri ilə tapılır.
 
         return NextResponse.json({ success: true });
     }
 
     // 2. Qiymətləri Yadda Saxla
     if (action === 'save_grades') {
+         // Köhnə qiymətləri silirik ki, dublikat olmasın
          await supabaseAdmin.from('daily_grades').delete().eq('group_id', groupId).eq('grade_date', date);
+         
+         // Yeni qiymətləri yazırıq
          const { error } = await supabaseAdmin.from('daily_grades').insert(gradesData);
          if (error) throw error;
+         
          return NextResponse.json({ success: true });
     }
 
