@@ -7,7 +7,7 @@ import {
   LogOut, Users, BookOpen, Plus, Calendar, Save, 
   ChevronRight, GraduationCap, CheckCircle, XCircle, AlertTriangle, 
   Trash2, Pencil, RefreshCcw, BarChart3, TrendingUp, Activity, PieChart, 
-  Upload, Clock, CheckSquare, Square, Calculator, // 🔥 Calculator iconu əlavə olundu
+  Upload, Clock, CheckSquare, Square, Calculator,
   ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck, CalendarPlus 
 } from "lucide-react";
 
@@ -24,6 +24,7 @@ const DAY_INDEX_MAP: { [key: string]: number } = {
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
+// JS günlərini (0-6) sənin cədvəl formatına (B.e, Ç.a...) çeviririk
 const JS_DAY_TO_AZ: { [key: number]: string } = { 
   1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" 
 };
@@ -79,14 +80,14 @@ export default function TeacherCabinet() {
       end_time: "11:30"
   });
 
-  // 🔥 YENİ: GRADING MODAL (Qiymətləndirmə Pəncərəsi)
+  // GRADING MODAL
   const [gradingModal, setGradingModal] = useState<{
       isOpen: boolean;
       studentId: string | null;
       studentName: string;
-      responsibility: string; // Məsuliyyət
-      activity: string;       // Davamiyyət/Aktivlik
-      quiz: string;           // Hesab/Bilik
+      responsibility: string;
+      activity: string;
+      quiz: string;
   }>({
       isOpen: false,
       studentId: null,
@@ -353,12 +354,9 @@ export default function TeacherCabinet() {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ type: 'status', groupId, date: dateString, status })
           });
-          if (!res.ok) {
-              const err = await res.json();
-              throw new Error(err.error || "Xəta baş verdi");
-          }
-      } catch (error: any) { 
-          alert("❌ Status yadda saxlanmadı: " + error.message); 
+          if (!res.ok) throw new Error("Status yadda saxlanmadı");
+      } catch (error) { 
+          alert("Xəta baş verdi! İnterneti yoxlayın."); 
           fetchScheduleData();
       }
   };
@@ -390,7 +388,6 @@ export default function TeacherCabinet() {
       }
   };
 
-  // --- HELPERS ---
   const fetchData = async (teacherId: number) => { try { const res = await fetch("/api/teacher/students"); if (res.ok) { const data = await res.json(); setStudents(data.students || []); } const resG = await fetch("/api/teacher/groups"); if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); } } catch (e) { console.error(e); } };
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
@@ -423,7 +420,7 @@ export default function TeacherCabinet() {
 
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
   
-  // 🔥 YENİ: GRADING MODAL LOGIC (Qiymət Hesablama)
+  // 🔥 GRADING MODAL LOGIC
   const openGradingModal = (student: any) => {
       setGradingModal({
           isOpen: true,
@@ -437,25 +434,15 @@ export default function TeacherCabinet() {
 
   const calculateAndSaveGrade = () => {
       if(!gradingModal.studentId) return;
-
       const r = parseFloat(gradingModal.responsibility || "0");
       const a = parseFloat(gradingModal.activity || "0");
       const q = parseFloat(gradingModal.quiz || "0");
-
-      // Ədədi orta hesablama (Yuvarlaqlaşdırırıq)
       const finalScore = Math.round((r + a + q) / 3);
-
-      // State-i yeniləyirik
-      setGrades({
-          ...grades,
-          [gradingModal.studentId]: finalScore.toString()
-      });
-
-      // Modalı bağlayırıq
+      setGrades({ ...grades, [gradingModal.studentId]: finalScore.toString() });
       setGradingModal({ ...gradingModal, isOpen: false });
   };
 
-  // ... (Analytics funksiyaları eyni qalır) ...
+  // ... (Analytics funksiyaları) ...
   const calculateAnalytics = async (groupId: string) => { if (!groupId) return; setAnalyticsGroupId(groupId); try { const resMembers = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); const dataMembers = await resMembers.json(); const studentsInGroup = dataMembers.students || []; setAnalyticsStudentsList(studentsInGroup); const resGrades = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); const dataGrades = await resGrades.json(); const allGrades = dataGrades.allGrades || []; setRawGradesForChart(allGrades); calculateTableStats(studentsInGroup, allGrades); } catch(e) { console.error(e); } };
   const calculateTableStats = (studentsInGroup: any[], allGrades: any[]) => { let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; const stats = studentsInGroup.map((student: any) => { const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); const scoredDays = studentGrades.filter((g: any) => g.score !== null); const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; const totalDays = studentGrades.length; const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; }); stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); setAnalyticsData(stats); setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); };
   useEffect(() => { if (rawGradesForChart.length === 0) return; let filteredData = [...rawGradesForChart]; if (analysisMode === 'individual' && selectedStudentForChart) { filteredData = filteredData.filter(g => g.student_id.toString() === selectedStudentForChart.toString()); } if (chartInterval === 'year') { const currentYear = new Date().getFullYear(); filteredData = filteredData.filter(g => new Date(g.grade_date).getFullYear() === currentYear); } const groupedData: { [key: string]: number[] } = {}; const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; filteredData.forEach((g: any) => { if (g.score !== null) { const date = new Date(g.grade_date); let key = g.grade_date; if (chartInterval === 'weeks4') { const startOfYear = new Date(date.getFullYear(), 0, 1); const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); const weekNum = Math.ceil((days + 1) / 7); key = `Həftə ${weekNum}`; } else if (chartInterval === 'months4') { key = monthNames[date.getMonth()]; } else if (chartInterval === 'year') { key = monthNames[date.getMonth()]; } if (!groupedData[key]) groupedData[key] = []; groupedData[key].push(g.score); } }); let chartResult = Object.keys(groupedData).map(key => { const scores = groupedData[key]; const avg = scores.reduce((a, b) => a + b, 0) / scores.length; return { label: key, avg: parseFloat(avg.toFixed(1)) }; }); if (chartInterval === 'lessons4') { chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); chartResult = chartResult.slice(-4); chartResult = chartResult.map(item => ({...item, label: item.label.slice(5)})); } else if (chartInterval === 'weeks4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'months4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'year') { chartResult.sort((a, b) => monthNames.indexOf(a.label) - monthNames.indexOf(b.label)); } setChartData(chartResult); }, [chartInterval, analysisMode, selectedStudentForChart, rawGradesForChart]);
@@ -488,7 +475,7 @@ export default function TeacherCabinet() {
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full border dark:border-gray-700">
                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-lg font-bold">{gradingModal.studentName}</h3>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">{gradingModal.studentName}</h3>
                       <button onClick={() => setGradingModal({...gradingModal, isOpen: false})} className="p-1 hover:bg-gray-100 rounded-full"><X size={20}/></button>
                   </div>
 
@@ -503,14 +490,14 @@ export default function TeacherCabinet() {
                       </div>
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Dərsdə Aktivlik</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 font-bold text-lg text-center" 
+                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
                               value={gradingModal.activity} 
                               onChange={(e) => setGradingModal({...gradingModal, activity: e.target.value})}
                           />
                       </div>
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Hesab / Bilik</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 font-bold text-lg text-center" 
+                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
                               value={gradingModal.quiz} 
                               onChange={(e) => setGradingModal({...gradingModal, quiz: e.target.value})}
                           />
@@ -540,39 +527,37 @@ export default function TeacherCabinet() {
                   <form onSubmit={createExtraLesson} className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Qrup</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
-                        value={gradingModal.responsibility} 
-                        onChange={(e) => setGradingModal({...gradingModal, responsibility: e.target.value})}
-                        autoFocus
-                    />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Dərsdə Aktivlik</label>
-                    <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
-                        value={gradingModal.activity} 
-                        onChange={(e) => setGradingModal({...gradingModal, activity: e.target.value})}
-                    />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Hesab / Bilik</label>
-                    <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
-                        value={gradingModal.quiz} 
-                        onChange={(e) => setGradingModal({...gradingModal, quiz: e.target.value})}
-                    />
-                </div>
-            </div>
+                          <select required className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.group_id} onChange={e => setNewExtraLesson({...newExtraLesson, group_id: e.target.value})}>
+                              <option value="">Seçin...</option>
+                              {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                          </select>
+                      </div>
+                      <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase">Tarix</label>
+                          <input required type="date" className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.lesson_date} onChange={e => setNewExtraLesson({...newExtraLesson, lesson_date: e.target.value})}/>
+                      </div>
+                      <div className="flex gap-2">
+                          <div className="flex-1">
+                             <label className="text-xs font-bold text-gray-500 uppercase">Başlama</label>
+                             <select className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.start_time} onChange={e => setNewExtraLesson({...newExtraLesson, start_time: e.target.value})}>
+                                {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                             </select>
+                          </div>
+                          <div className="flex-1">
+                             <label className="text-xs font-bold text-gray-500 uppercase">Bitmə</label>
+                             <select className="w-full p-2 border rounded-lg bg-gray-50 dark:bg-gray-700" value={newExtraLesson.end_time} onChange={e => setNewExtraLesson({...newExtraLesson, end_time: e.target.value})}>
+                                {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                             </select>
+                          </div>
+                      </div>
+                      <button type="submit" disabled={isSaving} className="w-full bg-purple-600 text-white py-3 rounded-xl font-bold hover:bg-purple-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                          {isSaving ? "Yaradılır..." : "Yarat"}
+                      </button>
+                  </form>
+              </div>
+          </div>
+      )}
 
-            <div className="mt-6 pt-4 border-t flex items-center justify-between">
-                 <div className="text-sm font-bold text-gray-500">Ortalama: 
-                     <span className="text-xl text-indigo-600 ml-2 font-black">
-                         {Math.round(( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3)}
-                     </span>
-                 </div>
-                 <button onClick={calculateAndSaveGrade} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition">Təsdiqlə</button>
-            </div>
-        </div>
-    </div>
-)}
       {/* --- STATUS MODAL --- */}
       {selectedEventForStatus && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
@@ -1107,7 +1092,7 @@ export default function TeacherCabinet() {
                                                             className={`w-full p-2 rounded-md flex items-center justify-center gap-2 font-bold transition
                                                                 ${!isValidDay 
                                                                     ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                                                                    : 'bg-blue-50/50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800'
+                                                                    : 'bg-blue-50 dark:bg-blue-900 text-gray-900 dark:text-white hover:bg-blue-100 dark:hover:bg-blue-800'
                                                                 }`}
                                                         >
                                                             {grades[s.id] ? (
