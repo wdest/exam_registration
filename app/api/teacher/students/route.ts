@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Supabase Admin Client (Admin hüququ ilə işləyir)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -22,12 +23,13 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { action, id, studentData, ids } = body;
 
+    // --- CREATE: Şagird "Ümumi Baza"ya düşür (Müəllimsiz) ---
     if (action === 'create') {
         const { error } = await supabaseAdmin
             .from("local_students")
             .insert([{
                 ...studentData,
-                user_id: null // 🔥 Manual əlavədə də müəllim NULL olur
+                user_id: null // 🔥 DÜZDÜR: Hələ ki heç kimin deyil
             }]);
         if (error) throw error;
         return NextResponse.json({ success: true });
@@ -58,13 +60,44 @@ export async function POST(request: Request) {
   }
 }
 
+// 🔥 ƏSAS DƏYİŞİKLİK BURADADIR
 export async function GET(request: Request) {
-    // Bütün şagirdləri gətirir ki, axtarışda hamı çıxsın
+    // 1. Şagirdləri, onların qruplarını və o qrupların müəllimlərini çəkirik
+    // Nested Select məntiqi: local_students -> group_members -> groups -> teacher_id
+    
     const { data, error } = await supabaseAdmin
         .from("local_students")
-        .select("*")
+        .select(`
+            *,
+            group_members (
+                groups (
+                    id,
+                    name,
+                    teacher_id
+                )
+            )
+        `)
         .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json({ students: data });
+
+    // 2. Datanı Frontend üçün sadələşdiririk (Flattening)
+    // Supabase cavabı iç-içə JSON qaytarır, biz onu düzəldirik ki, frontend rahat oxusun.
+    
+    const formattedStudents = data.map((student: any) => {
+        // Əgər şagird hər hansı bir qrupdadırsa, ilk tapılanı götürürük
+        const activeGroupInfo = student.group_members?.[0]?.groups;
+
+        return {
+            ...student,
+            // Bu iki sahəni süni şəkildə yaradırıq ki, Frontend-də filter edə biləsən:
+            teacher_id: activeGroupInfo?.teacher_id || null, // Şagirdin müəlliminin ID-si
+            group_name: activeGroupInfo?.name || null,       // Şagirdin qrupunun adı
+            
+            // Artıq yükləri təmizləyirik (Frontend-ə lazım deyil)
+            group_members: undefined 
+        };
+    });
+
+    return NextResponse.json({ students: formattedStudents });
 }
