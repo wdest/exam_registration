@@ -62,8 +62,8 @@ export async function POST(request: Request) {
 
 // 🔥 ƏSAS DƏYİŞİKLİK BURADADIR
 export async function GET(request: Request) {
-    // 1. Şagirdləri, onların qruplarını və o qrupların müəllimlərini çəkirik
-    // Nested Select məntiqi: local_students -> group_members -> groups -> teacher_id
+    // 1. Şagirdləri, qruplarını və MÜƏLLİMLƏRİNİ çəkirik
+    // Nested Select: local_students -> group_members -> groups -> teachers
     
     const { data, error } = await supabaseAdmin
         .from("local_students")
@@ -73,7 +73,11 @@ export async function GET(request: Request) {
                 groups (
                     id,
                     name,
-                    teacher_id
+                    teacher_id,
+                    teachers (
+                        full_name,
+                        username
+                    )
                 )
             )
         `)
@@ -81,20 +85,23 @@ export async function GET(request: Request) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // 2. Datanı Frontend üçün sadələşdiririk (Flattening)
-    // Supabase cavabı iç-içə JSON qaytarır, biz onu düzəldirik ki, frontend rahat oxusun.
+    // 2. Datanı Frontend üçün sadələşdiririk
     
     const formattedStudents = data.map((student: any) => {
         // Əgər şagird hər hansı bir qrupdadırsa, ilk tapılanı götürürük
         const activeGroupInfo = student.group_members?.[0]?.groups;
+        const teacherInfo = activeGroupInfo?.teachers;
 
         return {
             ...student,
-            // Bu iki sahəni süni şəkildə yaradırıq ki, Frontend-də filter edə biləsən:
-            teacher_id: activeGroupInfo?.teacher_id || null, // Şagirdin müəlliminin ID-si
-            group_name: activeGroupInfo?.name || null,       // Şagirdin qrupunun adı
+            // Filterləmə və Görüntü üçün sahələr:
+            teacher_id: activeGroupInfo?.teacher_id || null, 
+            group_name: activeGroupInfo?.name || null,
             
-            // Artıq yükləri təmizləyirik (Frontend-ə lazım deyil)
+            // Müəllimin adı (yoxdursa username götürürük)
+            teacher_name: teacherInfo?.full_name || teacherInfo?.username || null,
+            
+            // Artıq yükləri təmizləyirik
             group_members: undefined 
         };
     });
