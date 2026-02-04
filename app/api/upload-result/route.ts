@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-// Supabase Client yaradılır
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -20,60 +19,57 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "İmtahan adı seçilməyib" }, { status: 400 });
     }
 
-    // --- 🔥 DƏYİŞİKLİK BURDADIR ---
-    // 1. Həm 'students', həm də 'local_students' cədvəlindən ID-ləri çəkirik
-    
-    // A. Registrasiya olunmuş tələbələr (students)
-    const { data: registeredStudents, error: regError } = await supabase
-      .from("students")
-      .select("exam_id");
+    // 1. Bazadan ID-ləri çəkirik (Validasiya üçün)
+    const { data: registeredStudents } = await supabase.from("students").select("exam_id");
+    const { data: localStudents } = await supabase.from("local_students").select("student_code");
 
-    // B. Bütün yerli tələbələr (local_students)
-    const { data: localStudents, error: locError } = await supabase
-      .from("local_students")
-      .select("student_code");
-
-    if (regError || locError) {
-      return NextResponse.json({ success: false, error: "Tələbə bazası oxuna bilmədi." }, { status: 500 });
-    }
-
-    // 2. ID-ləri vahid bir siyahıya (Set) yığırıq ki, təkrarlanma olmasın
     const validStudentIds = new Set();
-
-    // Students cədvəlindən gələnləri əlavə edirik
-    registeredStudents?.forEach((s: any) => {
-        if (s.exam_id) validStudentIds.add(String(s.exam_id).trim());
-    });
-
-    // Local_students cədvəlindən gələnləri əlavə edirik
-    localStudents?.forEach((s: any) => {
-        if (s.student_code) validStudentIds.add(String(s.student_code).trim());
-    });
-
-    console.log(`Cəmi ${validStudentIds.size} unikal şagird ID-si tapıldı.`); // Log üçün
+    registeredStudents?.forEach((s: any) => { if (s.exam_id) validStudentIds.add(String(s.exam_id).trim()); });
+    localStudents?.forEach((s: any) => { if (s.student_code) validStudentIds.add(String(s.student_code).trim()); });
 
     let ignoredCount = 0;
 
-    // 3. Excel məlumatlarını emal edirik (Hesablama + Filter)
+    // 2. Excel məlumatlarını emal edirik
     const formattedData = data.map((row: any) => {
-      // ZipGrade sütunları
-      const correct = Number(row["Num Correct"]) || 0;
-      const totalQuestions = Number(row["Num Questions"]) || 25; 
       
+      // A. Ümumi məlumatlar
+      const correct = Number(row["Num Correct"]) || 0;
+      const totalQuestions = Number(row["Num Questions"]) || 0; // Sual sayı Excel-dən gəlir
       const wrong = totalQuestions - correct;
 
-      // --- BAL HESABLAMA ---
       let calculatedScore = (correct * 4) - (wrong * 1);
       if (calculatedScore < 0) calculatedScore = 0;
 
-      // Faiz hesablama
       let percent = 0;
       if (row["Percent Correct"]) {
           percent = Number(row["Percent Correct"]);
           if (percent <= 1) percent = percent * 100;
       } else {
           const maxScore = totalQuestions * 4;
-          percent = (calculatedScore / maxScore) * 100;
+          percent = maxScore > 0 ? (calculatedScore / maxScore) * 100 : 0;
+      }
+
+      // B. 🔥 DETALLI SUAL ANALİZİ (Stu1, Stu2... oxumaq)
+      const questionDetails = [];
+      let qIndex = 1;
+
+      // Nə qədər ki, "Stu1", "Stu2" və s. var, dövr davam edir (Limit yoxdur)
+      while (row[`Stu${qIndex}`] !== undefined) {
+        const studentAnswer = row[`Stu${qIndex}`] || ""; // Şagirdin yazdığı (A, B...)
+        const correctAnswer = row[`PriKey${qIndex}`] || ""; // Doğru cavab (A, B...)
+        const points = Number(row[`Points${qIndex}`]) || 0; // Qazandığı bal (1 və ya 0)
+
+        // Əgər bal > 0-dırsa düzdür, yoxsa səhvdir
+        const isCorrect = points > 0;
+
+        questionDetails.push({
+          q: qIndex,              // Sual nömrəsi
+          user: studentAnswer,    // Şagirdin cavabı
+          correct: correctAnswer, // Doğru cavab
+          isCorrect: isCorrect    // Nəticə (true/false)
+        });
+
+        qIndex++;
       }
 
       return {
@@ -81,12 +77,11 @@ export async function POST(req: Request) {
         quiz: examName,
         score: calculatedScore, 
         total: totalQuestions,
-        percent: parseFloat(percent.toFixed(2)) 
+        percent: parseFloat(percent.toFixed(2)),
+        details: questionDetails // 🔥 Bura yeni JSON datanı qoyuruq
       };
     }).filter(item => {
-      // Filter məntiqi: ID-si validStudentIds içində varsa, buraxırıq
       if (!item.student_id) return false;
-
       if (validStudentIds.has(item.student_id)) {
         return true;
       } else {
@@ -98,13 +93,11 @@ export async function POST(req: Request) {
     if (formattedData.length === 0) {
        return NextResponse.json({ 
          success: false, 
-         message: ignoredCount > 0 
-           ? `Yüklənən fayldakı ${ignoredCount} nəfərin ID-si bazada (nə students, nə də local_students) tapılmadı.` 
-           : "Faylda uyğun məlumat tapılmadı." 
+         message: "Faylda uyğun şagird tapılmadı." 
        }, { status: 400 });
     }
 
-    // 4. Bazaya yazırıq
+    // 3. Bazaya yazırıq
     const { error } = await supabase.from("results").insert(formattedData);
 
     if (error) {
