@@ -7,7 +7,7 @@ import {
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, PenTool, CheckCircle, 
   Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown,
-  Book, ChevronLeft, ChevronRight // 🔥 Yeni iconlar
+  Book, ChevronLeft, ChevronRight 
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -26,6 +26,7 @@ const WEEK_DAYS_AZ = ["Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə"
 export default function StudentCabinet() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [startingExam, setStartingExam] = useState(false); // 🔥 YENİ: İmtahan başlama loadingi
   
   // Data States
   const [student, setStudent] = useState<any>(null);
@@ -170,6 +171,40 @@ export default function StudentCabinet() {
       console.error("Data fetch error:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔥 YENİ: İmtahan başlatma funksiyası (API-yə yazır sonra linki açır)
+  const handleStartExam = async (exam: any) => {
+    try {
+      setStartingExam(true);
+
+      // 1. API-yə məlumat göndər (Bazaya students cədvəlinə yazsın)
+      const res = await fetch("/api/exam/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          exam_id: exam.id,
+          exam_name: exam.name,
+          student_info: {
+            first_name: student.first_name,
+            last_name: student.last_name,
+            phone: student.phone || "",
+            grade: student.grade
+          }
+        }),
+      });
+
+      if (!res.ok) throw new Error("Qeydiyyat xətası");
+
+      // 2. Uğurludursa, imtahan linkini yeni tab-da aç
+      window.open(exam.url, "_blank");
+
+    } catch (error) {
+      console.error("İmtahana giriş xətası:", error);
+      alert("İmtahana başlayarkən xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.");
+    } finally {
+      setStartingExam(false);
     }
   };
 
@@ -463,9 +498,16 @@ export default function StudentCabinet() {
                                     <div className="p-6">
                                         <h4 className="font-bold text-lg text-gray-800 mb-2">{exam.name}</h4>
                                         <p className="text-sm text-gray-500 mb-4 line-clamp-2">Sinif: {exam.class_grade}-ci sinif üçün nəzərdə tutulub.</p>
-                                        <a href={exam.url} target="_blank" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition transform active:scale-95">
-                                            İmtahana Başla <ExternalLink size={18}/>
-                                        </a>
+                                        
+                                        {/* 🔥 YENİ BUTTON LOGIC */}
+                                        <button 
+                                            onClick={() => handleStartExam(exam)} 
+                                            disabled={startingExam}
+                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            {startingExam ? "Yüklənir..." : "İmtahana Başla"} 
+                                            {!startingExam && <ExternalLink size={18}/>}
+                                        </button>
+                                        
                                     </div>
                                 </div>
                             ))}
