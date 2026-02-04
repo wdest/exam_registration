@@ -4,12 +4,16 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
+    // 🔥 DÜZƏLİŞ BURDADIR:
+    // Cookies-i əvvəlcədən çağırırıq ki, Supabase onu düzgün oxuya bilsin.
+    const cookieStore = cookies();
+    
+    // Supabase-ə birbaşa 'cookies' funksiyasını yox, 'cookieStore' obyektini veririk
+    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
     
     // Front-dan gələn datanı oxuyuruq
-    // Əgər burda xəta olsa, catch-ə düşəcək
     const body = await request.json();
-    const { exam_name } = body; // exam_id lazım deyil, onu student_code-dan alacağıq
+    const { exam_name } = body; 
 
     // 1. Useri yoxlayırıq
     const { data: { user } } = await supabase.auth.getUser();
@@ -19,7 +23,6 @@ export async function POST(request: Request) {
     }
 
     // 2. 'local_students' cədvəlindən məlumatı çəkirik
-    // Şəkil image_890f47.png-ə əsasən sütunları dəqiq seçirik
     const { data: localStudent, error: fetchError } = await supabase
       .from('local_students')
       .select('first_name, last_name, student_code, phone') 
@@ -31,23 +34,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Sizin tələbə profiliniz tapılmadı. Zəhmət olmasa adminlə əlaqə saxlayın." }, { status: 404 });
     }
 
-    // 3. Mapping edirik (Şəkildəki table strukturlarına uyğun)
-    // local_students (student_code) ---> students (exam_id)
-    
-    // Əgər student_code null-dırsa, boş string göndərək ki, xəta verməsin
+    // 3. Mapping edirik
+    // student_code yoxdursa 'KOD_YOXDUR' yazırıq ki, baza xəta verməsin
     const examIdValue = localStudent.student_code ? String(localStudent.student_code) : "KOD_YOXDUR";
 
     const insertData = {
         user_id: user.id,
-        exam_id: examIdValue,         // 🔥 TƏLƏBƏ KODU bura yazılır
+        exam_id: examIdValue,         
         exam_name: exam_name || "Naməlum İmtahan",
         first_name: localStudent.first_name,
         last_name: localStudent.last_name,
-        phone1: localStudent.phone || "",  // local-da 'phone', students-də 'phone1'
+        phone1: localStudent.phone || "",
         created_at: new Date().toISOString()
     };
 
-    console.log("Insert Data:", insertData); // Server logunda görəsən deyə
+    console.log("Insert Data:", insertData);
 
     // 4. 'students' cədvəlinə yazırıq
     const { error: insertError } = await supabase
@@ -62,7 +63,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
 
   } catch (error: any) {
-    // 🔥 ƏN VACİB HİSSƏ: Server çökəndə bura düşür və JSON qaytarır
     console.error("CRITICAL API ERROR:", error);
     return NextResponse.json({ 
       error: "Sistem xətası: " + (error.message || "Naməlum xəta") 
