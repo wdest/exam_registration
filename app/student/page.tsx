@@ -7,7 +7,7 @@ import {
   LogOut, User, BarChart3, GraduationCap, Calendar, 
   TrendingUp, Activity, PieChart, PenTool, CheckCircle, 
   Clock, DollarSign, ExternalLink, Download, FileText, X, Trophy, Crown,
-  Book, ChevronLeft, ChevronRight // 🔥 Yeni iconlar
+  Book, ChevronLeft, ChevronRight, AlertCircle
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -20,12 +20,12 @@ const AVATARS = [
   "👨‍🎓", "👩‍🎓", "🧑‍💻", "👩‍🚀", "🦸‍♂️", "🧝‍♀️", "🧙‍♂️", "🕵️‍♂️", "👩‍🔬", "👨‍🎨"
 ];
 
-// 🔥 Həftənin günləri üçün köməkçi array
 const WEEK_DAYS_AZ = ["Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə", "Cümə axşamı", "Cümə", "Şənbə", "Bazar"];
 
 export default function StudentCabinet() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [startingExam, setStartingExam] = useState(false);
   
   // Data States
   const [student, setStudent] = useState<any>(null);
@@ -52,38 +52,22 @@ export default function StudentCabinet() {
   const [selectedAvatar, setSelectedAvatar] = useState("👨‍🎓");
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [selectedResult, setSelectedResult] = useState<any>(null);
-
-  // 🔥 GÜNDƏLİK ÜÇÜN YENİ STATE (Həftəni dəyişmək üçün)
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  // --- 🔥 REAL-TIME LOGIC ---
+  // --- REAL-TIME LOGIC ---
   useEffect(() => {
     const gradesChannel = supabase
       .channel('grades-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'daily_grades' },
-        () => {
-          console.log('⚡ Jurnal dəyişdi, sıralama yenilənir...');
-          fetchData(false);
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_grades' }, () => fetchData(false))
       .subscribe();
 
     const resultsChannel = supabase
       .channel('results-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'results' },
-        () => {
-          console.log('⚡ İmtahan nəticəsi gəldi...');
-          fetchData(false);
-        }
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'results' }, () => fetchData(false))
       .subscribe();
 
     return () => {
@@ -125,11 +109,8 @@ export default function StudentCabinet() {
 
       const rank = currentList.findIndex(r => r.id === student.id) + 1;
       setMyCalculatedRank(rank);
-
       setFilteredRankings(currentList);
-
   }, [rankFilter, timeFilter, student, rankings]);
-
 
   const fetchData = async (showLoading = true) => {
     try {
@@ -154,9 +135,7 @@ export default function StudentCabinet() {
         setActiveExams(data.activeExams || []);
         setExamResults(data.examResults || []);
         
-        if(data.rankings) {
-            setRankings(data.rankings);
-        }
+        if(data.rankings) setRankings(data.rankings);
         
         const savedAvatar = localStorage.getItem(`avatar_${data.student.id}`);
         if (savedAvatar) setSelectedAvatar(savedAvatar);
@@ -170,6 +149,28 @@ export default function StudentCabinet() {
       console.error("Data fetch error:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartExam = async (exam: any) => {
+    try {
+      setStartingExam(true);
+      const res = await fetch("/api/exam/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exam_name: exam.name }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Qeydiyyat xətası");
+      }
+      window.open(exam.url, "_blank");
+    } catch (error: any) {
+      console.error("İmtahana giriş xətası:", error);
+      alert(error.message); 
+    } finally {
+      setStartingExam(false);
     }
   };
 
@@ -190,18 +191,13 @@ export default function StudentCabinet() {
     }
   };
 
-  // 🔥 YENİ: Cari həftənin günlərini hesablamaq üçün funksiya
   const getDaysOfCurrentWeek = () => {
     const today = new Date();
-    // Ofsetə görə tarixi dəyişirik (keçmiş/gələcək həftələr)
     today.setDate(today.getDate() + (currentWeekOffset * 7));
-    
-    const currentDay = today.getDay(); // 0 (Bazar) - 6 (Şənbə)
-    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1); // Bazar ertəsinə gətiririk
-    
+    const currentDay = today.getDay(); 
+    const diff = today.getDate() - currentDay + (currentDay === 0 ? -6 : 1); 
     const monday = new Date(today.setDate(diff));
     const days = [];
-    
     for (let i = 0; i < 7; i++) {
         const day = new Date(monday);
         day.setDate(monday.getDate() + i);
@@ -282,10 +278,7 @@ export default function StudentCabinet() {
         {/* TABLAR */}
         <div className="flex gap-4 mb-8 overflow-x-auto pb-2 scrollbar-hide">
             <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><BarChart3 size={20} /> Analiz</button>
-            
-            {/* 🔥 YENİ TAB: GÜNDƏLİK */}
             <button onClick={() => setActiveTab('diary')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'diary' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><Book size={20} /> Gündəlik</button>
-            
             <button onClick={() => setActiveTab('profile')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><User size={20} /> Profil</button>
             <button onClick={() => setActiveTab('exams')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'exams' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}>
                 <PenTool size={20} /> İmtahanlar 
@@ -294,47 +287,61 @@ export default function StudentCabinet() {
             <button onClick={() => setActiveTab('rankings')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'rankings' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><Trophy size={20} /> Sıralama</button>
         </div>
 
-        {/* --- 1. DASHBOARD (ANALİZ) --- */}
+        {/* --- 1. DASHBOARD (ANALİZ) - SƏLİQƏLİ VERSİYA --- */}
         {activeTab === 'dashboard' && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in duration-500">
-                <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
+                <div className="lg:col-span-2 flex flex-col gap-6">
+                    {/* Statistika Kartları */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between hover:shadow-md transition">
-                            <div><p className="text-gray-500 text-xs font-bold uppercase">Ümumi Bal</p><h3 className={`text-3xl font-black ${Number(stats.avgScore) > 8 ? 'text-green-600' : 'text-indigo-600'}`}>{stats.avgScore}/10</h3></div>
-                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-full"><TrendingUp /></div>
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition">
+                            <div>
+                                <p className="text-gray-400 text-xs font-bold uppercase tracking-wide">Ümumi Bal</p>
+                                <h3 className={`text-3xl font-black mt-1 ${Number(stats.avgScore) > 8 ? 'text-green-600' : 'text-indigo-600'}`}>{stats.avgScore}/10</h3>
+                            </div>
+                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><TrendingUp size={24}/></div>
                         </div>
-                        <div className="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between hover:shadow-md transition">
-                            <div><p className="text-gray-500 text-xs font-bold uppercase">Davamiyyət</p><h3 className={`text-3xl font-black ${Number(stats.attendance) > 90 ? 'text-green-600' : 'text-orange-600'}`}>{stats.attendance}%</h3></div>
-                            <div className="p-3 bg-orange-50 text-orange-600 rounded-full"><PieChart /></div>
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition">
+                            <div>
+                                <p className="text-gray-400 text-xs font-bold uppercase tracking-wide">Davamiyyət</p>
+                                <h3 className={`text-3xl font-black mt-1 ${Number(stats.attendance) > 90 ? 'text-green-600' : 'text-orange-600'}`}>{stats.attendance}%</h3>
+                            </div>
+                            <div className="p-3 bg-orange-50 text-orange-600 rounded-xl"><PieChart size={24}/></div>
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border h-[350px]">
+                    {/* Qrafik - Fixed Height ilə */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1 min-h-[350px]">
                         <h3 className="font-bold text-gray-700 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-500"/> İnkişaf Trendi</h3>
-                        {chartData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="80%">
-                                <LineChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#f0f0f0" />
-                                    <XAxis dataKey="date" tick={{fill: '#9ca3af', fontSize: 12}} tickLine={false} axisLine={{stroke: '#f0f0f0'}} dy={10} />
-                                    <YAxis domain={[0, 10]} tick={{fill: '#9ca3af', fontSize: 12}} tickLine={false} axisLine={false} tickCount={6} />
-                                    <Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} itemStyle={{color: '#4f46e5', fontWeight: 'bold'}} />
-                                    <Line type="monotone" dataKey="bal" stroke="#4f46e5" strokeWidth={4} dot={{ r: 4, fill: "#4f46e5", stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 7 }} />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed">
-                                <Activity size={32} className="mb-2 opacity-50"/> Məlumat kifayət deyil
-                            </div>
-                        )}
+                        <div className="h-[280px] w-full">
+                            {chartData.length > 0 ? (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={chartData}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={true} horizontal={true} stroke="#f3f4f6" />
+                                        <XAxis dataKey="date" tick={{fill: '#9ca3af', fontSize: 11}} tickLine={false} axisLine={{stroke: '#f3f4f6'}} dy={10} />
+                                        <YAxis domain={[0, 10]} tick={{fill: '#9ca3af', fontSize: 11}} tickLine={false} axisLine={false} tickCount={6} />
+                                        <Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 10px 20px -5px rgba(0,0,0,0.1)'}} itemStyle={{color: '#4f46e5', fontWeight: 'bold'}} />
+                                        <Line type="monotone" dataKey="bal" stroke="#4f46e5" strokeWidth={3} dot={{ r: 4, fill: "#4f46e5", stroke: "#fff", strokeWidth: 2 }} activeDot={{ r: 6 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                                    <Activity size={32} className="mb-2 opacity-50"/> Məlumat kifayət deyil
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border h-fit">
+                {/* Son Nəticələr */}
+                <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit">
                     <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Calendar size={18}/> Son Nəticələr</h3>
                     <div className="space-y-3">
                         {recentGrades.map((g, i) => (
                             <div key={i} className="flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 transition rounded-xl border border-gray-100">
-                                <div><p className="text-xs text-gray-400 font-medium">{g.grade_date}</p><p className={`text-sm font-bold ${g.attendance ? 'text-gray-700' : 'text-red-500'}`}>{g.attendance ? "Dərsdə iştirak" : "Qayıb"}</p></div>
+                                <div>
+                                    <p className="text-xs text-gray-400 font-medium">{g.grade_date}</p>
+                                    <p className={`text-sm font-bold ${g.attendance ? 'text-gray-700' : 'text-red-500'}`}>{g.attendance ? "Dərsdə iştirak" : "Qayıb"}</p>
+                                </div>
                                 {g.attendance && (<span className={`text-lg font-black ${g.score >= 9 ? 'text-green-600' : (g.score >= 5 ? 'text-indigo-600' : 'text-red-500')}`}>{g.score !== null ? g.score : "-"}</span>)}
                             </div>
                         ))}
@@ -344,10 +351,9 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 🔥 2. GÜNDƏLİK (DIARY) --- */}
+        {/* --- 2. GÜNDƏLİK (DIARY) --- */}
         {activeTab === 'diary' && (
             <div className="animate-in fade-in duration-500">
-                {/* Header & Naviqasiya */}
                 <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                     <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         <Book className="text-indigo-600"/> Kurs Gündəliyi
@@ -362,17 +368,14 @@ export default function StudentCabinet() {
                     <button onClick={() => setCurrentWeekOffset(0)} className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg hover:bg-indigo-100 transition">Bugün</button>
                 </div>
 
-                {/* Gündəlik Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {currentWeekDays.map((date, index) => {
                         const dateStr = date.toISOString().split('T')[0];
-                        // Bu günə uyğun qiymət/qayıb varmı?
                         const dayData = recentGrades.find(g => g.grade_date === dateStr);
                         const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
                         return (
                             <div key={index} className={`bg-white rounded-xl border-2 ${isToday ? 'border-indigo-500 shadow-md ring-2 ring-indigo-100' : 'border-gray-200'} overflow-hidden flex flex-col h-40`}>
-                                {/* Başlıq: Gün və Tarix */}
                                 <div className={`p-3 border-b flex justify-between items-center ${isToday ? 'bg-indigo-600 text-white' : 'bg-gray-50 text-gray-700'}`}>
                                     <span className="font-bold text-sm uppercase">{WEEK_DAYS_AZ[index]}</span>
                                     <span className={`text-xs font-mono px-2 py-0.5 rounded ${isToday ? 'bg-indigo-500 text-indigo-100' : 'bg-gray-200 text-gray-500'}`}>
@@ -380,7 +383,6 @@ export default function StudentCabinet() {
                                     </span>
                                 </div>
 
-                                {/* İçərik */}
                                 <div className="p-4 flex-1 flex flex-col justify-center items-center relative">
                                     {dayData ? (
                                         <>
@@ -390,22 +392,16 @@ export default function StudentCabinet() {
                                             </div>
                                             
                                             {dayData.attendance ? (
-                                                // İştirak edib, qiymət var
                                                 <div className={`text-2xl font-black ${Number(dayData.score) >= 9 ? 'text-green-600' : Number(dayData.score) >= 5 ? 'text-blue-600' : 'text-orange-500'}`}>
                                                     {dayData.score !== null ? dayData.score : <span className="text-gray-300 text-sm">Qiymətsiz</span>}
                                                 </div>
                                             ) : (
-                                                // Qayıb
-                                                <div className="bg-red-100 text-red-600 font-bold px-4 py-2 rounded-lg text-lg border border-red-200 animate-pulse">
-                                                    qb
-                                                </div>
+                                                <div className="bg-red-100 text-red-600 font-bold px-4 py-2 rounded-lg text-lg border border-red-200 animate-pulse">qb</div>
                                             )}
                                         </>
                                     ) : (
                                         <div className="text-gray-300 text-center">
-                                            <div className="w-8 h-8 bg-gray-50 rounded-full mx-auto mb-2 flex items-center justify-center">
-                                                <X size={16} />
-                                            </div>
+                                            <div className="w-8 h-8 bg-gray-50 rounded-full mx-auto mb-2 flex items-center justify-center"><X size={16} /></div>
                                             <p className="text-xs">Dərs yoxdur</p>
                                         </div>
                                     )}
@@ -417,7 +413,7 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 2. PROFİL --- */}
+        {/* --- 3. PROFİL --- */}
         {activeTab === 'profile' && (
             <div className="bg-white p-8 rounded-2xl shadow-sm border max-w-2xl mx-auto animate-in fade-in zoom-in-95 duration-300">
                 <div className="flex flex-col items-center text-center gap-4 mb-8 border-b pb-6">
@@ -437,7 +433,7 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 3. İMTAHANLAR --- */}
+        {/* --- 4. İMTAHANLAR --- */}
         {activeTab === 'exams' && (
             <div className="space-y-10 animate-in fade-in duration-500">
                 
@@ -463,25 +459,29 @@ export default function StudentCabinet() {
                                     <div className="p-6">
                                         <h4 className="font-bold text-lg text-gray-800 mb-2">{exam.name}</h4>
                                         <p className="text-sm text-gray-500 mb-4 line-clamp-2">Sinif: {exam.class_grade}-ci sinif üçün nəzərdə tutulub.</p>
-                                        <a href={exam.url} target="_blank" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition transform active:scale-95">
-                                            İmtahana Başla <ExternalLink size={18}/>
-                                        </a>
+                                        
+                                        <button 
+                                            onClick={() => handleStartExam(exam)} 
+                                            disabled={startingExam}
+                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                                            {startingExam ? "Yüklənir..." : "İmtahana Başla"} 
+                                            {!startingExam && <ExternalLink size={18}/>}
+                                        </button>
+                                        
                                     </div>
                                 </div>
                             ))}
                         </div>
                     ) : (
                         <div className="bg-white border border-dashed border-gray-300 rounded-2xl p-8 text-center">
-                            <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
-                                <Clock size={32}/>
-                            </div>
+                            <div className="bg-gray-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400"><Clock size={32}/></div>
                             <h4 className="font-bold text-gray-600">Aktiv imtahan yoxdur</h4>
                             <p className="text-sm text-gray-400">Hal-hazırda giriş edə biləcəyin imtahan tapılmadı.</p>
                         </div>
                     )}
                 </div>
 
-                {/* B. İMTAHAN NƏTİCƏLƏRİ (TARİXÇƏ) */}
+                {/* B. İMTAHAN NƏTİCƏLƏRİ */}
                 <div>
                     <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <div className="w-2 h-8 bg-green-500 rounded-full"></div>
@@ -512,13 +512,9 @@ export default function StudentCabinet() {
                                                 </span>
                                             </td>
                                             <td className="p-4 text-right flex justify-end gap-2">
-                                                <button onClick={() => setSelectedResult(res)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition" title="Nəticə Kartı">
-                                                    <FileText size={18}/>
-                                                </button>
+                                                <button onClick={() => setSelectedResult(res)} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition"><FileText size={18}/></button>
                                                 {res.certificate_url && (
-                                                    <a href={res.certificate_url} download className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition" title="Sertifikatı Yüklə">
-                                                        <Download size={18}/>
-                                                    </a>
+                                                    <a href={res.certificate_url} download className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition"><Download size={18}/></a>
                                                 )}
                                             </td>
                                         </tr>
@@ -535,7 +531,7 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 4. SIRALAMA --- */}
+        {/* --- 5. SIRALAMA --- */}
         {activeTab === 'rankings' && (
             <div className="animate-in fade-in duration-500">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
@@ -546,7 +542,6 @@ export default function StudentCabinet() {
                         <p className="text-gray-500 mt-1">Ən yüksək nəticə göstərən tələbələr</p>
                     </div>
                     
-                    {/* FILTERS */}
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                         <div className="bg-white p-1 rounded-xl shadow-sm border flex">
                             <button onClick={() => setTimeFilter('all_time')} className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition whitespace-nowrap ${timeFilter === 'all_time' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}>Bütün Zamanlar</button>
@@ -561,7 +556,6 @@ export default function StudentCabinet() {
 
                 {filteredRankings.length > 0 && (
                     <>
-                        {/* PODIUM (TOP 3) */}
                         <div className="grid grid-cols-3 gap-2 md:gap-6 mb-12 items-end px-2 md:px-12">
                             {/* 2-ci YER */}
                             {filteredRankings[1] && (
@@ -635,7 +629,7 @@ export default function StudentCabinet() {
                     </>
                 )}
 
-                {/* SƏNİN YERİN (STICKY BOTTOM - ƏSL YERİN) */}
+                {/* SƏNİN YERİN (STICKY BOTTOM) */}
                 {!amIInTopList && (
                     <div className="fixed bottom-4 left-0 w-full px-4 z-40 md:pl-20">
                         <div className="max-w-6xl mx-auto bg-indigo-600 text-white p-4 rounded-xl shadow-2xl flex items-center justify-between border-t-4 border-indigo-400 transform hover:translate-y-[-5px] transition cursor-pointer animate-in slide-in-from-bottom duration-500">
@@ -662,8 +656,8 @@ export default function StudentCabinet() {
 
       {/* --- RESULT CARD MODAL --- */}
       {selectedResult && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
-              <div className="relative w-full max-w-md">
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+              <div className="relative w-full max-w-md my-8">
                   <button onClick={() => setSelectedResult(null)} className="absolute -top-12 right-0 text-white hover:text-gray-200 transition">
                       <X size={32}/>
                   </button>
@@ -676,6 +670,7 @@ export default function StudentCabinet() {
                       percent={selectedResult.percent}
                       date={new Date(selectedResult.created_at).toLocaleDateString()}
                       logoUrl="https://cdn-icons-png.flaticon.com/512/2997/2997300.png" 
+                      details={selectedResult.details} // 🔥 YENİ: Sual analizini göndəririk
                   />
               </div>
           </div>
@@ -685,8 +680,7 @@ export default function StudentCabinet() {
   );
 }
 
-// ResultCard və DetailRow eyni qalır
-function ResultCard({ studentName, studentId, quizName, score, total, percent, date, logoUrl }: any) {
+function ResultCard({ studentName, studentId, quizName, score, total, percent, date, logoUrl, details }: any) {
   const isPass = percent >= 50;
   const statusColor = isPass ? "text-green-600" : "text-red-600";
   const statusBg = isPass ? "bg-green-50" : "bg-red-50";
@@ -729,6 +723,31 @@ function ResultCard({ studentName, studentId, quizName, score, total, percent, d
           <DetailRow icon={<CheckCircle size={16} />} label="Doğru Cavablar" value={`${score} / ${total}`} color="purple" />
           <DetailRow icon={<Calendar size={16} />} label="Tarix" value={date} color="orange" />
         </div>
+
+        {/* 🔥 YENİ: Sual Analizi Bölməsi */}
+        {details && Array.isArray(details) && details.length > 0 && (
+            <div className="mt-8 pt-6 border-t border-gray-100">
+                <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase"><AlertCircle size={16}/> Sual Analizi</h4>
+                <div className="grid grid-cols-5 sm:grid-cols-6 gap-2 max-h-60 overflow-y-auto pr-1">
+                    {details.map((d: any, i: number) => (
+                        <div key={i} className={`flex flex-col items-center justify-center p-2 rounded-xl border ${d.isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                            <span className="text-[10px] font-bold text-gray-400 mb-1">#{d.q}</span>
+                            <div className="font-black text-sm">
+                                {d.isCorrect ? (
+                                    <span className="text-green-600">{d.correct}</span>
+                                ) : (
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-red-500 line-through opacity-70">{d.user || "-"}</span>
+                                        <span className="text-green-600">{d.correct}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
       </div>
 
       <div className="p-4 bg-gray-50 border-t border-gray-100">
