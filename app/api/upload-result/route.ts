@@ -20,63 +20,77 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "İmtahan adı seçilməyib" }, { status: 400 });
     }
 
-    // 1. Bazadan bütün qeydiyyatda olan tələbələrin ID-lərini çəkirik
-    const { data: students, error: stError } = await supabase
+    // --- 🔥 DƏYİŞİKLİK BURDADIR ---
+    // 1. Həm 'students', həm də 'local_students' cədvəlindən ID-ləri çəkirik
+    
+    // A. Registrasiya olunmuş tələbələr (students)
+    const { data: registeredStudents, error: regError } = await supabase
       .from("students")
       .select("exam_id");
 
-    if (stError) {
-      return NextResponse.json({ success: false, error: "Tələbə siyahısı alınmadı: " + stError.message }, { status: 500 });
+    // B. Bütün yerli tələbələr (local_students)
+    const { data: localStudents, error: locError } = await supabase
+      .from("local_students")
+      .select("student_code");
+
+    if (regError || locError) {
+      return NextResponse.json({ success: false, error: "Tələbə bazası oxuna bilmədi." }, { status: 500 });
     }
 
-    // Sürətli yoxlama üçün ID-ləri Set-ə yığırıq (string formatında)
-    const validStudentIds = new Set(students?.map((s: any) => String(s.exam_id).trim()));
+    // 2. ID-ləri vahid bir siyahıya (Set) yığırıq ki, təkrarlanma olmasın
+    const validStudentIds = new Set();
+
+    // Students cədvəlindən gələnləri əlavə edirik
+    registeredStudents?.forEach((s: any) => {
+        if (s.exam_id) validStudentIds.add(String(s.exam_id).trim());
+    });
+
+    // Local_students cədvəlindən gələnləri əlavə edirik
+    localStudents?.forEach((s: any) => {
+        if (s.student_code) validStudentIds.add(String(s.student_code).trim());
+    });
+
+    console.log(`Cəmi ${validStudentIds.size} unikal şagird ID-si tapıldı.`); // Log üçün
 
     let ignoredCount = 0;
 
-    // 2. Excel məlumatlarını emal edirik (Hesablama + Filter)
+    // 3. Excel məlumatlarını emal edirik (Hesablama + Filter)
     const formattedData = data.map((row: any) => {
       // ZipGrade sütunları
       const correct = Number(row["Num Correct"]) || 0;
-      const totalQuestions = Number(row["Num Questions"]) || 25; // Standart 25 sual
+      const totalQuestions = Number(row["Num Questions"]) || 25; 
       
-      // Səhv sayı (Boş qalanlar da səhv sayılır)
       const wrong = totalQuestions - correct;
 
-      // --- BAL HESABLAMA DÜSTURU ---
-      // (Düz * 4) - (Səhv * 1)
+      // --- BAL HESABLAMA ---
       let calculatedScore = (correct * 4) - (wrong * 1);
-
-      // Mənfi bal olmasın (istəyə bağlı, amma adətən 0-dan aşağı düşmür)
       if (calculatedScore < 0) calculatedScore = 0;
 
       // Faiz hesablama
       let percent = 0;
       if (row["Percent Correct"]) {
-         // Əgər Excel-də faiz varsa (məs: 0.85 və ya 85)
-         percent = Number(row["Percent Correct"]);
-         if (percent <= 1) percent = percent * 100;
+          percent = Number(row["Percent Correct"]);
+          if (percent <= 1) percent = percent * 100;
       } else {
-         // Yoxdursa özümüz hesablayırıq (Bal / MaxBal * 100)
-         const maxScore = totalQuestions * 4;
-         percent = (calculatedScore / maxScore) * 100;
+          const maxScore = totalQuestions * 4;
+          percent = (calculatedScore / maxScore) * 100;
       }
 
       return {
         student_id: String(row["ZipGrade ID"] || row["External Id"] || "").trim(),
         quiz: examName,
-        score: calculatedScore, // Yekun bal
+        score: calculatedScore, 
         total: totalQuestions,
-        percent: parseFloat(percent.toFixed(2)) // 2 rəqəm yuvarlaqlaşdırırıq
+        percent: parseFloat(percent.toFixed(2)) 
       };
     }).filter(item => {
-      // Filter məntiqi: ID boşdursa və ya bazada yoxdursa sil
+      // Filter məntiqi: ID-si validStudentIds içində varsa, buraxırıq
       if (!item.student_id) return false;
 
       if (validStudentIds.has(item.student_id)) {
         return true;
       } else {
-        ignoredCount++; // Kənarlaşdırılanları sayırıq
+        ignoredCount++; 
         return false;
       }
     });
@@ -85,12 +99,12 @@ export async function POST(req: Request) {
        return NextResponse.json({ 
          success: false, 
          message: ignoredCount > 0 
-           ? `Yüklənən fayldakı ${ignoredCount} nəfərin heç biri qeydiyyatda yoxdur.` 
+           ? `Yüklənən fayldakı ${ignoredCount} nəfərin ID-si bazada (nə students, nə də local_students) tapılmadı.` 
            : "Faylda uyğun məlumat tapılmadı." 
        }, { status: 400 });
     }
 
-    // 3. Bazaya yazırıq
+    // 4. Bazaya yazırıq
     const { error } = await supabase.from("results").insert(formattedData);
 
     if (error) {
