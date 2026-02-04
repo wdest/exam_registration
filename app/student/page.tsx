@@ -287,11 +287,10 @@ export default function StudentCabinet() {
             <button onClick={() => setActiveTab('rankings')} className={`px-6 py-3 rounded-xl font-bold flex gap-2 transition whitespace-nowrap ${activeTab === 'rankings' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-white text-gray-500 hover:bg-gray-100'}`}><Trophy size={20} /> Sıralama</button>
         </div>
 
-        {/* --- 1. DASHBOARD (ANALİZ) - SƏLİQƏLİ VERSİYA --- */}
+        {/* --- 1. DASHBOARD (ANALİZ) --- */}
         {activeTab === 'dashboard' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
                 <div className="lg:col-span-2 flex flex-col gap-6">
-                    {/* Statistika Kartları */}
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition">
                             <div>
@@ -309,7 +308,6 @@ export default function StudentCabinet() {
                         </div>
                     </div>
 
-                    {/* Qrafik - Fixed Height ilə */}
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1 min-h-[350px]">
                         <h3 className="font-bold text-gray-700 mb-6 flex items-center gap-2"><Activity size={18} className="text-indigo-500"/> İnkişaf Trendi</h3>
                         <div className="h-[280px] w-full">
@@ -332,7 +330,6 @@ export default function StudentCabinet() {
                     </div>
                 </div>
 
-                {/* Son Nəticələr */}
                 <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-fit">
                     <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><Calendar size={18}/> Son Nəticələr</h3>
                     <div className="space-y-3">
@@ -351,7 +348,7 @@ export default function StudentCabinet() {
             </div>
         )}
 
-        {/* --- 2. GÜNDƏLİK (DIARY) --- */}
+        {/* --- 2. GÜNDƏLİK --- */}
         {activeTab === 'diary' && (
             <div className="animate-in fade-in duration-500">
                 <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -437,7 +434,6 @@ export default function StudentCabinet() {
         {activeTab === 'exams' && (
             <div className="space-y-10 animate-in fade-in duration-500">
                 
-                {/* A. AKTİV İMTAHANLAR */}
                 <div>
                     <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <div className="w-2 h-8 bg-indigo-600 rounded-full"></div>
@@ -505,7 +501,9 @@ export default function StudentCabinet() {
                                         <tr key={i} className="hover:bg-gray-50 transition">
                                             <td className="p-4 font-bold text-gray-800">{res.quiz}</td>
                                             <td className="p-4 text-center text-gray-500">{new Date(res.created_at).toLocaleDateString()}</td>
-                                            <td className="p-4 text-center font-bold text-indigo-600">{res.correct_count}/{res.total}</td>
+                                            <td className="p-4 text-center font-bold text-indigo-600">
+                                                {res.correct_count ? res.correct_count : res.score}/{res.total}
+                                            </td>
                                             <td className="p-4 text-center">
                                                 <span className={`px-2 py-1 rounded-lg font-bold ${res.percent >= 50 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                                     {res.percent}%
@@ -665,12 +663,13 @@ export default function StudentCabinet() {
                       studentName={`${student.first_name} ${student.last_name}`}
                       studentId={student.student_code}
                       quizName={selectedResult.quiz}
-                      score={selectedResult.correct_count}
+                      score={selectedResult.score} // 🔥 DÜZƏLİŞ: score indi düzgün hesablanır
+                      correctCount={selectedResult.correct_count} // 🔥 DÜZƏLİŞ: yeni sütunu göndəririk
                       total={selectedResult.total}
                       percent={selectedResult.percent}
                       date={new Date(selectedResult.created_at).toLocaleDateString()}
                       logoUrl="https://cdn-icons-png.flaticon.com/512/2997/2997300.png" 
-                      details={selectedResult.details} // 🔥 YENİ: Sual analizini göndəririk
+                      details={selectedResult.details} 
                   />
               </div>
           </div>
@@ -680,7 +679,7 @@ export default function StudentCabinet() {
   );
 }
 
-function ResultCard({ studentName, studentId, quizName, score, total, percent, date, logoUrl, details }: any) {
+function ResultCard({ studentName, studentId, quizName, score, correctCount, total, percent, date, logoUrl, details }: any) {
   const isPass = percent >= 50;
   const statusColor = isPass ? "text-green-600" : "text-red-600";
   const statusBg = isPass ? "bg-green-50" : "bg-red-50";
@@ -720,11 +719,12 @@ function ResultCard({ studentName, studentId, quizName, score, total, percent, d
 
         <div className="space-y-3">
           <DetailRow icon={<FileText size={16} />} label="Mövzu" value={quizName} color="blue" />
-          <DetailRow icon={<CheckCircle size={16} />} label="Doğru Cavablar" value={`${score} / ${total}`} color="purple" />
+          <DetailRow icon={<CheckCircle size={16} />} label="Doğru Cavablar" value={`${correctCount || 0} / ${total}`} color="purple" />
+          <DetailRow icon={<Activity size={16} />} label="Toplanan Bal" value={`${score} Bal`} color="green" /> {/* 🔥 YENİ: Balı göstəririk */}
           <DetailRow icon={<Calendar size={16} />} label="Tarix" value={date} color="orange" />
         </div>
 
-        {/* 🔥 YENİ: Sual Analizi Bölməsi */}
+        {/* 🔥 Sual Analizi Bölməsi */}
         {details && Array.isArray(details) && details.length > 0 && (
             <div className="mt-8 pt-6 border-t border-gray-100">
                 <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm uppercase"><AlertCircle size={16}/> Sual Analizi</h4>
@@ -760,7 +760,12 @@ function ResultCard({ studentName, studentId, quizName, score, total, percent, d
 }
 
 function DetailRow({ icon, label, value, color }: any) {
-  const colors: any = { blue: "bg-blue-100 text-blue-600", purple: "bg-purple-100 text-purple-600", orange: "bg-orange-100 text-orange-600" };
+  const colors: any = { 
+      blue: "bg-blue-100 text-blue-600", 
+      purple: "bg-purple-100 text-purple-600", 
+      orange: "bg-orange-100 text-orange-600",
+      green: "bg-green-100 text-green-600"
+  };
   return (
     <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl hover:bg-white hover:shadow-sm transition border border-transparent hover:border-gray-100">
       <div className="flex items-center gap-3">
