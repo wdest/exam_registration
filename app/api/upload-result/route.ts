@@ -19,13 +19,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "İmtahan adı seçilməyib" }, { status: 400 });
     }
 
-    // 1. Bazadan ID-ləri çəkirik (Validasiya üçün)
+    // 1. Validasiya: Bazadan ID-ləri çəkirik
     const { data: registeredStudents } = await supabase.from("students").select("exam_id");
+    
+    // 🔥 LOCAL YOXLAMA BURADADIR (SİLİNMƏYİB)
     const { data: localStudents } = await supabase.from("local_students").select("student_code");
 
     const validStudentIds = new Set();
-    registeredStudents?.forEach((s: any) => { if (s.exam_id) validStudentIds.add(String(s.exam_id).trim()); });
-    localStudents?.forEach((s: any) => { if (s.student_code) validStudentIds.add(String(s.student_code).trim()); });
+    
+    // Qeydiyyatdan keçənləri əlavə edirik
+    registeredStudents?.forEach((s: any) => { 
+        if (s.exam_id) validStudentIds.add(String(s.exam_id).trim()); 
+    });
+    
+    // Local bazadakıları əlavə edirik
+    localStudents?.forEach((s: any) => { 
+        if (s.student_code) validStudentIds.add(String(s.student_code).trim()); 
+    });
 
     let ignoredCount = 0;
 
@@ -34,7 +44,7 @@ export async function POST(req: Request) {
       
       // A. Ümumi məlumatlar
       const correct = Number(row["Num Correct"]) || 0;
-      const totalQuestions = Number(row["Num Questions"]) || 0; // Sual sayı Excel-dən gəlir
+      const totalQuestions = Number(row["Num Questions"]) || 0;
       const wrong = totalQuestions - correct;
 
       let calculatedScore = (correct * 4) - (wrong * 1);
@@ -49,39 +59,43 @@ export async function POST(req: Request) {
           percent = maxScore > 0 ? (calculatedScore / maxScore) * 100 : 0;
       }
 
-      // B. 🔥 DETALLI SUAL ANALİZİ (Stu1, Stu2... oxumaq)
+      // B. DETALLI SUAL ANALİZİ
       const questionDetails = [];
       let qIndex = 1;
 
-      // Nə qədər ki, "Stu1", "Stu2" və s. var, dövr davam edir (Limit yoxdur)
       while (row[`Stu${qIndex}`] !== undefined) {
-        const studentAnswer = row[`Stu${qIndex}`] || ""; // Şagirdin yazdığı (A, B...)
-        const correctAnswer = row[`PriKey${qIndex}`] || ""; // Doğru cavab (A, B...)
-        const points = Number(row[`Points${qIndex}`]) || 0; // Qazandığı bal (1 və ya 0)
+        const studentAnswer = row[`Stu${qIndex}`] || ""; 
+        const correctAnswer = row[`PriKey${qIndex}`] || ""; 
+        const points = Number(row[`Points${qIndex}`]) || 0; 
 
-        // Əgər bal > 0-dırsa düzdür, yoxsa səhvdir
         const isCorrect = points > 0;
 
         questionDetails.push({
-          q: qIndex,              // Sual nömrəsi
-          user: studentAnswer,    // Şagirdin cavabı
-          correct: correctAnswer, // Doğru cavab
-          isCorrect: isCorrect    // Nəticə (true/false)
+          q: qIndex,
+          user: studentAnswer,
+          correct: correctAnswer,
+          isCorrect: isCorrect
         });
 
         qIndex++;
       }
 
+      // 🔥 DÜZƏLİŞ: Sənin Excel başlıqlarını da bura əlavə etdim
+      const rowId = row["ZipGrade ID"] || row["External Id"] || row["StudentID"] || row["CustomID"] || "";
+
       return {
-        student_id: String(row["ZipGrade ID"] || row["External Id"] || "").trim(),
+        student_id: String(rowId).trim(),
         quiz: examName,
         score: calculatedScore, 
         total: totalQuestions,
         percent: parseFloat(percent.toFixed(2)),
-        details: questionDetails // 🔥 Bura yeni JSON datanı qoyuruq
+        details: questionDetails
       };
     }).filter(item => {
+      // ID boşdursa, ləğv et
       if (!item.student_id) return false;
+
+      // ID bazada varsa, qəbul et
       if (validStudentIds.has(item.student_id)) {
         return true;
       } else {
@@ -93,7 +107,7 @@ export async function POST(req: Request) {
     if (formattedData.length === 0) {
        return NextResponse.json({ 
          success: false, 
-         message: "Faylda uyğun şagird tapılmadı." 
+         message: `Faylda uyğun şagird tapılmadı. (Yoxlanılan ID-lər: StudentID, CustomID, ZipGrade ID)` 
        }, { status: 400 });
     }
 
