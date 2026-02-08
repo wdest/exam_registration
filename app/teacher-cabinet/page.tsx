@@ -11,20 +11,17 @@ import {
   ChevronLeft, X, LayoutDashboard, Search, Key, UserCheck, CalendarPlus 
 } from "lucide-react";
 
-// RECHARTS
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 
 // --- SABITLƏR ---
 const WEEK_DAYS = ["B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən", "Baz"];
-const DAY_MAP: { [key: number]: string } = { 1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" };
 const DAY_INDEX_MAP: { [key: string]: number } = { 
   "B.e": 0, "Ç.a": 1, "Çərş": 2, "C.a": 3, "Cüm": 4, "Şən": 5, "Baz": 6 
 };
 
-// JS günlərini (0-6) sənin cədvəl formatına (B.e, Ç.a...) çeviririk
+// JS günlərini (0-6) bizim formata çeviririk
 const JS_DAY_TO_AZ: { [key: number]: string } = { 
   1: "B.e", 2: "Ç.a", 3: "Çərş", 4: "C.a", 5: "Cüm", 6: "Şən", 0: "Baz" 
 };
@@ -45,6 +42,13 @@ for (let i = START_HOUR; i < END_HOUR; i++) {
   TIME_SLOTS.push(`${hour}:30`); 
 }
 TIME_SLOTS.push("00:00");
+
+// --- KÖMƏKÇİ: LOCAL TARİX ---
+const getLocalDateString = (date: Date) => {
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().split('T')[0];
+};
 
 export default function TeacherCabinet() {
   const router = useRouter();
@@ -75,7 +79,7 @@ export default function TeacherCabinet() {
   const [isExtraModalOpen, setIsExtraModalOpen] = useState(false);
   const [newExtraLesson, setNewExtraLesson] = useState({
       group_id: "", 
-      lesson_date: new Date().toISOString().split('T')[0], 
+      lesson_date: getLocalDateString(new Date()), 
       start_time: "10:00", 
       end_time: "11:30"
   });
@@ -101,7 +105,7 @@ export default function TeacherCabinet() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [phonePrefix, setPhonePrefix] = useState("050");
   const [newStudent, setNewStudent] = useState({
-    first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0], access_code: ""
+    first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: getLocalDateString(new Date()), access_code: ""
   });
   const [newGroupName, setNewGroupName] = useState("");
   const [tempDay, setTempDay] = useState("B.e"); 
@@ -113,7 +117,7 @@ export default function TeacherCabinet() {
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [groupStudents, setGroupStudents] = useState<any[]>([]);
   const [studentToAdd, setStudentToAdd] = useState("");
-  const [gradingDate, setGradingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [gradingDate, setGradingDate] = useState(getLocalDateString(new Date()));
   const [grades, setGrades] = useState<{[key: string]: string}>({});
   const [attendance, setAttendance] = useState<{[key: string]: boolean}>({});
   const [isValidDay, setIsValidDay] = useState(true); 
@@ -192,7 +196,11 @@ export default function TeacherCabinet() {
               const data = await res.json();
               const statusMap: {[key: string]: string} = {};
               data.lessonStatuses.forEach((item: any) => {
-                  const key = `${item.group_id}_${item.lesson_date.split('T')[0]}`;
+                  const datePart = item.lesson_date.split('T')[0];
+                  // Status açarına saatı da əlavə edirik (unikal olması üçün)
+                  // Əgər API start_time qaytarmırsa, default '00:00' qoyuruq, amma qaytarmalıdır.
+                  const timePart = item.start_time ? item.start_time.slice(0,5) : '00:00';
+                  const key = `${item.group_id}_${datePart}_${timePart}`;
                   statusMap[key] = item.status;
               });
               setLessonStatusOverrides(statusMap);
@@ -237,8 +245,12 @@ export default function TeacherCabinet() {
                         }
 
                         const specificDate = weekDates[dayIndex];
-                        const dateString = specificDate.toISOString().split('T')[0];
-                        const statusKey = `${group.id}_${dateString}`;
+                        const dateString = getLocalDateString(specificDate);
+                        
+                        // Status açarına saatı əlavə edirik
+                        const formattedStartTime = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+                        const statusKey = `${group.id}_${dateString}_${formattedStartTime}`;
+                        
                         const lessonStart = new Date(specificDate); lessonStart.setHours(h, m, 0);
                         const lessonEnd = new Date(specificDate); lessonEnd.setHours(endH, endM, 0);
                         const manualStatus = lessonStatusOverrides[statusKey];
@@ -271,6 +283,7 @@ export default function TeacherCabinet() {
                             top, 
                             height: duration * PIXELS_PER_HOUR,
                             timeStr: timeRange,
+                            startTime: formattedStartTime,
                             classes: `absolute inset-x-1 rounded-md cursor-pointer z-10 border-l-4 shadow-sm text-xs font-medium p-2 flex flex-col justify-center overflow-hidden transition hover:brightness-95 ${statusColor}`,
                             status: statusText,
                             fullDate: specificDate,
@@ -288,14 +301,21 @@ export default function TeacherCabinet() {
          const startOfWeek = weekDates[0];
          const endOfWeek = weekDates[6];
 
-         if (elDate >= startOfWeek && elDate <= endOfWeek) {
+         // Həftə aralığını yoxla
+         const elTime = elDate.getTime();
+         const startLimit = new Date(startOfWeek).setHours(0,0,0,0);
+         const endLimit = new Date(endOfWeek).setHours(23,59,59,999);
+
+         if (elTime >= startLimit && elTime <= endLimit) {
              const dayIndex = elDate.getDay() === 0 ? 6 : elDate.getDay() - 1; 
              const [h, m] = el.start_time.split(":").map(Number);
              const [eH, eM] = el.end_time.split(":").map(Number);
              const duration = (eH + eM / 60) - (h + m / 60);
 
              const dateString = el.lesson_date;
-             const statusKey = `${el.group_id}_${dateString}`;
+             const formattedStartTime = el.start_time.slice(0,5);
+             const statusKey = `${el.group_id}_${dateString}_${formattedStartTime}`;
+             
              const manualStatus = lessonStatusOverrides[statusKey];
              const group = groups.find(g => g.id === el.group_id);
 
@@ -310,11 +330,13 @@ export default function TeacherCabinet() {
              events.push({
                  uniqueId: statusKey,
                  groupId: el.group_id,
+                 dbId: el.id, // Database ID silmək üçün
                  groupName: group ? `${group.name} (Əlavə)` : "Əlavə",
                  dayIndex,
                  top,
                  height: duration * PIXELS_PER_HOUR,
                  timeStr: `${el.start_time.slice(0,5)}-${el.end_time.slice(0,5)}`,
+                 startTime: formattedStartTime,
                  classes: `absolute inset-x-1 rounded-md cursor-pointer z-10 border-l-4 shadow-sm text-xs font-medium p-2 flex flex-col justify-center overflow-hidden transition hover:brightness-95 ${statusColor}`,
                  status: statusText,
                  fullDate: elDate,
@@ -340,8 +362,10 @@ export default function TeacherCabinet() {
   const updateEventStatus = async (status: string | null) => {
       if (!selectedEventForStatus) return;
       const groupId = selectedEventForStatus.groupId;
-      const dateString = selectedEventForStatus.fullDate.toISOString().split('T')[0];
-      const mapKey = `${groupId}_${dateString}`;
+      const dateString = getLocalDateString(selectedEventForStatus.fullDate);
+      const timeString = selectedEventForStatus.startTime;
+      
+      const mapKey = `${groupId}_${dateString}_${timeString}`;
       
       const newOverrides = { ...lessonStatusOverrides };
       if (status === null) delete newOverrides[mapKey];
@@ -352,7 +376,7 @@ export default function TeacherCabinet() {
       try {
           const res = await fetch("/api/teacher/schedule", {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ type: 'status', groupId, date: dateString, status })
+              body: JSON.stringify({ type: 'status', groupId, date: dateString, status, startTime: timeString })
           });
           if (!res.ok) throw new Error("Status yadda saxlanmadı");
       } catch (error) { 
@@ -361,9 +385,8 @@ export default function TeacherCabinet() {
       }
   };
 
-  // 🔥 YENİ: DƏRS SAATININ ÜST-ÜSTƏ DÜŞMƏSİNİ YOXLAYAN FUNKSİYA
+  // --- Kəsişmə Yoxlanışı (Time Conflict) ---
   const checkTimeConflict = (dateStr: string, startStr: string, endStr: string) => {
-      // Saati dəqiqəyə çevirən köməkçi funksiya (00:00 = 0, 01:00 = 60...)
       const timeToMin = (t: string) => {
           const [h, m] = t.split(':').map(Number);
           return h * 60 + m;
@@ -374,13 +397,9 @@ export default function TeacherCabinet() {
 
       // 1. Digər Əlavə Dərsllərlə Yoxla
       const conflictExtra = extraLessons.find(el => {
-          // Eyni tarix deyilsə keç
           if (el.lesson_date !== dateStr) return false;
-          
           const elStart = timeToMin(el.start_time);
           const elEnd = timeToMin(el.end_time);
-
-          // Kəsişmə şərti: (StartA < EndB) && (StartB < EndA)
           return (newStart < elEnd && elStart < newEnd);
       });
 
@@ -391,9 +410,9 @@ export default function TeacherCabinet() {
 
       // 2. Əsas (Regular) Cədvəllə Yoxla
       const dateObj = new Date(dateStr);
-      const jsDay = dateObj.getDay(); // 0=Bazar, 1=Bazar ertəsi...
-      const azDayIndex = jsDay === 0 ? 6 : jsDay - 1; // Bizim sistemdə: 0=B.e, 6=Baz
-      const azDayName = WEEK_DAYS[azDayIndex]; // "B.e", "Ç.a" və s.
+      const jsDay = dateObj.getDay(); 
+      const azDayIndex = jsDay === 0 ? 6 : jsDay - 1; 
+      const azDayName = WEEK_DAYS[azDayIndex]; 
 
       for (const group of groups) {
           if (!group.schedule) continue;
@@ -405,20 +424,17 @@ export default function TeacherCabinet() {
                   const dayName = parts[0];
                   const timeRange = parts[1];
 
-                  // Əgər gün uyğundursa, saatı yoxla
                   if (dayName === azDayName) {
                       let rStart, rEnd;
-                      
                       if (timeRange.includes("-")) {
                           const [s, e] = timeRange.split("-");
                           rStart = timeToMin(s);
                           rEnd = timeToMin(e);
                       } else {
                           rStart = timeToMin(timeRange);
-                          rEnd = rStart + 90; // Default 1.5 saat (90 dəq)
+                          rEnd = rStart + 90; 
                       }
 
-                      // Kəsişməni yoxla
                       if (newStart < rEnd && rStart < newEnd) {
                           return `Diqqət! Bu saatda "${group.name}" qrupunun əsas dərsi var (${dayName} ${timeRange}).`;
                       }
@@ -426,8 +442,7 @@ export default function TeacherCabinet() {
               }
           }
       }
-
-      return null; // Problem yoxdur
+      return null; 
   };
 
   const createExtraLesson = async (e: React.FormEvent) => {
@@ -435,12 +450,9 @@ export default function TeacherCabinet() {
       if(!newExtraLesson.group_id) return alert("⚠️ Zəhmət olmasa qrup seçin!");
       if(newExtraLesson.start_time >= newExtraLesson.end_time) return alert("⚠️ Bitmə vaxtı başlama vaxtından sonra olmalıdır!");
 
-      // 🔥 YENİ: Kəsişməni yoxlayırıq
+      // 🔥 Kəsişməni yoxlayırıq
       const conflictMsg = checkTimeConflict(newExtraLesson.lesson_date, newExtraLesson.start_time, newExtraLesson.end_time);
-      
       if (conflictMsg) {
-          // Əgər istifadəçi razıdırsa davam edə bilər, amma biz xəbərdarlıq edib dayandırırıq.
-          // İstəyirsənsə 'confirm' ilə davam etdirə bilərsən. Mən hələlik dayandırıram.
           alert("⛔ " + conflictMsg); 
           return;
       }
@@ -468,14 +480,38 @@ export default function TeacherCabinet() {
       }
   };
 
+  // --- Əlavə Dərsi Silmək ---
+  const deleteExtraLessonFunc = async () => {
+      if(!selectedEventForStatus || !selectedEventForStatus.isExtra) return;
+      if(!confirm("Bu əlavə dərsi silmək istədiyinizə əminsiniz?")) return;
+
+      const extraLessonId = selectedEventForStatus.dbId;
+
+      try {
+          const res = await fetch("/api/teacher/schedule", {
+              method: "POST", 
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ type: 'delete_extra', id: extraLessonId })
+          });
+
+          if(res.ok) {
+              alert("✅ Dərs silindi!");
+              setSelectedEventForStatus(null);
+              fetchScheduleData();
+          } else {
+              alert("❌ Silinmə xətası.");
+          }
+      } catch(e) {
+          alert("❌ Xəta baş verdi.");
+      }
+  };
+
   const fetchData = async (teacherId: number) => { try { const res = await fetch("/api/teacher/students"); if (res.ok) { const data = await res.json(); setStudents(data.students || []); } const resG = await fetch("/api/teacher/groups"); if (resG.ok) { const dataG = await resG.json(); setGroups(dataG.groups || []); } } catch (e) { console.error(e); } };
   const toggleSelectAll = () => { if (selectedIds.length === students.length) setSelectedIds([]); else setSelectedIds(students.map(s => s.id)); };
   const toggleSelectOne = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
-  
   const myStudents = students.filter(s => s.teacher_id === teacher?.id);
   const toggleSelectMyStudent = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   const toggleSelectAllMyStudents = () => { if (selectedIds.length === myStudents.length) setSelectedIds([]); else setSelectedIds(myStudents.map(s => s.id)); };
-
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   const generateAccessCode = () => { const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let result = ""; for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); } setNewStudent({...newStudent, access_code: result}); };
 
@@ -499,30 +535,8 @@ export default function TeacherCabinet() {
   };
 
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
-  
-  // 🔥 GRADING MODAL LOGIC
-  const openGradingModal = (student: any) => {
-      setGradingModal({
-          isOpen: true,
-          studentId: student.id,
-          studentName: `${student.first_name} ${student.last_name}`,
-          responsibility: "",
-          activity: "",
-          quiz: ""
-      });
-  };
-
-  const calculateAndSaveGrade = () => {
-      if(!gradingModal.studentId) return;
-      const r = parseFloat(gradingModal.responsibility || "0");
-      const a = parseFloat(gradingModal.activity || "0");
-      const q = parseFloat(gradingModal.quiz || "0");
-      const finalScore = Math.round((r + a + q) / 3);
-      setGrades({ ...grades, [gradingModal.studentId]: finalScore.toString() });
-      setGradingModal({ ...gradingModal, isOpen: false });
-  };
-
-  // ... (Analytics funksiyaları) ...
+  const openGradingModal = (student: any) => { setGradingModal({ isOpen: true, studentId: student.id, studentName: `${student.first_name} ${student.last_name}`, responsibility: "", activity: "", quiz: "" }); };
+  const calculateAndSaveGrade = () => { if(!gradingModal.studentId) return; const r = parseFloat(gradingModal.responsibility || "0"); const a = parseFloat(gradingModal.activity || "0"); const q = parseFloat(gradingModal.quiz || "0"); const finalScore = Math.round((r + a + q) / 3); setGrades({ ...grades, [gradingModal.studentId]: finalScore.toString() }); setGradingModal({ ...gradingModal, isOpen: false }); };
   const calculateAnalytics = async (groupId: string) => { if (!groupId) return; setAnalyticsGroupId(groupId); try { const resMembers = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); const dataMembers = await resMembers.json(); const studentsInGroup = dataMembers.students || []; setAnalyticsStudentsList(studentsInGroup); const resGrades = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); const dataGrades = await resGrades.json(); const allGrades = dataGrades.allGrades || []; setRawGradesForChart(allGrades); calculateTableStats(studentsInGroup, allGrades); } catch(e) { console.error(e); } };
   const calculateTableStats = (studentsInGroup: any[], allGrades: any[]) => { let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; const stats = studentsInGroup.map((student: any) => { const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); const scoredDays = studentGrades.filter((g: any) => g.score !== null); const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; const totalDays = studentGrades.length; const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; }); stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); setAnalyticsData(stats); setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); };
   useEffect(() => { if (rawGradesForChart.length === 0) return; let filteredData = [...rawGradesForChart]; if (analysisMode === 'individual' && selectedStudentForChart) { filteredData = filteredData.filter(g => g.student_id.toString() === selectedStudentForChart.toString()); } if (chartInterval === 'year') { const currentYear = new Date().getFullYear(); filteredData = filteredData.filter(g => new Date(g.grade_date).getFullYear() === currentYear); } const groupedData: { [key: string]: number[] } = {}; const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; filteredData.forEach((g: any) => { if (g.score !== null) { const date = new Date(g.grade_date); let key = g.grade_date; if (chartInterval === 'weeks4') { const startOfYear = new Date(date.getFullYear(), 0, 1); const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); const weekNum = Math.ceil((days + 1) / 7); key = `Həftə ${weekNum}`; } else if (chartInterval === 'months4') { key = monthNames[date.getMonth()]; } else if (chartInterval === 'year') { key = monthNames[date.getMonth()]; } if (!groupedData[key]) groupedData[key] = []; groupedData[key].push(g.score); } }); let chartResult = Object.keys(groupedData).map(key => { const scores = groupedData[key]; const avg = scores.reduce((a, b) => a + b, 0) / scores.length; return { label: key, avg: parseFloat(avg.toFixed(1)) }; }); if (chartInterval === 'lessons4') { chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); chartResult = chartResult.slice(-4); chartResult = chartResult.map(item => ({...item, label: item.label.slice(5)})); } else if (chartInterval === 'weeks4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'months4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'year') { chartResult.sort((a, b) => monthNames.indexOf(a.label) - monthNames.indexOf(b.label)); } setChartData(chartResult); }, [chartInterval, analysisMode, selectedStudentForChart, rawGradesForChart]);
@@ -532,12 +546,12 @@ export default function TeacherCabinet() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploading(true); const file = e.target.files[0]; const reader = new FileReader(); reader.onload = async (evt) => { try { const data = evt.target?.result; const wb = XLSX.read(data, { type: "array" }); const wsname = wb.SheetNames[0]; const ws = wb.Sheets[wsname]; const jsonData = XLSX.utils.sheet_to_json(ws); const res = await fetch("/api/teacher/students/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: jsonData }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Yükləmə xətası"); alert(`✅ Uğurla yükləndi! ${result.count} şagird əlavə olundu.`); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; } }; reader.readAsArrayBuffer(file); };
   const handleAddOrUpdateStudent = async (e: React.FormEvent) => { e.preventDefault(); const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`; const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 }; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error); alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); resetForm(); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("Xəta: " + error.message); } };
   const deleteStudent = async (id: number) => { if (!confirm("Silinsin?")) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); if (!res.ok) throw new Error("Silinmə xətası"); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
-  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: new Date().toISOString().split('T')[0], access_code: "" }); setPhonePrefix("050"); setEditingId(null); };
+  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: getLocalDateString(new Date()), access_code: "" }); setPhonePrefix("050"); setEditingId(null); };
   const startEdit = (student: any) => { const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = ""; if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); } setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date, access_code: student.access_code || "" }); setPhonePrefix(pPrefix); setEditingId(student.id); };
   const addScheduleSlot = () => { if (!tempTime || !tempEndTime) return; if (tempTime >= tempEndTime) { alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!"); return; } setScheduleSlots([...scheduleSlots, { day: tempDay, time: `${tempTime}-${tempEndTime}` }]); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
   const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); try { const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); if (!res.ok) { const err = await res.json(); throw new Error(err.error); } alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); if(teacher) fetchData(teacher.id); } catch (e: any) { alert(e.message); } };
-  const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(new Date().toISOString().split('T')[0]); setStudentToAdd(""); setStudentAddSearch(""); };
+  const openGroup = (group: any) => { setSelectedGroup(group); fetchGroupMembers(group.id); setGradingDate(getLocalDateString(new Date())); setStudentToAdd(""); setStudentAddSearch(""); };
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
   const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); setStudentToAdd(""); setStudentAddSearch(""); } catch (e: any) { alert(e.message); } };
@@ -550,7 +564,7 @@ export default function TeacherCabinet() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans">
       
-      {/* --- GRADING MODAL (YENİ) --- */}
+      {/* --- GRADING MODAL --- */}
       {gradingModal.isOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full border dark:border-gray-700">
@@ -558,38 +572,22 @@ export default function TeacherCabinet() {
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">{gradingModal.studentName}</h3>
                       <button onClick={() => setGradingModal({...gradingModal, isOpen: false})} className="p-1 hover:bg-gray-100 rounded-full"><X size={20}/></button>
                   </div>
-
                   <div className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Məsuliyyət</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
-                              value={gradingModal.responsibility} 
-                              onChange={(e) => setGradingModal({...gradingModal, responsibility: e.target.value})}
-                              autoFocus
-                          />
+                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={gradingModal.responsibility} onChange={(e) => setGradingModal({...gradingModal, responsibility: e.target.value})} autoFocus />
                       </div>
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Dərsdə Aktivlik</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
-                              value={gradingModal.activity} 
-                              onChange={(e) => setGradingModal({...gradingModal, activity: e.target.value})}
-                          />
+                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={gradingModal.activity} onChange={(e) => setGradingModal({...gradingModal, activity: e.target.value})} />
                       </div>
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Hesab / Bilik</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
-                              value={gradingModal.quiz} 
-                              onChange={(e) => setGradingModal({...gradingModal, quiz: e.target.value})}
-                          />
+                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={gradingModal.quiz} onChange={(e) => setGradingModal({...gradingModal, quiz: e.target.value})} />
                       </div>
                   </div>
-
                   <div className="mt-6 pt-4 border-t flex items-center justify-between">
-                        <div className="text-sm font-bold text-gray-500">Ortalama: 
-                            <span className="text-xl text-indigo-600 ml-2 font-black">
-                                {Math.round(( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3)}
-                            </span>
-                        </div>
+                        <div className="text-sm font-bold text-gray-500">Ortalama: <span className="text-xl text-indigo-600 ml-2 font-black">{Math.round(( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3)}</span></div>
                         <button onClick={calculateAndSaveGrade} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition">Təsdiqlə</button>
                   </div>
               </div>
@@ -638,7 +636,7 @@ export default function TeacherCabinet() {
           </div>
       )}
 
-      {/* --- STATUS MODAL --- */}
+      {/* --- STATUS MODAL (Düzəliş edildi: Əlavə Dərs Silmə Düyməsi) --- */}
       {selectedEventForStatus && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full border dark:border-gray-700">
@@ -659,6 +657,13 @@ export default function TeacherCabinet() {
                       <button onClick={() => updateEventStatus(null)} className="w-full p-3 rounded-xl bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 flex items-center justify-center gap-2">
                           <RefreshCcw size={18}/> Sıfırla
                       </button>
+                      
+                      {/* 🔥 YENİ: Əgər əlavə dərsdirsə, SİL düyməsi göstər */}
+                      {selectedEventForStatus.isExtra && (
+                          <button onClick={deleteExtraLessonFunc} className="w-full p-3 rounded-xl border-2 border-red-100 text-red-500 font-bold hover:bg-red-50 flex items-center justify-center gap-2 mt-4">
+                              <Trash2 size={18}/> Dərsi Sil
+                          </button>
+                      )}
                   </div>
               </div>
           </div>
@@ -667,7 +672,6 @@ export default function TeacherCabinet() {
       {/* --- NAVBAR --- */}
       <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center shadow-sm sticky top-0 z-40 h-[80px]">
         <h1 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2"><BookOpen className="text-blue-600" /> Kabinet</h1>
-        
         <div className="hidden md:flex gap-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-xl">
             {['dashboard', 'schedule', 'students', 'my_students', 'groups', 'analytics'].map(tab => (
                  <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition ${activeTab === tab ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm' : 'text-gray-500 dark:text-gray-300 hover:bg-white/50'}`}>
@@ -678,16 +682,11 @@ export default function TeacherCabinet() {
                     {tab === 'groups' && <BookOpen size={16} />}
                     {tab === 'analytics' && <BarChart3 size={16} />}
                     <span className="capitalize">
-                        {tab === 'dashboard' ? 'Ana Səhifə' : 
-                         tab === 'schedule' ? 'Cədvəl' : 
-                         tab === 'students' ? 'Bütün Şagirdlər' : 
-                         tab === 'my_students' ? 'Mənim Şagirdlərim' :
-                         tab === 'groups' ? 'Jurnal' : 'Analiz'}
+                        {tab === 'dashboard' ? 'Ana Səhifə' : tab === 'schedule' ? 'Cədvəl' : tab === 'students' ? 'Bütün Şagirdlər' : tab === 'my_students' ? 'Mənim Şagirdlərim' : tab === 'groups' ? 'Jurnal' : 'Analiz'}
                     </span>
                  </button>
             ))}
         </div>
-
         <div className="flex items-center gap-4">
           <span className="text-sm font-semibold bg-blue-50 text-blue-700 px-3 py-1 rounded-full hidden lg:block">👤 {teacher?.full_name || teacher?.username}</span>
           <button onClick={handleLogout} className="text-red-500 hover:text-red-700 font-medium"><LogOut size={18} /></button>
@@ -704,7 +703,6 @@ export default function TeacherCabinet() {
       </div>
 
       <main className="p-4 md:p-6 h-[calc(100vh-80px)] overflow-hidden flex flex-col bg-gray-50 dark:bg-gray-900">
-
         {/* --- DASHBOARD --- */}
         {activeTab === 'dashboard' && (
             <div className="overflow-auto h-full pb-20 animate-in fade-in max-w-7xl mx-auto w-full">
@@ -712,7 +710,6 @@ export default function TeacherCabinet() {
                     <h2 className="text-3xl font-bold mb-2">Xoş Gəldiniz, Müəllim! 👋</h2>
                     <p className="opacity-90">{new Date().toLocaleDateString('az-AZ', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
                 </div>
-                {/* YENİ KARTLAR SİSTEMİ */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div onClick={() => setActiveTab('schedule')} className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition cursor-pointer flex items-center gap-4 group">
                         <div className="p-4 bg-orange-50 text-orange-600 rounded-xl group-hover:scale-110 transition"><Clock size={32} /></div>
@@ -818,7 +815,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- 🔥 YENİLƏNMİŞ STUDENTS TAB (SEARCH & SCROLL) --- */}
+        {/* --- STUDENTS --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-hidden pb-2">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-full overflow-y-auto">
@@ -830,14 +827,12 @@ export default function TeacherCabinet() {
                         </label>
                         <p className="text-xs text-gray-400 mt-2 text-center">Format: ZipGrade ID, First Name, Last Name, External ID, Access Code, Classes</p>
                     </div>
-
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-bold flex items-center gap-2">
                             {editingId ? <><Pencil size={18} className="text-orange-500"/> Redaktə Et</> : <><Plus size={18}/> Yeni Şagird</>}
                         </h3>
                         {editingId && <button onClick={resetForm} className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><RefreshCcw size={12}/> Ləğv et</button>}
                     </div>
-                    
                     <form onSubmit={handleAddOrUpdateStudent} className="space-y-4">
                         <input required placeholder="Ad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.first_name} onChange={e => setNewStudent({...newStudent, first_name: e.target.value})} />
                         <input required placeholder="Soyad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
@@ -852,108 +847,47 @@ export default function TeacherCabinet() {
                         </div>
                         <div className="flex gap-2">{SECTORS.map(sec => (<button key={sec} type="button" onClick={() => setNewStudent({...newStudent, sector: sec})} className={`flex-1 py-2 rounded-lg text-sm font-bold border transition ${newStudent.sector === sec ? "bg-blue-600 text-white" : "bg-white dark:bg-gray-700 text-gray-500"}`}>{sec}</button>))}</div>
                         <input type="date" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.start_date} onChange={e => setNewStudent({...newStudent, start_date: e.target.value})} />
-                        
                         <div className="relative">
-                            <input 
-                                placeholder="Access Code (Giriş Kodu)" 
-                                className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-mono tracking-widest text-center uppercase" 
-                                value={newStudent.access_code} 
-                                onChange={e => setNewStudent({...newStudent, access_code: e.target.value.toUpperCase()})} 
-                            />
-                            <button 
-                                type="button" 
-                                onClick={generateAccessCode}
-                                className="absolute right-2 top-2 p-1.5 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-xs font-bold flex items-center gap-1"
-                            >
-                                <Key size={14}/> Avto-Yarat
-                            </button>
+                            <input placeholder="Access Code (Giriş Kodu)" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-mono tracking-widest text-center uppercase" value={newStudent.access_code} onChange={e => setNewStudent({...newStudent, access_code: e.target.value.toUpperCase()})} />
+                            <button type="button" onClick={generateAccessCode} className="absolute right-2 top-2 p-1.5 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-xs font-bold flex items-center gap-1"><Key size={14}/> Avto-Yarat</button>
                         </div>
-
                         <button type="submit" className={`w-full text-white py-3 rounded-xl font-bold transition ${editingId ? "bg-orange-500" : "bg-blue-600"}`}>{editingId ? "Yadda Saxla" : "Əlavə Et"}</button>
                     </form>
                 </div>
-
                 <div className="lg:col-span-2 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex flex-col h-full overflow-hidden">
                     <div className="flex justify-between items-center mb-4 shrink-0">
                         <h3 className="text-lg font-bold flex items-center gap-2">Şagirdlər <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{filteredStudents.length}</span></h3>
-                        
                         <div className="flex items-center gap-2">
-                            {/* 🔥 AXTARIŞ INPUTU */}
                             <div className="relative">
                                 <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                                <input 
-                                    placeholder="Ad, soyad və ya kod..." 
-                                    className="pl-10 pr-4 py-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-48 focus:w-64 transition-all"
-                                    value={studentSearch}
-                                    onChange={(e) => setStudentSearch(e.target.value)}
-                                />
+                                <input placeholder="Ad, soyad və ya kod..." className="pl-10 pr-4 py-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-48 focus:w-64 transition-all" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} />
                             </div>
-
-                            {selectedIds.length > 0 && (
-                                <button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in text-sm">
-                                    <Trash2 size={16} /> Sil ({selectedIds.length})
-                                </button>
-                            )}
+                            {selectedIds.length > 0 && (<button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in text-sm"><Trash2 size={16} /> Sil ({selectedIds.length})</button>)}
                         </div>
                     </div>
-
                     <div className="overflow-auto flex-1 rounded-lg border dark:border-gray-700">
                         <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                             <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white font-bold sticky top-0 z-10 shadow-sm">
                                 <tr>
-                                    <th className="p-3 w-10 border-b dark:border-gray-600">
-                                        <button onClick={toggleSelectAll} className="text-gray-500 hover:text-blue-600">
-                                            {selectedIds.length === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
-                                        </button>
-                                    </th>
-                                    <th className="p-3 border-b dark:border-gray-600">ID</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Kod</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Ad Soyad</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Sinif</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Sektor</th>
-                                    {/* 🔥 YENİ: Müəllim / Qrup Sütunu */}
-                                    <th className="p-3 border-b dark:border-gray-600">Müəllim / Qrup</th>
-                                    <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
+                                    <th className="p-3 w-10 border-b dark:border-gray-600"><button onClick={toggleSelectAll} className="text-gray-500 hover:text-blue-600">{selectedIds.length === filteredStudents.length && filteredStudents.length > 0 ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}</button></th>
+                                    <th className="p-3 border-b dark:border-gray-600">ID</th><th className="p-3 border-b dark:border-gray-600">Kod</th><th className="p-3 border-b dark:border-gray-600">Ad Soyad</th><th className="p-3 border-b dark:border-gray-600">Ata adı</th><th className="p-3 border-b dark:border-gray-600">Sinif</th><th className="p-3 border-b dark:border-gray-600">Sektor</th><th className="p-3 border-b dark:border-gray-600">Müəllim / Qrup</th><th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                 {filteredStudents.map((s) => (
                                     <tr key={s.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition ${selectedIds.includes(s.id) ? "bg-blue-50 dark:bg-blue-900/30" : ""} ${editingId === s.id ? "bg-yellow-50 dark:bg-yellow-900/30" : ""}`}>
-                                        <td className="p-3">
-                                            <button onClick={() => toggleSelectOne(s.id)} className="text-gray-400 hover:text-blue-600">
-                                                {selectedIds.includes(s.id) ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}
-                                            </button>
-                                        </td>
+                                        <td className="p-3"><button onClick={() => toggleSelectOne(s.id)} className="text-gray-400 hover:text-blue-600">{selectedIds.includes(s.id) ? <CheckSquare size={20} className="text-blue-600"/> : <Square size={20}/>}</button></td>
                                         <td className="p-3 font-mono text-blue-600 font-bold">#{s.student_code}</td>
                                         <td className="p-3 font-mono text-gray-500 text-xs">{s.access_code || "-"}</td>
                                         <td className="p-3 font-medium text-gray-800 dark:text-white">{s.first_name} {s.last_name}</td>
                                         <td className="p-3 text-gray-500">{s.father_name || "-"}</td>
                                         <td className="p-3">{s.grade}</td>
                                         <td className="p-3"><span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-600">{s.sector || "Az"}</span></td>
-                                        <td className="p-3">
-                                            <div className="flex flex-col">
-                                                {s.teacher_name ? (
-                                                    <span className="font-bold text-sm text-gray-800 dark:text-white">{s.teacher_name}</span>
-                                                ) : (
-                                                    <span className="text-gray-400 text-xs italic">Təyin edilməyib</span>
-                                                )}
-                                                {s.group_name && (
-                                                    <span className="mt-1 w-fit px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300">{s.group_name}</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="p-3 flex justify-end gap-2">
-                                            <button onClick={() => startEdit(s)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900"><Pencil size={16}/></button>
-                                            <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900"><Trash2 size={16}/></button>
-                                        </td>
+                                        <td className="p-3"><div className="flex flex-col">{s.teacher_name ? (<span className="font-bold text-sm text-gray-800 dark:text-white">{s.teacher_name}</span>) : (<span className="text-gray-400 text-xs italic">Təyin edilməyib</span>)}{s.group_name && (<span className="mt-1 w-fit px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300">{s.group_name}</span>)}</div></td>
+                                        <td className="p-3 flex justify-end gap-2"><button onClick={() => startEdit(s)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900"><Pencil size={16}/></button><button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
-                                {filteredStudents.length === 0 && (
-                                    <tr>
-                                        <td colSpan={9} className="text-center p-8 text-gray-400">Heç bir şagird tapılmadı.</td>
-                                    </tr>
-                                )}
+                                {filteredStudents.length === 0 && (<tr><td colSpan={9} className="text-center p-8 text-gray-400">Heç bir şagird tapılmadı.</td></tr>)}
                             </tbody>
                         </table>
                     </div>
@@ -961,85 +895,39 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- 🔥 YENİ: MY STUDENTS TAB (MƏNİM ŞAGİRDLƏRİM) --- */}
+        {/* --- MY STUDENTS TAB --- */}
         {activeTab === 'my_students' && (
             <div className="animate-in fade-in max-w-7xl mx-auto h-full w-full overflow-hidden pb-2">
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex flex-col h-full">
-                    
-                    {/* Başlıq və Axtarış */}
                     <div className="flex justify-between items-center mb-6 shrink-0">
-                        <h3 className="text-xl font-bold flex items-center gap-2 text-indigo-600">
-                            <UserCheck size={24}/> Mənim Şagirdlərim 
-                            <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{filteredMyStudents.length}</span>
-                        </h3>
-                        
+                        <h3 className="text-xl font-bold flex items-center gap-2 text-indigo-600"><UserCheck size={24}/> Mənim Şagirdlərim <span className="text-sm font-normal text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">{filteredMyStudents.length}</span></h3>
                         <div className="flex items-center gap-2">
-                            <div className="relative">
-                                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-                                <input 
-                                    placeholder="Ad, soyad və ya kod..." 
-                                    className="pl-10 pr-4 py-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-64 focus:w-80 transition-all"
-                                    value={myStudentSearch}
-                                    onChange={(e) => setMyStudentSearch(e.target.value)}
-                                />
-                            </div>
-
-                            {selectedIds.length > 0 && (
-                                <button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in text-sm">
-                                    <Trash2 size={16} /> Sil ({selectedIds.length})
-                                </button>
-                            )}
+                            <div className="relative"><Search className="absolute left-3 top-2.5 text-gray-400" size={18} /><input placeholder="Ad, soyad və ya kod..." className="pl-10 pr-4 py-2 border dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-64 focus:w-80 transition-all" value={myStudentSearch} onChange={(e) => setMyStudentSearch(e.target.value)} /></div>
+                            {selectedIds.length > 0 && (<button onClick={bulkDelete} className="flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition animate-in fade-in text-sm"><Trash2 size={16} /> Sil ({selectedIds.length})</button>)}
                         </div>
                     </div>
-
-                    {/* Cədvəl */}
                     <div className="overflow-auto flex-1 rounded-lg border dark:border-gray-700">
                         <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                             <thead className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-100 font-bold sticky top-0 z-10 shadow-sm">
                                 <tr>
-                                    <th className="p-3 w-10 border-b dark:border-gray-600">
-                                        <button onClick={toggleSelectAllMyStudents} className="text-indigo-400 hover:text-indigo-600">
-                                            {selectedIds.length === filteredMyStudents.length && filteredMyStudents.length > 0 ? <CheckSquare size={20} className="text-indigo-600"/> : <Square size={20}/>}
-                                        </button>
-                                    </th>
-                                    <th className="p-3 border-b dark:border-gray-600">ID</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Kod</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Ad Soyad</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Ata adı</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Sinif</th>
-                                    <th className="p-3 border-b dark:border-gray-600">Sektor</th>
-                                    <th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
+                                    <th className="p-3 w-10 border-b dark:border-gray-600"><button onClick={toggleSelectAllMyStudents} className="text-indigo-400 hover:text-indigo-600">{selectedIds.length === filteredMyStudents.length && filteredMyStudents.length > 0 ? <CheckSquare size={20} className="text-indigo-600"/> : <Square size={20}/>}</button></th>
+                                    <th className="p-3 border-b dark:border-gray-600">ID</th><th className="p-3 border-b dark:border-gray-600">Kod</th><th className="p-3 border-b dark:border-gray-600">Ad Soyad</th><th className="p-3 border-b dark:border-gray-600">Ata adı</th><th className="p-3 border-b dark:border-gray-600">Sinif</th><th className="p-3 border-b dark:border-gray-600">Sektor</th><th className="p-3 border-b dark:border-gray-600 text-right">Əməliyyatlar</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                 {filteredMyStudents.map((s) => (
                                     <tr key={s.id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 transition ${selectedIds.includes(s.id) ? "bg-indigo-50 dark:bg-indigo-900/30" : ""}`}>
-                                        <td className="p-3">
-                                            <button onClick={() => toggleSelectMyStudent(s.id)} className="text-gray-400 hover:text-indigo-600">
-                                                {selectedIds.includes(s.id) ? <CheckSquare size={20} className="text-indigo-600"/> : <Square size={20}/>}
-                                            </button>
-                                        </td>
+                                        <td className="p-3"><button onClick={() => toggleSelectMyStudent(s.id)} className="text-gray-400 hover:text-indigo-600">{selectedIds.includes(s.id) ? <CheckSquare size={20} className="text-indigo-600"/> : <Square size={20}/>}</button></td>
                                         <td className="p-3 font-mono text-indigo-600 font-bold">#{s.student_code}</td>
                                         <td className="p-3 font-mono text-gray-500 text-xs">{s.access_code || "-"}</td>
                                         <td className="p-3 font-medium text-gray-800 dark:text-white">{s.first_name} {s.last_name}</td>
                                         <td className="p-3 text-gray-500">{s.father_name || "-"}</td>
                                         <td className="p-3">{s.grade}</td>
                                         <td className="p-3"><span className="px-2 py-1 rounded text-xs font-bold bg-indigo-100 text-indigo-600">{s.sector || "Az"}</span></td>
-                                        <td className="p-3 flex justify-end gap-2">
-                                            {/* Redaktə düyməsi əsas səhifədəki formanı aça bilər və ya modal */}
-                                            <button onClick={() => { setActiveTab('students'); startEdit(s); }} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900" title="Redaktə et"><Pencil size={16}/></button>
-                                            <button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900" title="Sil"><Trash2 size={16}/></button>
-                                        </td>
+                                        <td className="p-3 flex justify-end gap-2"><button onClick={() => { setActiveTab('students'); startEdit(s); }} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900" title="Redaktə et"><Pencil size={16}/></button><button onClick={() => deleteStudent(s.id)} className="p-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900" title="Sil"><Trash2 size={16}/></button></td>
                                     </tr>
                                 ))}
-                                {filteredMyStudents.length === 0 && (
-                                    <tr>
-                                        <td colSpan={8} className="text-center p-8 text-gray-400">
-                                            Sizə təhkim olunmuş şagird yoxdur.<br/>
-                                            <span className="text-xs">Şagirdləri Jurnal bölməsində qrupa əlavə edərək siyahınıza sala bilərsiniz.</span>
-                                        </td>
-                                    </tr>
-                                )}
+                                {filteredMyStudents.length === 0 && (<tr><td colSpan={8} className="text-center p-8 text-gray-400">Sizə təhkim olunmuş şagird yoxdur.<br/><span className="text-xs">Şagirdləri Jurnal bölməsində qrupa əlavə edərək siyahınıza sala bilərsiniz.</span></td></tr>)}
                             </tbody>
                         </table>
                     </div>
@@ -1047,7 +935,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* ... (GROUPS) ... */}
+        {/* --- GROUPS --- */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-y-auto pb-20">
                 <div className="lg:col-span-1 space-y-6">
@@ -1057,7 +945,6 @@ export default function TeacherCabinet() {
                             <input required placeholder="Qrup Adı" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
                             <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-xl border dark:border-gray-600">
                                 <label className="text-xs font-bold text-gray-500 mb-2 block uppercase">Dərs Vaxtı Əlavə Et</label>
-                                
                                 <div className="flex gap-2 mb-2">
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm flex-1 outline-none" value={tempDay} onChange={(e) => setTempDay(e.target.value)}>{WEEK_DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none w-24" value={tempTime} onChange={(e) => setTempTime(e.target.value)}>{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
@@ -1065,13 +952,9 @@ export default function TeacherCabinet() {
                                     <select className="p-2 border rounded-lg bg-white dark:bg-gray-600 text-sm outline-none w-24" value={tempEndTime} onChange={(e) => setTempEndTime(e.target.value)}>{TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}</select>
                                     <button type="button" onClick={addScheduleSlot} className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"><Plus size={18}/></button>
                                 </div>
-
                                 <div className="space-y-1 mt-2">
                                     {scheduleSlots.map((slot, index) => (
-                                        <div key={index} className="flex justify-between items-center bg-white dark:bg-gray-600 border p-2 rounded-lg text-sm">
-                                            <span className="font-bold text-gray-700 dark:text-gray-200">{slot.day} - {slot.time}</span>
-                                            <button type="button" onClick={() => removeSlot(index)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
-                                        </div>
+                                        <div key={index} className="flex justify-between items-center bg-white dark:bg-gray-600 border p-2 rounded-lg text-sm"><span className="font-bold text-gray-700 dark:text-gray-200">{slot.day} - {slot.time}</span><button type="button" onClick={() => removeSlot(index)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button></div>
                                     ))}
                                 </div>
                             </div>
@@ -1082,10 +965,7 @@ export default function TeacherCabinet() {
                         <h3 className="text-lg font-bold mb-4">Qruplarım</h3>
                         <div className="space-y-2">
                             {groups.map((g) => (
-                                <div key={g.id} onClick={() => openGroup(g)} className={`p-4 rounded-xl border dark:border-gray-600 cursor-pointer flex justify-between items-center ${selectedGroup?.id === g.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                                    <div><h4 className="font-bold">{g.name}</h4><p className="text-xs text-gray-500 mt-1 max-w-[200px] truncate">{g.schedule}</p></div>
-                                    <ChevronRight size={18} className="text-gray-400"/>
-                                </div>
+                                <div key={g.id} onClick={() => openGroup(g)} className={`p-4 rounded-xl border dark:border-gray-600 cursor-pointer flex justify-between items-center ${selectedGroup?.id === g.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900' : 'hover:bg-gray-50 dark:hover:bg-gray-700'}`}><div><h4 className="font-bold">{g.name}</h4><p className="text-xs text-gray-500 mt-1 max-w-[200px] truncate">{g.schedule}</p></div><ChevronRight size={18} className="text-gray-400"/></div>
                             ))}
                         </div>
                     </div>
@@ -1096,93 +976,27 @@ export default function TeacherCabinet() {
                             <div className="flex justify-between items-center mb-6 pb-6 border-b dark:border-gray-600">
                                 <div><h2 className="text-2xl font-bold">{selectedGroup.name}</h2><p className="text-gray-500 text-sm mt-1">{selectedGroup.schedule}</p></div>
                                 <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                                    {/* 🔥 YENİ: Axtarış Qutusu (Jurnalda əlavə etmək üçün) */}
-                                    <div className="relative">
-                                        <Search className="absolute left-2 top-2.5 text-gray-400" size={16} />
-                                        <input 
-                                            placeholder="Axtar..."
-                                            className="pl-8 p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-32 focus:w-48 transition-all"
-                                            value={studentAddSearch}
-                                            onChange={(e) => setStudentAddSearch(e.target.value)}
-                                        />
-                                    </div>
-                                    <select className="p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none max-w-[200px]" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}>
-                                            <option value="">Şagird seç...</option>
-                                            {students
-                                                .filter(s => `${s.first_name} ${s.last_name} ${s.student_code}`.toLowerCase().includes(studentAddSearch.toLowerCase()))
-                                                .map(s => <option key={s.id} value={s.id}>#{s.student_code} - {s.first_name} {s.last_name}</option>)
-                                            }
-                                    </select>
+                                    <div className="relative"><Search className="absolute left-2 top-2.5 text-gray-400" size={16} /><input placeholder="Axtar..." className="pl-8 p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none w-32 focus:w-48 transition-all" value={studentAddSearch} onChange={(e) => setStudentAddSearch(e.target.value)} /></div>
+                                    <select className="p-2 border rounded-lg bg-gray-50 dark:bg-gray-700 text-sm outline-none max-w-[200px]" value={studentToAdd} onChange={(e) => setStudentToAdd(e.target.value)}><option value="">Şagird seç...</option>{students.filter(s => `${s.first_name} ${s.last_name} ${s.student_code}`.toLowerCase().includes(studentAddSearch.toLowerCase())).map(s => <option key={s.id} value={s.id}>#{s.student_code} - {s.first_name} {s.last_name}</option>)}</select>
                                     <button onClick={addStudentToGroup} className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap">Əlavə Et</button>
                                 </div>
                             </div>
                             <div className="flex items-center gap-4 mb-4 flex-wrap">
                                 <h3 className="text-lg font-bold">Jurnal</h3>
-                                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">
-                                    <Calendar size={18} className="text-gray-500"/>
-                                    <input type="date" value={gradingDate} onChange={e => setGradingDate(e.target.value)} className="bg-transparent outline-none text-sm font-medium"/>
-                                </div>
-                                {!isValidDay && (
-                                    <div className="flex items-center gap-2 text-orange-600 text-sm font-bold bg-orange-50 px-4 py-2 rounded-xl border border-orange-200 animate-pulse">
-                                        <AlertTriangle size={18}/> 
-                                        Bu gün ({new Date(gradingDate).toLocaleDateString('az-AZ', {weekday: 'long'})}) dərs yoxdur!
-                                    </div>
-                                )}
-                                {isValidDay && (
-                                    <button onClick={saveGrades} className="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition">
-                                        <Save size={18}/> Yadda Saxla
-                                    </button>
-                                )}
+                                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg"><Calendar size={18} className="text-gray-500"/><input type="date" value={gradingDate} onChange={e => setGradingDate(e.target.value)} className="bg-transparent outline-none text-sm font-medium"/></div>
+                                {!isValidDay && (<div className="flex items-center gap-2 text-orange-600 text-sm font-bold bg-orange-50 px-4 py-2 rounded-xl border border-orange-200 animate-pulse"><AlertTriangle size={18}/> Bu gün ({new Date(gradingDate).toLocaleDateString('az-AZ', {weekday: 'long'})}) dərs yoxdur!</div>)}
+                                {isValidDay && (<button onClick={saveGrades} className="ml-auto bg-blue-600 text-white px-6 py-2 rounded-lg flex items-center gap-2 font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition"><Save size={18}/> Yadda Saxla</button>)}
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm border-collapse">
-                                    <thead>
-                                            <tr className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-b dark:border-gray-600">
-                                                <th className="p-3 border dark:border-gray-600">#</th><th className="p-3 border dark:border-gray-600 w-1/3">Şagird</th><th className="p-3 border dark:border-gray-600 text-center">İştirak</th><th className="p-3 border dark:border-gray-600 text-center">Bal (0-10)</th>
-                                            </tr>
-                                    </thead>
+                                    <thead><tr className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border-b dark:border-gray-600"><th className="p-3 border dark:border-gray-600">#</th><th className="p-3 border dark:border-gray-600 w-1/3">Şagird</th><th className="p-3 border dark:border-gray-600 text-center">İştirak</th><th className="p-3 border dark:border-gray-600 text-center">Bal (0-10)</th></tr></thead>
                                     <tbody>
                                             {groupStudents.map((s, index) => (
                                                 <tr key={s.id} className={`border-b dark:border-gray-600 ${!isValidDay ? 'opacity-50 bg-gray-50 dark:bg-gray-800' : ''}`}>
                                                     <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
-                                                    <td className="p-3 border dark:border-gray-600 font-medium">
-                                                        {s.first_name} {s.last_name}
-                                                    </td>
-                                                    
-                                                    {/* DAVAMİYYƏT (Button) */}
-                                                    <td className="p-3 border dark:border-gray-600 text-center">
-                                                        <button 
-                                                            onClick={() => toggleAttendance(s.id)} 
-                                                            disabled={!isValidDay} // 🔥 Dərs günü deyilsə, basmaq olmasın
-                                                            className={`transition ${!isValidDay ? 'cursor-not-allowed' : 'hover:scale-110'}`}
-                                                        >
-                                                            {attendance[s.id] !== false ? 
-                                                                <CheckCircle className={isValidDay ? "text-green-500" : "text-gray-400"} size={24} /> : 
-                                                                <XCircle className={isValidDay ? "text-red-500" : "text-gray-400"} size={24} />
-                                                            }
-                                                        </button>
-                                                    </td>
-
-                                                    {/* QİYMƏT (Input Əvəzinə Button) */}
-                                                    <td className="p-3 border dark:border-gray-600">
-                                                        <div className="relative">
-                                                            <button 
-                                                                disabled={!isValidDay}
-                                                                onClick={() => openGradingModal(s)}
-                                                                className={`w-full p-2 rounded-md flex items-center justify-center gap-2 font-bold transition
-                                                                    ${!isValidDay 
-                                                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                                                                        : 'bg-blue-50 dark:bg-blue-900 text-gray-900 dark:text-white hover:bg-blue-100 dark:hover:bg-blue-800'
-                                                                    }`}
-                                                            >
-                                                                {grades[s.id] ? (
-                                                                    <span className="text-lg text-gray-900 dark:text-white">{grades[s.id]}</span>
-                                                                ) : (
-                                                                    <Calculator size={16} className="text-gray-500 dark:text-gray-300" />
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                    </td>
+                                                    <td className="p-3 border dark:border-gray-600 font-medium">{s.first_name} {s.last_name}</td>
+                                                    <td className="p-3 border dark:border-gray-600 text-center"><button onClick={() => toggleAttendance(s.id)} disabled={!isValidDay} className={`transition ${!isValidDay ? 'cursor-not-allowed' : 'hover:scale-110'}`}>{attendance[s.id] !== false ? <CheckCircle className={isValidDay ? "text-green-500" : "text-gray-400"} size={24} /> : <XCircle className={isValidDay ? "text-red-500" : "text-gray-400"} size={24} />}</button></td>
+                                                    <td className="p-3 border dark:border-gray-600"><div className="relative"><button disabled={!isValidDay} onClick={() => openGradingModal(s)} className={`w-full p-2 rounded-md flex items-center justify-center gap-2 font-bold transition ${!isValidDay ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-blue-50 dark:bg-blue-900 text-gray-900 dark:text-white hover:bg-blue-100 dark:hover:bg-blue-800'}`}>{grades[s.id] ? (<span className="text-lg text-gray-900 dark:text-white">{grades[s.id]}</span>) : (<Calculator size={16} className="text-gray-500 dark:text-gray-300" />)}</button></div></td>
                                                 </tr>
                                             ))}
                                     </tbody>
@@ -1199,170 +1013,56 @@ export default function TeacherCabinet() {
         {/* --- ANALYTICS --- */}
         {activeTab === 'analytics' && (
              <div className="animate-in fade-in space-y-6 pb-20 overflow-y-auto max-w-7xl mx-auto w-full">
-                {/* Header & Controls */}
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
                     <div className="w-full md:w-1/3">
                         <h2 className="text-2xl font-bold mb-2">Statistika</h2>
-                        <select 
-                            className="p-3 border rounded-xl bg-white dark:bg-gray-800 w-full shadow-sm outline-none cursor-pointer"
-                            onChange={(e) => calculateAnalytics(e.target.value)}
-                            value={analyticsGroupId}
-                        >
+                        <select className="p-3 border rounded-xl bg-white dark:bg-gray-800 w-full shadow-sm outline-none cursor-pointer" onChange={(e) => calculateAnalytics(e.target.value)} value={analyticsGroupId}>
                             <option value="">Analiz üçün qrup seçin...</option>
                             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                         </select>
                     </div>
-                    
                     {analyticsGroupId && (
                         <div className="flex flex-col gap-4 w-full md:w-auto items-end">
-                            <div className="flex gap-2">
-                                <button onClick={() => setAnalysisMode('group')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'group' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Qrup</button>
-                                <button onClick={() => setAnalysisMode('individual')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'individual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Fərdi</button>
-                            </div>
-
-                            {analysisMode === 'individual' && (
-                                <select className="p-2 border rounded-lg bg-white dark:bg-gray-800 text-sm w-48 outline-none" value={selectedStudentForChart} onChange={(e) => setSelectedStudentForChart(e.target.value)}>
-                                    <option value="">Şagird seç...</option>
-                                    {analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
-                                </select>
-                            )}
-
-                            <div className="flex bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-700">
-                                <button onClick={() => setChartInterval('lessons4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'lessons4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Dərs</button>
-                                <button onClick={() => setChartInterval('weeks4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'weeks4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Həftə</button>
-                                <button onClick={() => setChartInterval('months4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'months4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Ay</button>
-                                <button onClick={() => setChartInterval('year')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'year' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>İllik</button>
-                            </div>
+                            <div className="flex gap-2"><button onClick={() => setAnalysisMode('group')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'group' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Qrup</button><button onClick={() => setAnalysisMode('individual')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'individual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Fərdi</button></div>
+                            {analysisMode === 'individual' && (<select className="p-2 border rounded-lg bg-white dark:bg-gray-800 text-sm w-48 outline-none" value={selectedStudentForChart} onChange={(e) => setSelectedStudentForChart(e.target.value)}><option value="">Şagird seç...</option>{analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}</select>)}
+                            <div className="flex bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-700"><button onClick={() => setChartInterval('lessons4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'lessons4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Dərs</button><button onClick={() => setChartInterval('weeks4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'weeks4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Həftə</button><button onClick={() => setChartInterval('months4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'months4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Ay</button><button onClick={() => setChartInterval('year')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'year' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>İllik</button></div>
                         </div>
                     )}
                 </div>
-
                 {analyticsGroupId && (
                     <div className="space-y-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Bal</p>
-                                    <h3 className="text-4xl font-bold text-blue-600">{displayStats.score}</h3>
-                                    {displayStats.isIndividual && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Fərdi</span>}
-                                </div>
-                                <div className="p-4 bg-blue-50 rounded-full text-blue-600"><TrendingUp size={32}/></div>
-                            </div>
-                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Davamiyyət</p>
-                                    <h3 className="text-4xl font-bold text-green-600">{displayStats.attendance}%</h3>
-                                    {displayStats.isIndividual && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Fərdi</span>}
-                                </div>
-                                <div className="p-4 bg-green-50 rounded-full text-green-600"><PieChart size={32}/></div>
-                            </div>
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between"><div><p className="text-gray-500 text-sm font-bold">{displayStats.title} Bal</p><h3 className="text-4xl font-bold text-blue-600">{displayStats.score}</h3>{displayStats.isIndividual && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Fərdi</span>}</div><div className="p-4 bg-blue-50 rounded-full text-blue-600"><TrendingUp size={32}/></div></div>
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between"><div><p className="text-gray-500 text-sm font-bold">{displayStats.title} Davamiyyət</p><h3 className="text-4xl font-bold text-green-600">{displayStats.attendance}%</h3>{displayStats.isIndividual && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Fərdi</span>}</div><div className="p-4 bg-green-50 rounded-full text-green-600"><PieChart size={32}/></div></div>
                         </div>
-
                         {chartData.length > 0 && (
                             <>
-                                {/* BAR CHART */}
                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
-                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <Activity size={20} className="text-purple-600"/> 
-                                        {analysisMode === 'group' ? 'Qrup Trendi' : 'Fərdi İnkişaf'} 
-                                        <span className="text-sm font-normal text-gray-400 ml-2">
-                                            ({chartInterval === 'lessons4' ? 'Günlük' : chartInterval === 'weeks4' ? 'Həftəlik' : 'Aylıq'})
-                                        </span>
-                                    </h3>
-                                    
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><Activity size={20} className="text-purple-600"/> {analysisMode === 'group' ? 'Qrup Trendi' : 'Fərdi İnkişaf'} <span className="text-sm font-normal text-gray-400 ml-2">({chartInterval === 'lessons4' ? 'Günlük' : chartInterval === 'weeks4' ? 'Həftəlik' : 'Aylıq'})</span></h3>
                                     <div className="h-64 flex items-end justify-around gap-4 px-2 border-b dark:border-gray-700 pb-2">
-                                        {chartData.map((d, i) => (
-                                            <div key={i} className="flex flex-col items-center flex-1 group relative h-full justify-end">
-                                                <div className="absolute -top-10 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition z-10 whitespace-nowrap">
-                                                    {d.label}: <strong>{d.avg}</strong> Bal
-                                                </div>
-                                                <div 
-                                                    className={`w-full max-w-[50px] rounded-t-md transition-all relative hover:opacity-80 
-                                                        ${d.avg === 10 ? 'bg-purple-600' : d.avg >= 7 ? 'bg-blue-500' : d.avg >= 5 ? 'bg-orange-500' : 'bg-red-500'}
-                                                    `}
-                                                    style={{ height: `${Math.max(d.avg * 10, 5)}%` }} 
-                                                ></div>
-                                                <span className="text-[10px] text-gray-400 mt-3 font-medium truncate w-full text-center">
-                                                    {chartInterval === 'lessons4' ? d.label : d.label}
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {chartData.map((d, i) => (<div key={i} className="flex flex-col items-center flex-1 group relative h-full justify-end"><div className="absolute -top-10 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition z-10 whitespace-nowrap">{d.label}: <strong>{d.avg}</strong> Bal</div><div className={`w-full max-w-[50px] rounded-t-md transition-all relative hover:opacity-80 ${d.avg === 10 ? 'bg-purple-600' : d.avg >= 7 ? 'bg-blue-500' : d.avg >= 5 ? 'bg-orange-500' : 'bg-red-500'}`} style={{ height: `${Math.max(d.avg * 10, 5)}%` }}></div><span className="text-[10px] text-gray-400 mt-3 font-medium truncate w-full text-center">{chartInterval === 'lessons4' ? d.label : d.label}</span></div>))}
                                     </div>
                                 </div>
-
-                                {/* RECHARTS LINE CHART */}
                                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 mt-6">
-                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                                        <BarChart3 size={20} className="text-blue-500"/> İnkişaf Dinamikası (Line)
-                                    </h3>
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2"><BarChart3 size={20} className="text-blue-500"/> İnkişaf Dinamikası (Line)</h3>
                                     <div className="h-64 w-full">
                                         <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={chartData}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                            <XAxis dataKey="label" fontSize={12} stroke="#9ca3af" />
-                                            <YAxis domain={[0, 10]} hide /> 
-                                            <Tooltip 
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                            formatter={(value: number) => [`${value} Bal`, 'Ortalama']}
-                                            />
-                                            <Line 
-                                            type="monotone" 
-                                            dataKey="avg" 
-                                            stroke="#3b82f6" 
-                                            strokeWidth={3}
-                                            dot={{ fill: '#fff', stroke: '#3b82f6', strokeWidth: 2, r: 4 }}
-                                            activeDot={{ r: 6 }}
-                                            />
-                                        </LineChart>
+                                        <LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" /><XAxis dataKey="label" fontSize={12} stroke="#9ca3af" /><YAxis domain={[0, 10]} hide /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: number) => [`${value} Bal`, 'Ortalama']}/><Line type="monotone" dataKey="avg" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#fff', stroke: '#3b82f6', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }}/></LineChart>
                                         </ResponsiveContainer>
                                     </div>
                                 </div>
                             </>
                         )}
-
-                        {/* REYTİNQ CƏDVƏLİ */}
                         {analysisMode === 'group' && (
                             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
                                 <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold border-b dark:border-gray-600">
-                                        <tr><th className="p-3">#</th><th className="p-3">Şagird</th><th className="p-3">Ortalama</th><th className="p-3">Davamiyyət</th><th className="p-3">Status</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        {analyticsData.map((s, index) => (
-                                            <tr key={s.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                                                <td className="p-3 font-bold text-gray-400">{index + 1}</td>
-                                                <td className="p-3 font-medium">{s.first_name} {s.last_name}</td>
-                                                <td className="p-3 font-bold text-blue-600 text-lg">{s.avgScore}</td>
-                                                <td className="p-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                            <div className={`h-full ${parseFloat(s.attendanceRate) > 80 ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${s.attendanceRate}%` }}></div>
-                                                        </div>
-                                                        <span className="text-xs text-gray-500">{s.attendanceRate}%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-3">
-                                                    {parseFloat(s.avgScore) === 10 ? 
-                                                        <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded text-xs font-extrabold border border-purple-200">🦁 Canavar</span> :
-                                                    parseFloat(s.avgScore) >= 7 ? 
-                                                        <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
-                                                    parseFloat(s.avgScore) >= 5 ? 
-                                                        <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded text-xs font-bold">Orta</span> :
-                                                        <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>
-                                                    }
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                <table className="w-full text-left text-sm"><thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold border-b dark:border-gray-600"><tr><th className="p-3">#</th><th className="p-3">Şagird</th><th className="p-3">Ortalama</th><th className="p-3">Davamiyyət</th><th className="p-3">Status</th></tr></thead><tbody>{analyticsData.map((s, index) => (<tr key={s.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"><td className="p-3 font-bold text-gray-400">{index + 1}</td><td className="p-3 font-medium">{s.first_name} {s.last_name}</td><td className="p-3 font-bold text-blue-600 text-lg">{s.avgScore}</td><td className="p-3"><div className="flex items-center gap-2"><div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden"><div className={`h-full ${parseFloat(s.attendanceRate) > 80 ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${s.attendanceRate}%` }}></div></div><span className="text-xs text-gray-500">{s.attendanceRate}%</span></div></td><td className="p-3">{parseFloat(s.avgScore) === 10 ? <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded text-xs font-extrabold border border-purple-200">🦁 Canavar</span> : parseFloat(s.avgScore) >= 7 ? <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> : parseFloat(s.avgScore) >= 5 ? <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded text-xs font-bold">Orta</span> : <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>}</td></tr>))}</tbody></table>
                             </div>
                         )}
                     </div>
                 )}
              </div>
         )}
-
       </main>
     </div>
   );
