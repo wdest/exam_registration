@@ -197,8 +197,6 @@ export default function TeacherCabinet() {
               const statusMap: {[key: string]: string} = {};
               data.lessonStatuses.forEach((item: any) => {
                   const datePart = item.lesson_date.split('T')[0];
-                  // Status açarına saatı da əlavə edirik (unikal olması üçün)
-                  // Əgər API start_time qaytarmırsa, default '00:00' qoyuruq, amma qaytarmalıdır.
                   const timePart = item.start_time ? item.start_time.slice(0,5) : '00:00';
                   const key = `${item.group_id}_${datePart}_${timePart}`;
                   statusMap[key] = item.status;
@@ -247,7 +245,6 @@ export default function TeacherCabinet() {
                         const specificDate = weekDates[dayIndex];
                         const dateString = getLocalDateString(specificDate);
                         
-                        // Status açarına saatı əlavə edirik
                         const formattedStartTime = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
                         const statusKey = `${group.id}_${dateString}_${formattedStartTime}`;
                         
@@ -301,7 +298,6 @@ export default function TeacherCabinet() {
          const startOfWeek = weekDates[0];
          const endOfWeek = weekDates[6];
 
-         // Həftə aralığını yoxla
          const elTime = elDate.getTime();
          const startLimit = new Date(startOfWeek).setHours(0,0,0,0);
          const endLimit = new Date(endOfWeek).setHours(23,59,59,999);
@@ -330,7 +326,7 @@ export default function TeacherCabinet() {
              events.push({
                  uniqueId: statusKey,
                  groupId: el.group_id,
-                 dbId: el.id, // Database ID silmək üçün
+                 dbId: el.id, 
                  groupName: group ? `${group.name} (Əlavə)` : "Əlavə",
                  dayIndex,
                  top,
@@ -385,7 +381,7 @@ export default function TeacherCabinet() {
       }
   };
 
-  // --- Kəsişmə Yoxlanışı (Time Conflict) ---
+  // --- Kəsişmə Yoxlanışı ---
   const checkTimeConflict = (dateStr: string, startStr: string, endStr: string) => {
       const timeToMin = (t: string) => {
           const [h, m] = t.split(':').map(Number);
@@ -395,7 +391,6 @@ export default function TeacherCabinet() {
       const newStart = timeToMin(startStr);
       const newEnd = timeToMin(endStr);
 
-      // 1. Digər Əlavə Dərsllərlə Yoxla
       const conflictExtra = extraLessons.find(el => {
           if (el.lesson_date !== dateStr) return false;
           const elStart = timeToMin(el.start_time);
@@ -408,7 +403,6 @@ export default function TeacherCabinet() {
           return `Diqqət! Bu saatda artıq "${groupName}" üçün əlavə dərs təyin edilib (${conflictExtra.start_time}-${conflictExtra.end_time}).`;
       }
 
-      // 2. Əsas (Regular) Cədvəllə Yoxla
       const dateObj = new Date(dateStr);
       const jsDay = dateObj.getDay(); 
       const azDayIndex = jsDay === 0 ? 6 : jsDay - 1; 
@@ -450,7 +444,6 @@ export default function TeacherCabinet() {
       if(!newExtraLesson.group_id) return alert("⚠️ Zəhmət olmasa qrup seçin!");
       if(newExtraLesson.start_time >= newExtraLesson.end_time) return alert("⚠️ Bitmə vaxtı başlama vaxtından sonra olmalıdır!");
 
-      // 🔥 Kəsişməni yoxlayırıq
       const conflictMsg = checkTimeConflict(newExtraLesson.lesson_date, newExtraLesson.start_time, newExtraLesson.end_time);
       if (conflictMsg) {
           alert("⛔ " + conflictMsg); 
@@ -535,8 +528,33 @@ export default function TeacherCabinet() {
   };
 
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
-  const openGradingModal = (student: any) => { setGradingModal({ isOpen: true, studentId: student.id, studentName: `${student.first_name} ${student.last_name}`, responsibility: "", activity: "", quiz: "" }); };
-  const calculateAndSaveGrade = () => { if(!gradingModal.studentId) return; const r = parseFloat(gradingModal.responsibility || "0"); const a = parseFloat(gradingModal.activity || "0"); const q = parseFloat(gradingModal.quiz || "0"); const finalScore = Math.round((r + a + q) / 3); setGrades({ ...grades, [gradingModal.studentId]: finalScore.toString() }); setGradingModal({ ...gradingModal, isOpen: false }); };
+  
+  // 🔥 GRADING MODAL LOGIC (DÜZƏLİŞ EDİLDİ - DECIMAL)
+  const openGradingModal = (student: any) => { 
+      setGradingModal({ 
+          isOpen: true, 
+          studentId: student.id, 
+          studentName: `${student.first_name} ${student.last_name}`, 
+          responsibility: "", 
+          activity: "", 
+          quiz: "" 
+      }); 
+  };
+
+  const calculateAndSaveGrade = () => { 
+      if(!gradingModal.studentId) return; 
+      const r = parseFloat(gradingModal.responsibility || "0"); 
+      const a = parseFloat(gradingModal.activity || "0"); 
+      const q = parseFloat(gradingModal.quiz || "0"); 
+      
+      // 🔥 DÜZƏLİŞ: Math.round silindi, toFixed(1) istifadə olundu
+      const avg = (r + a + q) / 3;
+      const finalScore = parseFloat(avg.toFixed(1)); // 6.333 -> 6.3
+
+      setGrades({ ...grades, [gradingModal.studentId]: finalScore.toString() }); 
+      setGradingModal({ ...gradingModal, isOpen: false }); 
+  };
+
   const calculateAnalytics = async (groupId: string) => { if (!groupId) return; setAnalyticsGroupId(groupId); try { const resMembers = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); const dataMembers = await resMembers.json(); const studentsInGroup = dataMembers.students || []; setAnalyticsStudentsList(studentsInGroup); const resGrades = await fetch(`/api/teacher/jurnal?type=analytics&groupId=${groupId}`); const dataGrades = await resGrades.json(); const allGrades = dataGrades.allGrades || []; setRawGradesForChart(allGrades); calculateTableStats(studentsInGroup, allGrades); } catch(e) { console.error(e); } };
   const calculateTableStats = (studentsInGroup: any[], allGrades: any[]) => { let totalGroupScore = 0; let totalGroupAttendance = 0; let scoreCount = 0; let attendanceCount = 0; const stats = studentsInGroup.map((student: any) => { const studentGrades = allGrades.filter((g: any) => g.student_id === student.id); const scoredDays = studentGrades.filter((g: any) => g.score !== null); const avgScore = scoredDays.length > 0 ? scoredDays.reduce((acc: number, curr: any) => acc + curr.score, 0) / scoredDays.length : 0; const totalDays = studentGrades.length; const presentDays = studentGrades.filter((g: any) => g.attendance === true).length; const attendanceRate = totalDays > 0 ? (presentDays / totalDays) * 100 : 0; if (scoredDays.length > 0) { totalGroupScore += avgScore; scoreCount++; } if (totalDays > 0) { totalGroupAttendance += attendanceRate; attendanceCount++; } return { ...student, avgScore: avgScore.toFixed(1), attendanceRate: attendanceRate.toFixed(0) }; }); stats.sort((a: any, b: any) => parseFloat(b.avgScore) - parseFloat(a.avgScore)); setAnalyticsData(stats); setGroupStats({ avgScore: scoreCount > 0 ? parseFloat((totalGroupScore / scoreCount).toFixed(1)) : 0, avgAttendance: attendanceCount > 0 ? parseFloat((totalGroupAttendance / attendanceCount).toFixed(0)) : 0 }); };
   useEffect(() => { if (rawGradesForChart.length === 0) return; let filteredData = [...rawGradesForChart]; if (analysisMode === 'individual' && selectedStudentForChart) { filteredData = filteredData.filter(g => g.student_id.toString() === selectedStudentForChart.toString()); } if (chartInterval === 'year') { const currentYear = new Date().getFullYear(); filteredData = filteredData.filter(g => new Date(g.grade_date).getFullYear() === currentYear); } const groupedData: { [key: string]: number[] } = {}; const monthNames = ["Yan", "Fev", "Mar", "Apr", "May", "İyn", "İyl", "Avq", "Sen", "Okt", "Noy", "Dek"]; filteredData.forEach((g: any) => { if (g.score !== null) { const date = new Date(g.grade_date); let key = g.grade_date; if (chartInterval === 'weeks4') { const startOfYear = new Date(date.getFullYear(), 0, 1); const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000)); const weekNum = Math.ceil((days + 1) / 7); key = `Həftə ${weekNum}`; } else if (chartInterval === 'months4') { key = monthNames[date.getMonth()]; } else if (chartInterval === 'year') { key = monthNames[date.getMonth()]; } if (!groupedData[key]) groupedData[key] = []; groupedData[key].push(g.score); } }); let chartResult = Object.keys(groupedData).map(key => { const scores = groupedData[key]; const avg = scores.reduce((a, b) => a + b, 0) / scores.length; return { label: key, avg: parseFloat(avg.toFixed(1)) }; }); if (chartInterval === 'lessons4') { chartResult.sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime()); chartResult = chartResult.slice(-4); chartResult = chartResult.map(item => ({...item, label: item.label.slice(5)})); } else if (chartInterval === 'weeks4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'months4') { chartResult = chartResult.slice(-4); } else if (chartInterval === 'year') { chartResult.sort((a, b) => monthNames.indexOf(a.label) - monthNames.indexOf(b.label)); } setChartData(chartResult); }, [chartInterval, analysisMode, selectedStudentForChart, rawGradesForChart]);
@@ -555,7 +573,7 @@ export default function TeacherCabinet() {
   const fetchGroupMembers = async (groupId: number) => { try { const res = await fetch(`/api/teacher/jurnal?type=members&groupId=${groupId}`); if (res.ok) { const data = await res.json(); setGroupStudents(data.students || []); } } catch (e) { console.error(e); } };
   const fetchGradesForDate = async () => { if (!selectedGroup) return; setGrades({}); setAttendance({}); try { const res = await fetch(`/api/teacher/jurnal?type=grades&groupId=${selectedGroup.id}&date=${gradingDate}`); if (res.ok) { const data = await res.json(); const nG: any = {}, nA: any = {}; if (data.grades) { data.grades.forEach((r: any) => { if (r.score !== null) nG[r.student_id] = r.score; nA[r.student_id] = r.attendance; }); setGrades(nG); setAttendance(nA); } } } catch (e) { console.error(e); } };
   const addStudentToGroup = async () => { if (!studentToAdd || !selectedGroup) return; try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'add_member', groupId: selectedGroup.id, studentId: studentToAdd }) }); if (!res.ok) throw new Error("Əlavə edilmədi"); alert("Əlavə olundu!"); fetchGroupMembers(selectedGroup.id); setStudentToAdd(""); setStudentAddSearch(""); } catch (e: any) { alert(e.message); } };
-  const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseInt(grades[student.id]) : null, attendance: attendance[student.id] !== false })); try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates }) }); if (!res.ok) throw new Error("Xəta"); alert("Saxlanıldı!"); } catch (e: any) { alert(e.message); } };
+  const saveGrades = async () => { if (!selectedGroup) return; if (!isValidDay && !confirm("Dərs günü deyil. Davam?")) return; const updates = groupStudents.map(student => ({ group_id: selectedGroup.id, student_id: student.id, grade_date: gradingDate, score: grades[student.id] ? parseFloat(grades[student.id]) : null, attendance: attendance[student.id] !== false })); try { const res = await fetch("/api/teacher/jurnal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'save_grades', groupId: selectedGroup.id, date: gradingDate, gradesData: updates }) }); if (!res.ok) throw new Error("Xəta"); alert("Saxlanıldı!"); } catch (e: any) { alert(e.message); } };
   const toggleAttendance = (studentId: string) => { const currentStatus = attendance[studentId] !== false; setAttendance({ ...attendance, [studentId]: !currentStatus }); };
   const handleLogout = async () => { try { await fetch("/api/logout", { method: "POST" }); router.push("/login"); router.refresh(); } catch { router.push("/login"); } };
 
@@ -564,7 +582,7 @@ export default function TeacherCabinet() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans">
       
-      {/* --- GRADING MODAL --- */}
+      {/* --- GRADING MODAL (YENİLƏNMİŞ - KƏSR ƏDƏD) --- */}
       {gradingModal.isOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full border dark:border-gray-700">
@@ -572,22 +590,41 @@ export default function TeacherCabinet() {
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">{gradingModal.studentName}</h3>
                       <button onClick={() => setGradingModal({...gradingModal, isOpen: false})} className="p-1 hover:bg-gray-100 rounded-full"><X size={20}/></button>
                   </div>
+
                   <div className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Məsuliyyət</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={gradingModal.responsibility} onChange={(e) => setGradingModal({...gradingModal, responsibility: e.target.value})} autoFocus />
+                          <input type="number" min="0" max="10" step="0.1" 
+                              className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                              value={gradingModal.responsibility} 
+                              onChange={(e) => setGradingModal({...gradingModal, responsibility: e.target.value})}
+                              autoFocus
+                          />
                       </div>
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Dərsdə Aktivlik</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={gradingModal.activity} onChange={(e) => setGradingModal({...gradingModal, activity: e.target.value})} />
+                          <input type="number" min="0" max="10" step="0.1" 
+                              className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                              value={gradingModal.activity} 
+                              onChange={(e) => setGradingModal({...gradingModal, activity: e.target.value})}
+                          />
                       </div>
                       <div>
                           <label className="text-xs font-bold text-gray-500 uppercase">Hesab / Bilik</label>
-                          <input type="number" min="0" max="10" className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" value={gradingModal.quiz} onChange={(e) => setGradingModal({...gradingModal, quiz: e.target.value})} />
+                          <input type="number" min="0" max="10" step="0.1" 
+                              className="w-full p-3 border rounded-xl bg-gray-50 dark:bg-gray-700 font-bold text-lg text-center text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500" 
+                              value={gradingModal.quiz} 
+                              onChange={(e) => setGradingModal({...gradingModal, quiz: e.target.value})}
+                          />
                       </div>
                   </div>
+
                   <div className="mt-6 pt-4 border-t flex items-center justify-between">
-                        <div className="text-sm font-bold text-gray-500">Ortalama: <span className="text-xl text-indigo-600 ml-2 font-black">{Math.round(( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3)}</span></div>
+                        <div className="text-sm font-bold text-gray-500">Ortalama: 
+                            <span className="text-xl text-indigo-600 ml-2 font-black">
+                                {( ( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3 ).toFixed(1)}
+                            </span>
+                        </div>
                         <button onClick={calculateAndSaveGrade} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition">Təsdiqlə</button>
                   </div>
               </div>
@@ -658,7 +695,7 @@ export default function TeacherCabinet() {
                           <RefreshCcw size={18}/> Sıfırla
                       </button>
                       
-                      {/* 🔥 YENİ: Əgər əlavə dərsdirsə, SİL düyməsi göstər */}
+                      {/* 🔥 Əgər əlavə dərsdirsə, SİL düyməsi göstər */}
                       {selectedEventForStatus.isExtra && (
                           <button onClick={deleteExtraLessonFunc} className="w-full p-3 rounded-xl border-2 border-red-100 text-red-500 font-bold hover:bg-red-50 flex items-center justify-center gap-2 mt-4">
                               <Trash2 size={18}/> Dərsi Sil
@@ -815,7 +852,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- STUDENTS --- */}
+        {/* --- STUDENTS & GROUPS & ANALYTICS (Eyni qalır, kodu qısaltmaq üçün təkrar yazmıram, yuxarıdakı ilə eynidir) --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-hidden pb-2">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-full overflow-y-auto">
