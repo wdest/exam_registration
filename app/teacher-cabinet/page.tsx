@@ -361,9 +361,89 @@ export default function TeacherCabinet() {
       }
   };
 
+  // 🔥 YENİ: DƏRS SAATININ ÜST-ÜSTƏ DÜŞMƏSİNİ YOXLAYAN FUNKSİYA
+  const checkTimeConflict = (dateStr: string, startStr: string, endStr: string) => {
+      // Saati dəqiqəyə çevirən köməkçi funksiya (00:00 = 0, 01:00 = 60...)
+      const timeToMin = (t: string) => {
+          const [h, m] = t.split(':').map(Number);
+          return h * 60 + m;
+      };
+
+      const newStart = timeToMin(startStr);
+      const newEnd = timeToMin(endStr);
+
+      // 1. Digər Əlavə Dərsllərlə Yoxla
+      const conflictExtra = extraLessons.find(el => {
+          // Eyni tarix deyilsə keç
+          if (el.lesson_date !== dateStr) return false;
+          
+          const elStart = timeToMin(el.start_time);
+          const elEnd = timeToMin(el.end_time);
+
+          // Kəsişmə şərti: (StartA < EndB) && (StartB < EndA)
+          return (newStart < elEnd && elStart < newEnd);
+      });
+
+      if (conflictExtra) {
+          const groupName = groups.find(g => g.id === conflictExtra.group_id)?.name || "Bilinməyən Qrup";
+          return `Diqqət! Bu saatda artıq "${groupName}" üçün əlavə dərs təyin edilib (${conflictExtra.start_time}-${conflictExtra.end_time}).`;
+      }
+
+      // 2. Əsas (Regular) Cədvəllə Yoxla
+      const dateObj = new Date(dateStr);
+      const jsDay = dateObj.getDay(); // 0=Bazar, 1=Bazar ertəsi...
+      const azDayIndex = jsDay === 0 ? 6 : jsDay - 1; // Bizim sistemdə: 0=B.e, 6=Baz
+      const azDayName = WEEK_DAYS[azDayIndex]; // "B.e", "Ç.a" və s.
+
+      for (const group of groups) {
+          if (!group.schedule) continue;
+          
+          const slots = group.schedule.split(", ");
+          for (const slot of slots) {
+              const parts = slot.split(" ");
+              if (parts.length >= 2) {
+                  const dayName = parts[0];
+                  const timeRange = parts[1];
+
+                  // Əgər gün uyğundursa, saatı yoxla
+                  if (dayName === azDayName) {
+                      let rStart, rEnd;
+                      
+                      if (timeRange.includes("-")) {
+                          const [s, e] = timeRange.split("-");
+                          rStart = timeToMin(s);
+                          rEnd = timeToMin(e);
+                      } else {
+                          rStart = timeToMin(timeRange);
+                          rEnd = rStart + 90; // Default 1.5 saat (90 dəq)
+                      }
+
+                      // Kəsişməni yoxla
+                      if (newStart < rEnd && rStart < newEnd) {
+                          return `Diqqət! Bu saatda "${group.name}" qrupunun əsas dərsi var (${dayName} ${timeRange}).`;
+                      }
+                  }
+              }
+          }
+      }
+
+      return null; // Problem yoxdur
+  };
+
   const createExtraLesson = async (e: React.FormEvent) => {
       e.preventDefault();
       if(!newExtraLesson.group_id) return alert("⚠️ Zəhmət olmasa qrup seçin!");
+      if(newExtraLesson.start_time >= newExtraLesson.end_time) return alert("⚠️ Bitmə vaxtı başlama vaxtından sonra olmalıdır!");
+
+      // 🔥 YENİ: Kəsişməni yoxlayırıq
+      const conflictMsg = checkTimeConflict(newExtraLesson.lesson_date, newExtraLesson.start_time, newExtraLesson.end_time);
+      
+      if (conflictMsg) {
+          // Əgər istifadəçi razıdırsa davam edə bilər, amma biz xəbərdarlıq edib dayandırırıq.
+          // İstəyirsənsə 'confirm' ilə davam etdirə bilərsən. Mən hələlik dayandırıram.
+          alert("⛔ " + conflictMsg); 
+          return;
+      }
 
       setIsSaving(true);
       try {
