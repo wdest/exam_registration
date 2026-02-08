@@ -117,7 +117,7 @@ export default function TeacherCabinet() {
   const [grades, setGrades] = useState<{[key: string]: string}>({});
   const [attendance, setAttendance] = useState<{[key: string]: boolean}>({});
   const [isValidDay, setIsValidDay] = useState(true); 
-  
+   
   // ANALİZ
   const [analyticsGroupId, setAnalyticsGroupId] = useState<string>("");
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
@@ -505,12 +505,12 @@ export default function TeacherCabinet() {
                   </div>
 
                   <div className="mt-6 pt-4 border-t flex items-center justify-between">
-                       <div className="text-sm font-bold text-gray-500">Ortalama: 
-                           <span className="text-xl text-indigo-600 ml-2 font-black">
-                               {Math.round(( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3)}
-                           </span>
-                       </div>
-                       <button onClick={calculateAndSaveGrade} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition">Təsdiqlə</button>
+                        <div className="text-sm font-bold text-gray-500">Ortalama: 
+                            <span className="text-xl text-indigo-600 ml-2 font-black">
+                                {Math.round(( (Number(gradingModal.responsibility) || 0) + (Number(gradingModal.activity) || 0) + (Number(gradingModal.quiz) || 0) ) / 3)}
+                            </span>
+                        </div>
+                        <button onClick={calculateAndSaveGrade} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition">Təsdiqlə</button>
                   </div>
               </div>
           </div>
@@ -967,7 +967,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* ... (GROUPS & ANALYTICS eyni qalır) ... */}
+        {/* ... (GROUPS) ... */}
         {activeTab === 'groups' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-y-auto pb-20">
                 <div className="lg:col-span-1 space-y-6">
@@ -1062,49 +1062,49 @@ export default function TeacherCabinet() {
                                             </tr>
                                     </thead>
                                     <tbody>
-                                        {groupStudents.map((s, index) => (
-                                            <tr key={s.id} className={`border-b dark:border-gray-600 ${!isValidDay ? 'opacity-50 bg-gray-50 dark:bg-gray-800' : ''}`}>
-                                                <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
-                                                <td className="p-3 border dark:border-gray-600 font-medium">
-                                                    {s.first_name} {s.last_name}
-                                                </td>
-                                                
-                                                {/* DAVAMİYYƏT (Button) */}
-                                                <td className="p-3 border dark:border-gray-600 text-center">
-                                                    <button 
-                                                        onClick={() => toggleAttendance(s.id)} 
-                                                        disabled={!isValidDay} // 🔥 Dərs günü deyilsə, basmaq olmasın
-                                                        className={`transition ${!isValidDay ? 'cursor-not-allowed' : 'hover:scale-110'}`}
-                                                    >
-                                                        {attendance[s.id] !== false ? 
-                                                            <CheckCircle className={isValidDay ? "text-green-500" : "text-gray-400"} size={24} /> : 
-                                                            <XCircle className={isValidDay ? "text-red-500" : "text-gray-400"} size={24} />
-                                                        }
-                                                    </button>
-                                                </td>
-
-                                                {/* QİYMƏT (Input Əvəzinə Button) */}
-                                                <td className="p-3 border dark:border-gray-600">
-                                                    <div className="relative">
+                                            {groupStudents.map((s, index) => (
+                                                <tr key={s.id} className={`border-b dark:border-gray-600 ${!isValidDay ? 'opacity-50 bg-gray-50 dark:bg-gray-800' : ''}`}>
+                                                    <td className="p-3 border dark:border-gray-600 text-gray-500">{index + 1}</td>
+                                                    <td className="p-3 border dark:border-gray-600 font-medium">
+                                                        {s.first_name} {s.last_name}
+                                                    </td>
+                                                    
+                                                    {/* DAVAMİYYƏT (Button) */}
+                                                    <td className="p-3 border dark:border-gray-600 text-center">
                                                         <button 
-                                                            disabled={!isValidDay}
-                                                            onClick={() => openGradingModal(s)}
-                                                            className={`w-full p-2 rounded-md flex items-center justify-center gap-2 font-bold transition
-                                                                ${!isValidDay 
-                                                                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                                                                    : 'bg-blue-50 dark:bg-blue-900 text-gray-900 dark:text-white hover:bg-blue-100 dark:hover:bg-blue-800'
-                                                                }`}
+                                                            onClick={() => toggleAttendance(s.id)} 
+                                                            disabled={!isValidDay} // 🔥 Dərs günü deyilsə, basmaq olmasın
+                                                            className={`transition ${!isValidDay ? 'cursor-not-allowed' : 'hover:scale-110'}`}
                                                         >
-                                                            {grades[s.id] ? (
-                                                                <span className="text-lg text-gray-900 dark:text-white">{grades[s.id]}</span>
-                                                            ) : (
-                                                                <Calculator size={16} className="text-gray-500 dark:text-gray-300" />
-                                                            )}
+                                                            {attendance[s.id] !== false ? 
+                                                                <CheckCircle className={isValidDay ? "text-green-500" : "text-gray-400"} size={24} /> : 
+                                                                <XCircle className={isValidDay ? "text-red-500" : "text-gray-400"} size={24} />
+                                                            }
                                                         </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                                    </td>
+
+                                                    {/* QİYMƏT (Input Əvəzinə Button) */}
+                                                    <td className="p-3 border dark:border-gray-600">
+                                                        <div className="relative">
+                                                            <button 
+                                                                disabled={!isValidDay}
+                                                                onClick={() => openGradingModal(s)}
+                                                                className={`w-full p-2 rounded-md flex items-center justify-center gap-2 font-bold transition
+                                                                    ${!isValidDay 
+                                                                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                                                                        : 'bg-blue-50 dark:bg-blue-900 text-gray-900 dark:text-white hover:bg-blue-100 dark:hover:bg-blue-800'
+                                                                    }`}
+                                                            >
+                                                                {grades[s.id] ? (
+                                                                    <span className="text-lg text-gray-900 dark:text-white">{grades[s.id]}</span>
+                                                                ) : (
+                                                                    <Calculator size={16} className="text-gray-500 dark:text-gray-300" />
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -1116,10 +1116,170 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* ... (ANALYTICS TAB eyni qalır - kodun qalan hissəsi dəyişməyib) ... */}
+        {/* --- ANALYTICS --- */}
         {activeTab === 'analytics' && (
-             <div className="animate-in fade-in space-y-6 pb-20 overflow-y-auto">
-                {/* ... (Bu hissə olduğu kimi qalır) ... */}
+             <div className="animate-in fade-in space-y-6 pb-20 overflow-y-auto max-w-7xl mx-auto w-full">
+                {/* Header & Controls */}
+                <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                    <div className="w-full md:w-1/3">
+                        <h2 className="text-2xl font-bold mb-2">Statistika</h2>
+                        <select 
+                            className="p-3 border rounded-xl bg-white dark:bg-gray-800 w-full shadow-sm outline-none cursor-pointer"
+                            onChange={(e) => calculateAnalytics(e.target.value)}
+                            value={analyticsGroupId}
+                        >
+                            <option value="">Analiz üçün qrup seçin...</option>
+                            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
+                    </div>
+                    
+                    {analyticsGroupId && (
+                        <div className="flex flex-col gap-4 w-full md:w-auto items-end">
+                            <div className="flex gap-2">
+                                <button onClick={() => setAnalysisMode('group')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'group' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Qrup</button>
+                                <button onClick={() => setAnalysisMode('individual')} className={`px-4 py-2 rounded-md text-sm font-bold border transition ${analysisMode === 'individual' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-500'}`}>Fərdi</button>
+                            </div>
+
+                            {analysisMode === 'individual' && (
+                                <select className="p-2 border rounded-lg bg-white dark:bg-gray-800 text-sm w-48 outline-none" value={selectedStudentForChart} onChange={(e) => setSelectedStudentForChart(e.target.value)}>
+                                    <option value="">Şagird seç...</option>
+                                    {analyticsStudentsList.map(s => <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>)}
+                                </select>
+                            )}
+
+                            <div className="flex bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-700">
+                                <button onClick={() => setChartInterval('lessons4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'lessons4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Dərs</button>
+                                <button onClick={() => setChartInterval('weeks4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'weeks4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Həftə</button>
+                                <button onClick={() => setChartInterval('months4')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'months4' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>Son 4 Ay</button>
+                                <button onClick={() => setChartInterval('year')} className={`px-3 py-2 rounded-md text-xs font-bold transition ${chartInterval === 'year' ? 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white' : 'text-gray-400'}`}>İllik</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {analyticsGroupId && (
+                    <div className="space-y-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
+                                <div>
+                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Bal</p>
+                                    <h3 className="text-4xl font-bold text-blue-600">{displayStats.score}</h3>
+                                    {displayStats.isIndividual && <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Fərdi</span>}
+                                </div>
+                                <div className="p-4 bg-blue-50 rounded-full text-blue-600"><TrendingUp size={32}/></div>
+                            </div>
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 flex items-center justify-between">
+                                <div>
+                                    <p className="text-gray-500 text-sm font-bold">{displayStats.title} Davamiyyət</p>
+                                    <h3 className="text-4xl font-bold text-green-600">{displayStats.attendance}%</h3>
+                                    {displayStats.isIndividual && <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">Fərdi</span>}
+                                </div>
+                                <div className="p-4 bg-green-50 rounded-full text-green-600"><PieChart size={32}/></div>
+                            </div>
+                        </div>
+
+                        {chartData.length > 0 && (
+                            <>
+                                {/* BAR CHART */}
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700">
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                                        <Activity size={20} className="text-purple-600"/> 
+                                        {analysisMode === 'group' ? 'Qrup Trendi' : 'Fərdi İnkişaf'} 
+                                        <span className="text-sm font-normal text-gray-400 ml-2">
+                                            ({chartInterval === 'lessons4' ? 'Günlük' : chartInterval === 'weeks4' ? 'Həftəlik' : 'Aylıq'})
+                                        </span>
+                                    </h3>
+                                    
+                                    <div className="h-64 flex items-end justify-around gap-4 px-2 border-b dark:border-gray-700 pb-2">
+                                        {chartData.map((d, i) => (
+                                            <div key={i} className="flex flex-col items-center flex-1 group relative h-full justify-end">
+                                                <div className="absolute -top-10 bg-gray-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition z-10 whitespace-nowrap">
+                                                    {d.label}: <strong>{d.avg}</strong> Bal
+                                                </div>
+                                                <div 
+                                                    className={`w-full max-w-[50px] rounded-t-md transition-all relative hover:opacity-80 
+                                                        ${d.avg === 10 ? 'bg-purple-600' : d.avg >= 7 ? 'bg-blue-500' : d.avg >= 5 ? 'bg-orange-500' : 'bg-red-500'}
+                                                    `}
+                                                    style={{ height: `${Math.max(d.avg * 10, 5)}%` }} 
+                                                ></div>
+                                                <span className="text-[10px] text-gray-400 mt-3 font-medium truncate w-full text-center">
+                                                    {chartInterval === 'lessons4' ? d.label : d.label}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* RECHARTS LINE CHART */}
+                                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 mt-6">
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                                        <BarChart3 size={20} className="text-blue-500"/> İnkişaf Dinamikası (Line)
+                                    </h3>
+                                    <div className="h-64 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={chartData}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                            <XAxis dataKey="label" fontSize={12} stroke="#9ca3af" />
+                                            <YAxis domain={[0, 10]} hide /> 
+                                            <Tooltip 
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                            formatter={(value: number) => [`${value} Bal`, 'Ortalama']}
+                                            />
+                                            <Line 
+                                            type="monotone" 
+                                            dataKey="avg" 
+                                            stroke="#3b82f6" 
+                                            strokeWidth={3}
+                                            dot={{ fill: '#fff', stroke: '#3b82f6', strokeWidth: 2, r: 4 }}
+                                            activeDot={{ r: 6 }}
+                                            />
+                                        </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+
+                        {/* REYTİNQ CƏDVƏLİ */}
+                        {analysisMode === 'group' && (
+                            <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 overflow-hidden">
+                                <h3 className="text-lg font-bold mb-4">Şagird Reytinqi</h3>
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-bold border-b dark:border-gray-600">
+                                        <tr><th className="p-3">#</th><th className="p-3">Şagird</th><th className="p-3">Ortalama</th><th className="p-3">Davamiyyət</th><th className="p-3">Status</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {analyticsData.map((s, index) => (
+                                            <tr key={s.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                                <td className="p-3 font-bold text-gray-400">{index + 1}</td>
+                                                <td className="p-3 font-medium">{s.first_name} {s.last_name}</td>
+                                                <td className="p-3 font-bold text-blue-600 text-lg">{s.avgScore}</td>
+                                                <td className="p-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                            <div className={`h-full ${parseFloat(s.attendanceRate) > 80 ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${s.attendanceRate}%` }}></div>
+                                                        </div>
+                                                        <span className="text-xs text-gray-500">{s.attendanceRate}%</span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-3">
+                                                    {parseFloat(s.avgScore) === 10 ? 
+                                                        <span className="text-purple-600 bg-purple-50 px-2 py-1 rounded text-xs font-extrabold border border-purple-200">🦁 Canavar</span> :
+                                                    parseFloat(s.avgScore) >= 7 ? 
+                                                        <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-xs font-bold">Yaxşı</span> :
+                                                    parseFloat(s.avgScore) >= 5 ? 
+                                                        <span className="text-orange-600 bg-orange-50 px-2 py-1 rounded text-xs font-bold">Orta</span> :
+                                                        <span className="text-red-600 bg-red-50 px-2 py-1 rounded text-xs font-bold">Zəif</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
              </div>
         )}
 
