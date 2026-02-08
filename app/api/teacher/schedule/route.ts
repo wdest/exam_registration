@@ -16,8 +16,8 @@ async function getUser() {
 
 // Helper: Saat aralığının kəsişdiyini yoxlayır
 function isTimeConflict(start1: string, end1: string, start2: string, end2: string) {
+    // String müqayisəsi (HH:MM) işləyir: "14:00" < "15:00" = true
     return (start1 < end2 && start2 < end1); 
-    // Məsələn: 14:00-15:30 ilə 15:00-16:30 kəsişir, çünki 14:00 < 16:30 VƏ 15:00 < 15:30
 }
 
 const WEEK_DAYS = ["Baz", "B.e", "Ç.a", "Çərş", "C.a", "Cüm", "Şən"];
@@ -55,13 +55,29 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { type, ...data } = body;
 
+        // --- 🔥 YENİ: ƏLAVƏ DƏRSİ SİLMƏK ---
+        if (type === 'delete_extra') {
+            const { id } = data;
+            
+            // Sadəcə bu müəllimin qrupu olduğunu yoxlamaq yaxşı olardı, amma sadəlik üçün birbaşa silirik
+            // (Çünki ID unikal UUID-dir)
+            const { error } = await supabaseAdmin
+                .from('extra_lessons')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            return NextResponse.json({ success: true });
+        }
+
+        // Qrup ID-ni tapırıq
         let targetGroupId = data.groupId || data.group_id;
         if (!targetGroupId) return NextResponse.json({ error: "Qrup ID çatışmır" }, { status: 400 });
 
-        // 1. Qrup Yoxlaması
+        // 1. Qrup Yoxlaması (Müəllimə aiddirmi?)
         const { data: groupData } = await supabaseAdmin
             .from('groups')
-            .select('id, schedule') // Schedule-i də çəkirik
+            .select('id, schedule')
             .eq('id', targetGroupId)
             .eq('teacher_id', user.id)
             .single();
@@ -70,17 +86,28 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Bu qrup üzərində əməliyyat icazəniz yoxdur!" }, { status: 403 });
         }
 
-        // --- STATUS YENİLƏMƏ ---
+        // --- 🔥 YENİLƏNMİŞ: STATUS YENİLƏMƏ (SAAT İLƏ) ---
         if (type === 'status') {
-            const { groupId, date, status } = data;
+            const { groupId, date, status, startTime } = data; // Frontend-dən gələn startTime
+            
+            // start_time yoxdursa '00:00' qəbul edirik (köhnə datalar üçün)
+            const timeVal = startTime || '00:00'; 
+
             if (status === null) {
-                await supabaseAdmin.from('lesson_status').delete().match({ group_id: groupId, lesson_date: date });
+                // Siləndə həm tarixə, həm saata görə silirik
+                await supabaseAdmin
+                    .from('lesson_status')
+                    .delete()
+                    .match({ group_id: groupId, lesson_date: date, start_time: timeVal });
             } else {
+                // Upsert edəndə start_time-ı da yazırıq
                 const { error } = await supabaseAdmin.from('lesson_status').upsert({ 
                     group_id: groupId, 
                     lesson_date: date, 
+                    start_time: timeVal, // <--- VACİB HİSSƏ
                     status: status 
-                }, { onConflict: 'group_id, lesson_date' });
+                }, { onConflict: 'group_id, lesson_date, start_time' }); // <--- Database constraint buna uyğun olmalıdır
+                
                 if (error) throw error;
             }
             return NextResponse.json({ success: true });
@@ -93,18 +120,19 @@ export async function POST(request: Request) {
             // A. Ləğv olunmuş dərsləri gətir
             const { data: cancelledLessons } = await supabaseAdmin
                 .from('lesson_status')
-                .select('lesson_date')
+                .select('lesson_date, start_time')
                 .eq('group_id', group_id)
                 .eq('status', 'cancelled');
             
-            const cancelledDates = new Set(cancelledLessons?.map(c => c.lesson_date) || []);
+            // Ləğv olunanları bir Set-ə yığırıq: "YYYY-MM-DD_HH:MM" formatında
+            const cancelledSet = new Set(cancelledLessons?.map(c => `${c.lesson_date}_${c.start_time?.slice(0,5)}`) || []);
 
             // B. Digər Extra Dərslərlə kəsişməni yoxla
             const { data: existingExtras } = await supabaseAdmin
                 .from('extra_lessons')
                 .select('*')
                 .eq('group_id', group_id)
-                .eq('lesson_date', lesson_date); // Eyni gündə olanlar
+                .eq('lesson_date', lesson_date); 
 
             const conflictExtra = existingExtras?.find(ex => isTimeConflict(start_time, end_time, ex.start_time, ex.end_time));
             
@@ -113,34 +141,34 @@ export async function POST(request: Request) {
             }
 
             // C. Regular Schedule ilə kəsişməni yoxla
-            // Əgər həmin gün adi dərs varsa və LƏĞV EDİLMƏYİBSƏ, xəta ver.
             const d = new Date(lesson_date);
             const dayName = WEEK_DAYS[d.getDay()]; // Məs: "B.e"
             
             if (groupData.schedule && groupData.schedule.includes(dayName)) {
-                // Sadə yoxlama: Əgər schedule stringində o gün varsa və cancelled deyilsə
-                // (Daha dərin saat yoxlaması üçün schedule stringini parse etmək lazımdır, 
-                // amma sadəlik üçün: əgər o gün dərs varsa və ləğv edilməyibsə, conflict sayılır)
-                
-                if (!cancelledDates.has(lesson_date)) {
-                    // Burada sadəcə günə baxırıq. Əgər saat dəqiqliyi lazımdırsa, schedule-i parse etməliyik.
-                    // Sənin formatın: "B.e 15:00, Çərş 15:00"
-                    
-                    const slots = groupData.schedule.split(', ');
-                    for (const slot of slots) {
-                        const [sDay, sTimeRange] = slot.trim().split(' ');
+                const slots = groupData.schedule.split(', ');
+                for (const slot of slots) {
+                    const parts = slot.trim().split(' ');
+                    if (parts.length >= 2) {
+                        const [sDay, sTimeRange] = parts;
+                        
                         if (sDay === dayName) {
-                             // Regular dərs vaxtını tapırıq (Məs: 15:00 -> 16:30)
+                             // Regular dərs vaxtını tapırıq
                              let regStart = sTimeRange;
                              let regEnd = "";
                              
                              if (sTimeRange.includes("-")) {
                                  [regStart, regEnd] = sTimeRange.split("-");
                              } else {
-                                 // Əgər tək saatdırsa (15:00), default 1.5 saat gəlirik
                                  const [h, m] = regStart.split(":").map(Number);
+                                 // Sadə hesablama: +90 dəqiqə
                                  const dateObj = new Date(); dateObj.setHours(h, m + 90);
                                  regEnd = `${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
+                             }
+
+                             // Bu regular dərs ləğv olunubmu?
+                             const cancelKey = `${lesson_date}_${regStart}`;
+                             if (cancelledSet.has(cancelKey)) {
+                                 continue; // Ləğv olunubsa, üstünə yaza bilərik, problem yoxdur
                              }
 
                              if (isTimeConflict(start_time, end_time, regStart, regEnd)) {
