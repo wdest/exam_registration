@@ -505,7 +505,23 @@ export default function TeacherCabinet() {
   const myStudents = students.filter(s => s.teacher_id === teacher?.id);
   const toggleSelectMyStudent = (id: number) => { if (selectedIds.includes(id)) setSelectedIds(selectedIds.filter(sid => sid !== id)); else setSelectedIds([...selectedIds, id]); };
   const toggleSelectAllMyStudents = () => { if (selectedIds.length === myStudents.length) setSelectedIds([]); else setSelectedIds(myStudents.map(s => s.id)); };
-  const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
+  
+  // 🔥 TOPLU SİLMƏ - ŞİFRƏ İLƏ TƏSDİQ ƏLAVƏ EDİLDİ
+  const bulkDelete = async () => { 
+      const code = prompt(`Seçilmiş ${selectedIds.length} şagirdi silmək üçün təsdiq kodunu daxil edin:`);
+      if (code !== "admin_1234") {
+          alert("❌ Yanlış kod! Silinmə ləğv edildi.");
+          return;
+      }
+      try { 
+          const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); 
+          if (!res.ok) throw new Error("Silinmə xətası"); 
+          alert("✅ Uğurla silindi!"); 
+          setSelectedIds([]); 
+          if(teacher) fetchData(teacher.id); 
+      } catch (error: any) { alert(error.message); } 
+  };
+  
   const generateAccessCode = () => { const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let result = ""; for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); } setNewStudent({...newStudent, access_code: result}); };
   const generateStudentCode = () => { const code = Math.floor(Math.random() * 90000) + 10000; setNewStudent({...newStudent, student_code: code.toString()}); };
 
@@ -581,7 +597,19 @@ export default function TeacherCabinet() {
       } catch (error: any) { alert("Xəta: " + error.message); } 
   };
   
-  const deleteStudent = async (id: number) => { if (!confirm("Silinsin?")) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); if (!res.ok) throw new Error("Silinmə xətası"); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
+  // 🔥 TƏK SİLMƏ - ŞİFRƏ İLƏ TƏSDİQ ƏLAVƏ EDİLDİ
+  const deleteStudent = async (id: number) => { 
+      const code = prompt("Şagirdi silmək üçün təsdiq kodunu daxil edin:");
+      if (code !== "admin_1234") {
+          alert("❌ Yanlış kod! Silinmə ləğv edildi.");
+          return;
+      }
+      try { 
+          const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); 
+          if (!res.ok) throw new Error("Silinmə xətası"); 
+          if(teacher) fetchData(teacher.id); 
+      } catch (error: any) { alert(error.message); } 
+  };
   
   const resetForm = () => { setNewStudent({ student_code: "", first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: getLocalDateString(new Date()), access_code: "" }); setPhonePrefix("050"); setEditingId(null); };
   
