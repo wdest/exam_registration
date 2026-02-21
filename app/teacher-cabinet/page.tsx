@@ -105,7 +105,7 @@ export default function TeacherCabinet() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [phonePrefix, setPhonePrefix] = useState("050");
   const [newStudent, setNewStudent] = useState({
-    first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: getLocalDateString(new Date()), access_code: ""
+    student_code: "", first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: getLocalDateString(new Date()), access_code: ""
   });
   const [newGroupName, setNewGroupName] = useState("");
   const [tempDay, setTempDay] = useState("B.e"); 
@@ -507,6 +507,7 @@ export default function TeacherCabinet() {
   const toggleSelectAllMyStudents = () => { if (selectedIds.length === myStudents.length) setSelectedIds([]); else setSelectedIds(myStudents.map(s => s.id)); };
   const bulkDelete = async () => { if (!confirm(`Seçilmiş ${selectedIds.length} şagirdi silmək istədiyinizə əminsiniz?`)) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'bulk_delete', ids: selectedIds }) }); if (!res.ok) throw new Error("Silinmə xətası"); alert("Silindi!"); setSelectedIds([]); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
   const generateAccessCode = () => { const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let result = ""; for (let i = 0; i < 6; i++) { result += chars.charAt(Math.floor(Math.random() * chars.length)); } setNewStudent({...newStudent, access_code: result}); };
+  const generateStudentCode = () => { const code = Math.floor(Math.random() * 90000) + 10000; setNewStudent({...newStudent, student_code: code.toString()}); };
 
   // --- JURNAL VALIDATION ---
   const checkScheduleValidity = () => { 
@@ -529,7 +530,7 @@ export default function TeacherCabinet() {
 
   useEffect(() => { if (selectedGroup && gradingDate) { checkScheduleValidity(); fetchGradesForDate(); } }, [gradingDate, selectedGroup]);
   
-  // 🔥 GRADING MODAL LOGIC (DÜZƏLİŞ EDİLDİ - DECIMAL)
+  // 🔥 GRADING MODAL LOGIC 
   const openGradingModal = (student: any) => { 
       setGradingModal({ 
           isOpen: true, 
@@ -547,9 +548,8 @@ export default function TeacherCabinet() {
       const a = parseFloat(gradingModal.activity || "0"); 
       const q = parseFloat(gradingModal.quiz || "0"); 
       
-      // 🔥 DÜZƏLİŞ: Math.round silindi, toFixed(1) istifadə olundu
       const avg = (r + a + q) / 3;
-      const finalScore = parseFloat(avg.toFixed(1)); // 6.333 -> 6.3
+      const finalScore = parseFloat(avg.toFixed(1));
 
       setGrades({ ...grades, [gradingModal.studentId]: finalScore.toString() }); 
       setGradingModal({ ...gradingModal, isOpen: false }); 
@@ -562,10 +562,41 @@ export default function TeacherCabinet() {
   const filteredStudents = students.filter(s => { const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase(); const code = s.student_code ? s.student_code.toString() : ''; return fullName.includes(studentSearch.toLowerCase()) || code.includes(studentSearch); });
   const filteredMyStudents = myStudents.filter(s => { const fullName = `${s.first_name} ${s.last_name} ${s.father_name || ''}`.toLowerCase(); const code = s.student_code ? s.student_code.toString() : ''; return fullName.includes(myStudentSearch.toLowerCase()) || code.includes(myStudentSearch); });
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { if (!e.target.files || e.target.files.length === 0) return; setUploading(true); const file = e.target.files[0]; const reader = new FileReader(); reader.onload = async (evt) => { try { const data = evt.target?.result; const wb = XLSX.read(data, { type: "array" }); const wsname = wb.SheetNames[0]; const ws = wb.Sheets[wsname]; const jsonData = XLSX.utils.sheet_to_json(ws); const res = await fetch("/api/teacher/students/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ students: jsonData }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error || "Yükləmə xətası"); alert(`✅ Uğurla yükləndi! ${result.count} şagird əlavə olundu.`); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("❌ Xəta: " + error.message); } finally { setUploading(false); e.target.value = ""; } }; reader.readAsArrayBuffer(file); };
-  const handleAddOrUpdateStudent = async (e: React.FormEvent) => { e.preventDefault(); const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`; const studentPayload = { ...newStudent, phone: formattedPhone, student_code: editingId ? undefined : Math.floor(Math.random() * 10000) + 1 }; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) }); const result = await res.json(); if (!res.ok) throw new Error(result.error); alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); resetForm(); if(teacher) fetchData(teacher.id); } catch (error: any) { alert("Xəta: " + error.message); } };
+  
+  const handleAddOrUpdateStudent = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      const formattedPhone = `+994${phonePrefix.slice(1)}${newStudent.phone}`; 
+      const studentPayload = { 
+          ...newStudent, 
+          phone: formattedPhone, 
+          student_code: newStudent.student_code ? Number(newStudent.student_code) : null 
+      }; 
+      try { 
+          const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: editingId ? 'update' : 'create', id: editingId, studentData: studentPayload }) }); 
+          const result = await res.json(); 
+          if (!res.ok) throw new Error(result.error); 
+          alert(editingId ? "Yeniləndi!" : "Əlavə edildi!"); 
+          resetForm(); 
+          if(teacher) fetchData(teacher.id); 
+      } catch (error: any) { alert("Xəta: " + error.message); } 
+  };
+  
   const deleteStudent = async (id: number) => { if (!confirm("Silinsin?")) return; try { const res = await fetch("/api/teacher/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: 'delete', id: id }) }); if (!res.ok) throw new Error("Silinmə xətası"); if(teacher) fetchData(teacher.id); } catch (error: any) { alert(error.message); } };
-  const resetForm = () => { setNewStudent({ first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: getLocalDateString(new Date()), access_code: "" }); setPhonePrefix("050"); setEditingId(null); };
-  const startEdit = (student: any) => { const rawPhone = student.phone || ""; let pPrefix = "050"; let pNumber = ""; if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); } setNewStudent({ first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date, access_code: student.access_code || "" }); setPhonePrefix(pPrefix); setEditingId(student.id); };
+  
+  const resetForm = () => { setNewStudent({ student_code: "", first_name: "", last_name: "", father_name: "", phone: "", school: "", grade: "", sector: "Az", start_date: getLocalDateString(new Date()), access_code: "" }); setPhonePrefix("050"); setEditingId(null); };
+  
+  const startEdit = (student: any) => { 
+      const rawPhone = student.phone || ""; 
+      let pPrefix = "050"; 
+      let pNumber = ""; 
+      if (rawPhone.startsWith("+994")) { pPrefix = "0" + rawPhone.substring(4, 6); pNumber = rawPhone.substring(6); } 
+      setNewStudent({ 
+          student_code: student.student_code ? student.student_code.toString() : "", 
+          first_name: student.first_name, last_name: student.last_name, father_name: student.father_name || "", phone: pNumber, school: student.school || "", grade: student.grade || "", sector: student.sector || "Az", start_date: student.start_date, access_code: student.access_code || "" 
+      }); 
+      setPhonePrefix(pPrefix); setEditingId(student.id); 
+  };
+  
   const addScheduleSlot = () => { if (!tempTime || !tempEndTime) return; if (tempTime >= tempEndTime) { alert("Bitmə vaxtı başlama vaxtından sonra olmalıdır!"); return; } setScheduleSlots([...scheduleSlots, { day: tempDay, time: `${tempTime}-${tempEndTime}` }]); };
   const removeSlot = (index: number) => { const newSlots = [...scheduleSlots]; newSlots.splice(index, 1); setScheduleSlots(newSlots); };
   const handleCreateGroup = async (e: React.FormEvent) => { e.preventDefault(); if (scheduleSlots.length === 0) return; const finalSchedule = scheduleSlots.map(s => `${s.day} ${s.time}`).join(", "); try { const res = await fetch("/api/teacher/groups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newGroupName, schedule: finalSchedule }) }); if (!res.ok) { const err = await res.json(); throw new Error(err.error); } alert("Yarandı!"); setNewGroupName(""); setScheduleSlots([]); if(teacher) fetchData(teacher.id); } catch (e: any) { alert(e.message); } };
@@ -582,7 +613,7 @@ export default function TeacherCabinet() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans">
       
-      {/* --- GRADING MODAL (YENİLƏNMİŞ - KƏSR ƏDƏD) --- */}
+      {/* --- GRADING MODAL --- */}
       {gradingModal.isOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full border dark:border-gray-700">
@@ -673,7 +704,7 @@ export default function TeacherCabinet() {
           </div>
       )}
 
-      {/* --- STATUS MODAL (Düzəliş edildi: Əlavə Dərs Silmə Düyməsi) --- */}
+      {/* --- STATUS MODAL --- */}
       {selectedEventForStatus && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-2xl max-w-sm w-full border dark:border-gray-700">
@@ -695,7 +726,6 @@ export default function TeacherCabinet() {
                           <RefreshCcw size={18}/> Sıfırla
                       </button>
                       
-                      {/* 🔥 Əgər əlavə dərsdirsə, SİL düyməsi göstər */}
                       {selectedEventForStatus.isExtra && (
                           <button onClick={deleteExtraLessonFunc} className="w-full p-3 rounded-xl border-2 border-red-100 text-red-500 font-bold hover:bg-red-50 flex items-center justify-center gap-2 mt-4">
                               <Trash2 size={18}/> Dərsi Sil
@@ -852,7 +882,7 @@ export default function TeacherCabinet() {
             </div>
         )}
 
-        {/* --- STUDENTS & GROUPS & ANALYTICS (Eyni qalır, kodu qısaltmaq üçün təkrar yazmıram, yuxarıdakı ilə eynidir) --- */}
+        {/* --- STUDENTS --- */}
         {activeTab === 'students' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in fade-in max-w-7xl mx-auto h-full overflow-hidden pb-2">
                 <div className="lg:col-span-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border dark:border-gray-700 h-full overflow-y-auto">
@@ -871,6 +901,21 @@ export default function TeacherCabinet() {
                         {editingId && <button onClick={resetForm} className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><RefreshCcw size={12}/> Ləğv et</button>}
                     </div>
                     <form onSubmit={handleAddOrUpdateStudent} className="space-y-4">
+                        <div className="relative">
+                            <input 
+                                placeholder="Şagird Kodu (ID)" 
+                                className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none font-mono tracking-widest text-center" 
+                                value={newStudent.student_code} 
+                                onChange={e => setNewStudent({...newStudent, student_code: e.target.value.replace(/\D/g, '')})} 
+                            />
+                            <button 
+                                type="button" 
+                                onClick={generateStudentCode} 
+                                className="absolute right-2 top-2 p-1.5 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 text-xs font-bold flex items-center gap-1"
+                            >
+                                <Key size={14}/> Avto-Yarat
+                            </button>
+                        </div>
                         <input required placeholder="Ad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.first_name} onChange={e => setNewStudent({...newStudent, first_name: e.target.value})} />
                         <input required placeholder="Soyad" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
                         <input placeholder="Ata adı" className="w-full p-3 bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl outline-none" value={newStudent.father_name} onChange={e => setNewStudent({...newStudent, father_name: e.target.value})} />
